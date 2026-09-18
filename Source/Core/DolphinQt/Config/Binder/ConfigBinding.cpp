@@ -4,9 +4,11 @@
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 
 #include <QFont>
+#include <QMouseEvent>
 #include <QWidget>
 #include <utility>
 
+#include "Common/Assert.h"
 #include "Common/ScopeGuard.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
@@ -16,8 +18,7 @@ namespace ConfigWidget
 ConfigBinding::ConfigBinding(QWidget* widget, Config::Location location, Config::Layer* layer)
     : QObject(widget), m_location(std::move(location)), m_layer(layer)
 {
-  // The filter is the hook for override handling (right-click-to-clear); deliberately a
-  // pass-through for now.
+  // The filter is the hook for override handling (right-click-to-clear).
   widget->installEventFilter(this);
   connect(&ConfigChangeBroadcaster::Instance(), &ConfigChangeBroadcaster::Changed, this,
           &ConfigBinding::RefreshFromConfig);
@@ -28,6 +29,12 @@ ConfigBinding::~ConfigBinding() = default;
 QWidget* ConfigBinding::GetWidget() const
 {
   return qobject_cast<QWidget*>(parent());
+}
+
+void ConfigBinding::AddFontMirror(QWidget* follower)
+{
+  m_font_mirrors.emplace_back(follower);
+  ApplyOverrideFont();
 }
 
 void ConfigBinding::RefreshFromConfig()
@@ -46,13 +53,45 @@ void ConfigBinding::ApplyOverrideFont()
   if (widget == nullptr)
     return;
 
+  const bool local = Logic::IsLocal(m_location, m_layer);
+
   QFont font = widget->font();
-  font.setBold(Logic::IsLocal(m_location, m_layer));
+  font.setBold(local);
   widget->setFont(font);
+
+  for (const QPointer<QWidget>& mirror : m_font_mirrors)
+  {
+    if (mirror.isNull())
+      continue;
+    QFont mirror_font = mirror->font();
+    mirror_font.setBold(local);
+    mirror->setFont(mirror_font);
+  }
 }
 
 bool ConfigBinding::eventFilter(QObject* watched, QEvent* event)
 {
+  // The filter is installed on exactly one object.
+  DEBUG_ASSERT(watched == parent());
+
+  // Was ConfigControl::mousePressEvent. Right-click clears a per-game override; with no layer
+  // there is nothing to clear and the widget must still receive the click so context menus work.
+  if (event->type() == QEvent::MouseButtonPress && m_layer != nullptr &&
+      static_cast<QMouseEvent*>(event)->button() == Qt::RightButton)
+  {
+    QWidget* const widget = GetWidget();
+    // QWidget::event() drops mouse events for a disabled widget, so ConfigControl's override never
+    // ran for one. Object event filters run before that, so the check has to be explicit here.
+    if (widget != nullptr && widget->isEnabled())
+    {
+      Logic::ClearLocal(m_location, m_layer);
+      // Logic::ClearLocal already calls Config::OnConfigChanged(), which reaches other bound
+      // widgets through Settings. Refresh directly as well: qt-tests does not construct Settings.
+      RefreshFromConfig();
+      return true;
+    }
+  }
+
   return QObject::eventFilter(watched, event);
 }
 }  // namespace ConfigWidget

@@ -467,4 +467,13 @@ ConfigBinding* FindBinding(QWidget* widget)
 {
   return widget->findChild<ConfigBinding*>(QString{}, Qt::FindDirectChildrenOnly);
 }
+
+void MirrorFont(QLabel* label, QWidget* control)
+{
+  ConfigBinding* const binding = FindBinding(control);
+  DEBUG_ASSERT_MSG(COMMON, binding != nullptr, "MirrorFont called on an unbound control");
+  if (binding == nullptr)
+    return;
+  binding->AddFontMirror(label);
+}
 }  // namespace ConfigWidget

@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <vector>
+
 #include <QObject>
+#include <QPointer>
 
 #include "Common/Config/ConfigInfo.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
@@ -35,6 +38,10 @@ public:
   const Config::Location& GetLocation() const { return m_location; }
   Config::Layer* GetLayer() const { return m_layer; }
 
+  // `follower`'s font is set alongside this binding's whenever the override state is re-applied.
+  // Used by MirrorFont so a label goes bold beside the control it names.
+  void AddFontMirror(QWidget* follower);
+
 protected:
   QWidget* GetWidget() const;
 
@@ -56,6 +63,9 @@ private:
   const Config::Location m_location;
   Config::Layer* m_layer;  // Caller must keep the layer alive at least as long as the widget.
   bool m_updating = false;
+
+  // QPointer so a follower outliving its control is safe rather than a dangling read.
+  std::vector<QPointer<QWidget>> m_font_mirrors;
 };
 
 // Shared state for a binding whose widget holds one value of type T. A template, so it carries no

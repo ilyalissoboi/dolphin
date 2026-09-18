@@ -6,6 +6,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigBinderRoundTripTest.cpp
   ConfigBinderMappedTest.cpp
   ConfigBinderFloatAndPathTest.cpp
+  ConfigBinderOverrideTest.cpp
 )
 set_target_properties(qt-tests PROPERTIES FOLDER Tests)
 set_target_properties(qt-tests PROPERTIES

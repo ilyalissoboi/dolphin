@@ -108,6 +108,11 @@ void SetPathWarningHandlerForTesting(PathWarningHandler handler);
 // The binding attached to `widget`, or nullptr if it has none.
 ConfigBinding* FindBinding(QWidget* widget);
 
+// Replaces ConfigSliderLabel, ConfigIntegerLabel and ConfigFloatLabel, which exist only to copy
+// their control's font so the label goes bold beside an overridden setting. `control` must already
+// be bound.
+void MirrorFont(QLabel* label, QWidget* control);
+
 namespace detail
 {
 // value <-> combo-index mapping, shared by both BindMapped overloads. No Q_OBJECT: it is a
