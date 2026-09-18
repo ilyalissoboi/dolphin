@@ -4818,10 +4818,15 @@ compare; what remains:
 - [ ] `tests` green, including the 14 new Qt-free cases:
       `./build/Binaries/tests` — note that `ctest` from the build root finds nothing here, there is
       a single `tests` binary.
-- [ ] `qt-tests` green, 67 cases: `./build/Binaries/Tests/qt-tests -platform offscreen`.
+- [ ] `qt-tests` green, 86 cases: `./build/Binaries/Tests/qt-tests -platform offscreen`. The 67 this
+      line originally carried was a planning-time estimate; the review rounds on Tasks 5 to 11 added
+      cases, and 86 is the count measured at `e18369c905`. Read the number off the suite rather than
+      trusting this line.
 - [ ] `qt-tests` green on Windows through the UAT host's interactive session, with no `-platform`
       argument — the bundled Qt has no offscreen plugin. This is the one gate that cannot be run
-      from macOS.
+      from macOS. This run also settles the one residual that macOS cannot check: whether
+      `dolphinqt-config-binder` re-enables RTTI for the `ModalMessageBox.cpp` it pulls in. See entry
+      9 of the slice's residuals.
 - [ ] `dolphin-emu` builds and launches on both platforms, and `Bind()` has no production caller
       yet, so nothing user-visible changed. Open the Graphics and Interface panes and confirm they
       behave exactly as before: they still use `ConfigControls/`, untouched by this slice.
