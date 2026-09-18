@@ -33,6 +33,12 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigBinding.h
   Config/Binder/ConfigWidgetBinder.cpp
   Config/Binder/ConfigWidgetBinder.h
+  Config/Binder/BalloonTipFilter.cpp
+  Config/Binder/BalloonTipFilter.h
+  Config/ToolTipControls/BalloonTip.cpp
+  Config/ToolTipControls/BalloonTip.h
+  Config/ToolTipControls/ToolTipStyle.cpp
+  Config/ToolTipControls/ToolTipStyle.h
   # ModalMessageBox lives here so qt-tests can link ConfigWidgetBinder (which calls it for user path
   # validation) without pulling in the full dolphin-emu sources.
   QtUtils/ModalMessageBox.cpp
@@ -218,8 +224,6 @@ add_executable(dolphin-emu
   Config/PropertiesDialog.h
   Config/SettingsWindow.cpp
   Config/SettingsWindow.h
-  Config/ToolTipControls/BalloonTip.cpp
-  Config/ToolTipControls/BalloonTip.h
   Config/ToolTipControls/ToolTipCheckBox.cpp
   Config/ToolTipControls/ToolTipCheckBox.h
   Config/ToolTipControls/ToolTipComboBox.cpp

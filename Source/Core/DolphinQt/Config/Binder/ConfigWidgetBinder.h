@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <QComboBox>
+#include <QPoint>
 #include <QString>
 
 #include "Common/Assert.h"
@@ -112,6 +113,16 @@ ConfigBinding* FindBinding(QWidget* widget);
 // their control's font so the label goes bold beside an overridden setting. `control` must already
 // be bound.
 void MirrorFont(QLabel* label, QWidget* control);
+
+// Balloon tooltip text. For a QAbstractButton an empty `title` falls back to the button's own
+// label, which is what ToolTipCheckBox and ToolTipRadioButton did in their constructors. Any other
+// widget keeps the empty title: for a spin box or a line edit, `text` is the current value.
+void SetDescription(QWidget* widget, QString title, QString description);
+QString ToolTipTitle(const QWidget* widget);
+QString ToolTipDescription(const QWidget* widget);
+
+// The balloon's arrow tip, in the widget's own coordinates.
+QPoint ToolTipAnchor(const QWidget* widget);
 
 namespace detail
 {

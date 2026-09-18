@@ -25,8 +25,8 @@
 #include <QToolTip>
 #endif
 
+#include "DolphinQt/Config/ToolTipControls/ToolTipStyle.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
-#include "DolphinQt/Settings.h"
 
 namespace
 {
@@ -79,8 +79,8 @@ BalloonTip::BalloonTip(PrivateTag, const QString& title, QString message, QWidge
   QColor window_color;
   QColor text_color;
   QColor dolphin_emphasis;
-  Settings::Instance().GetToolTipStyle(window_color, text_color, dolphin_emphasis, m_border_color,
-                                       parent->palette(), palette());
+  ToolTipStyle::GetToolTipStyle(window_color, text_color, dolphin_emphasis, m_border_color,
+                                parent->palette(), palette());
   const auto style_sheet = QStringLiteral("background-color: #%1; color: #%2;")
                                .arg(window_color.rgba(), 0, 16)
                                .arg(text_color.rgba(), 0, 16);

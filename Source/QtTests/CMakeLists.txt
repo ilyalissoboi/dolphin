@@ -7,6 +7,11 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigBinderMappedTest.cpp
   ConfigBinderFloatAndPathTest.cpp
   ConfigBinderOverrideTest.cpp
+  BalloonTipFilterTest.cpp
+  # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
+  # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is
+  # compiler-checked against the declaration.
+  ${CMAKE_SOURCE_DIR}/Source/UnitTests/StubHost.cpp
 )
 set_target_properties(qt-tests PROPERTIES FOLDER Tests)
 set_target_properties(qt-tests PROPERTIES

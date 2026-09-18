@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 
+#include <QAbstractButton>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
@@ -13,9 +14,12 @@
 #include <QRadioButton>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStyle>
+#include <QStyleOption>
 
 #include "Common/Assert.h"
 #include "Common/FileUtil.h"
+#include "DolphinQt/Config/Binder/BalloonTipFilter.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
@@ -337,6 +341,71 @@ bool IsValidFloatFormat(const QString& format)
   }
   return false;
 }
+
+// initStyleOption is protected on QCheckBox, QRadioButton and QSlider, so a filter cannot call it.
+// QStyleOption::initFrom is public, but it only covers rect, state's window-level bits, direction,
+// palette and fontMetrics - not the per-widget fields below.
+int IndicatorWidth(const QWidget* widget, QStyle::SubElement sub_element)
+{
+  constexpr int FALLBACK_WIDTH = 18;
+  QStyle* const style = widget->style();
+  if (style == nullptr)
+    return FALLBACK_WIDTH;
+
+  QStyleOptionButton opt;
+  opt.initFrom(widget);
+  opt.rect = widget->rect();
+  // QCheckBox/QRadioButton::initStyleOption also set these, and QStyleSheetStyle resolves the
+  // indicator's geometry through the :checked/:unchecked/:indeterminate/:pressed pseudo-classes
+  // that come from them. Without them a user stylesheet that sizes the indicator per state anchors
+  // the balloon in the wrong place.
+  if (const auto* const button = qobject_cast<const QAbstractButton*>(widget))
+  {
+    if (button->isDown())
+      opt.state |= QStyle::State_Sunken;
+    const auto* const check_box = qobject_cast<const QCheckBox*>(widget);
+    if (check_box != nullptr && check_box->checkState() == Qt::PartiallyChecked)
+      opt.state |= QStyle::State_NoChange;
+    else
+      opt.state |= button->isChecked() ? QStyle::State_On : QStyle::State_Off;
+    opt.text = button->text();
+    opt.icon = button->icon();
+    opt.iconSize = button->iconSize();
+  }
+  return style->subElementRect(sub_element, &opt, widget).width();
+}
+
+QRect SliderHandleRect(const QSlider* slider)
+{
+  constexpr QRect FALLBACK_RECT{0, 0, 15, 15};
+  QStyle* const style = slider->style();
+  if (style == nullptr)
+    return FALLBACK_RECT;
+
+  // The fields QSlider::initStyleOption sets, all of them publicly readable.
+  QStyleOptionSlider opt;
+  opt.initFrom(slider);
+  opt.rect = slider->rect();
+  opt.subControls = QStyle::SC_None;
+  opt.activeSubControls = QStyle::SC_None;
+  opt.orientation = slider->orientation();
+  opt.minimum = slider->minimum();
+  opt.maximum = slider->maximum();
+  opt.tickPosition = slider->tickPosition();
+  opt.tickInterval = slider->tickInterval();
+  opt.upsideDown = slider->orientation() == Qt::Horizontal ?
+                       slider->invertedAppearance() != (opt.direction == Qt::RightToLeft) :
+                       !slider->invertedAppearance();
+  opt.direction = Qt::LeftToRight;  // upsideDown carries the inversion instead
+  opt.sliderPosition = slider->sliderPosition();
+  opt.sliderValue = slider->value();
+  opt.singleStep = slider->singleStep();
+  opt.pageStep = slider->pageStep();
+  if (slider->orientation() == Qt::Horizontal)
+    opt.state |= QStyle::State_Horizontal;
+
+  return style->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle, slider);
+}
 }  // namespace
 
 void Bind(QCheckBox* widget, const Config::Info<bool>& setting, Config::Layer* layer, bool reverse)
@@ -475,5 +544,48 @@ void MirrorFont(QLabel* label, QWidget* control)
   if (binding == nullptr)
     return;
   binding->AddFontMirror(label);
+}
+
+QPoint ToolTipAnchor(const QWidget* widget)
+{
+  if (const auto* const slider = qobject_cast<const QSlider*>(widget))
+    return SliderHandleRect(slider).center();
+  if (qobject_cast<const QCheckBox*>(widget) != nullptr)
+    return {IndicatorWidth(widget, QStyle::SE_CheckBoxIndicator) / 2, widget->height() / 2};
+  if (qobject_cast<const QRadioButton*>(widget) != nullptr)
+    return {IndicatorWidth(widget, QStyle::SE_RadioButtonIndicator) / 2, widget->height() / 2};
+
+  return {widget->width() / 2, widget->height() / 2};
+}
+
+void SetDescription(QWidget* widget, QString title, QString description)
+{
+  if (title.isEmpty())
+  {
+    // Only ToolTipCheckBox and ToolTipRadioButton derived a title from their label. A generic
+    // property("text") read also matches QAbstractSpinBox and QLineEdit, where "text" is the
+    // current *value* - a spin box would get a balloon titled "50 ms".
+    if (const auto* const button = qobject_cast<const QAbstractButton*>(widget))
+      title = button->text();
+  }
+
+  auto* filter = widget->findChild<BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
+  if (filter == nullptr)
+    filter = new BalloonTipFilter{widget};
+  filter->SetText(std::move(title), std::move(description));
+}
+
+QString ToolTipTitle(const QWidget* widget)
+{
+  const auto* const filter =
+      widget->findChild<const BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
+  return filter == nullptr ? QString{} : filter->GetTitle();
+}
+
+QString ToolTipDescription(const QWidget* widget)
+{
+  const auto* const filter =
+      widget->findChild<const BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
+  return filter == nullptr ? QString{} : filter->GetDescription();
 }
 }  // namespace ConfigWidget
