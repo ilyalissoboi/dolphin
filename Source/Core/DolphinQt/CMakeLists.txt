@@ -29,6 +29,10 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigSliderMapping.h
   Config/Binder/ConfigChangeBroadcaster.cpp
   Config/Binder/ConfigChangeBroadcaster.h
+  Config/Binder/ConfigBinding.cpp
+  Config/Binder/ConfigBinding.h
+  Config/Binder/ConfigWidgetBinder.cpp
+  Config/Binder/ConfigWidgetBinder.h
 )
 target_include_directories(dolphinqt-config-binder PUBLIC ${CMAKE_SOURCE_DIR}/Source/Core)
 target_link_libraries(dolphinqt-config-binder PUBLIC Qt6::Widgets PRIVATE core)

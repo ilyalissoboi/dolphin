@@ -2,6 +2,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   QtTestsMain.cpp
   SignalRecorder.h
   ConfigChangeBroadcasterTest.cpp
+  ConfigBinderRoundTripTest.cpp
 )
 set_target_properties(qt-tests PROPERTIES FOLDER Tests)
 set_target_properties(qt-tests PROPERTIES
