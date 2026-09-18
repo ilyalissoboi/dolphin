@@ -3,12 +3,21 @@
 
 #pragma once
 
+#include <algorithm>
+#include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include <QComboBox>
+#include <QString>
+
+#include "Common/Assert.h"
+#include "Common/CommonTypes.h"
 #include "Common/Config/ConfigInfo.h"
+#include "DolphinQt/Config/Binder/ConfigBinding.h"
 
 class QCheckBox;
-class QComboBox;
 class QLineEdit;
 class QRadioButton;
 class QSlider;
@@ -43,6 +52,97 @@ void Bind(QRadioButton* widget, const Config::Info<int>& setting, int value,
 void Bind(QLineEdit* widget, const Config::Info<std::string>& setting,
           Config::Layer* layer = nullptr);
 
+void Bind(QComboBox* widget, const Config::Info<u32>& setting, Config::Layer* layer = nullptr);
+
+// Two forms, matching ConfigStringChoice: the option text is the stored data, or display text and
+// stored data are given separately.
+void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& setting,
+                      std::span<const std::string> options, Config::Layer* layer = nullptr);
+void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& setting,
+                      std::span<const std::pair<QString, QString>> options,
+                      Config::Layer* layer = nullptr);
+
+// Slider position i means tick_values[i]. The .ui must author minimum 0, maximum one less than the
+// tick count, pageStep 1 and a tick position; the binding asserts the range and never changes it.
+// Disables the slider while the config value matches no tick. The binding owns the enabled
+// property.
+void BindMapped(QSlider* widget, const Config::Info<int>& setting, std::span<const int> tick_values,
+                Config::Layer* layer = nullptr);
+// Stored value is the slider position times `scale`.
+void BindScaled(QSlider* widget, const Config::Info<u32>& setting, u32 scale,
+                Config::Layer* layer = nullptr);
+
 // The binding attached to `widget`, or nullptr if it has none.
 ConfigBinding* FindBinding(QWidget* widget);
+
+namespace detail
+{
+// value <-> combo-index mapping, shared by both BindMapped overloads. No Q_OBJECT: it is a
+// template.
+template <typename T>
+class MappedComboBinding final : public ValueBinding<QComboBox, T>
+{
+public:
+  MappedComboBinding(QComboBox* box, const Config::Info<T>& setting, std::vector<T> values,
+                     Config::Layer* layer)
+      : ValueBinding<QComboBox, T>(box, setting, layer), m_values(std::move(values))
+  {
+    QObject::connect(box, &QComboBox::currentIndexChanged, this,
+                     &MappedComboBinding::OnIndexChanged);
+    this->RefreshFromConfig();
+  }
+
+private:
+  void LoadFromConfig() override
+  {
+    const T value = this->Read();
+    const auto it = std::find(m_values.begin(), m_values.end(), value);
+    // -1 when nothing matches, as ConfigChoiceMap does: better an empty combo than a wrong
+    // selection that the user then saves by touching something else.
+    const int index =
+        it == m_values.end() ? -1 : static_cast<int>(std::distance(m_values.begin(), it));
+    this->GetTypedWidget()->setCurrentIndex(index);
+  }
+
+  void OnIndexChanged(int index)
+  {
+    if (index < 0 || static_cast<size_t>(index) >= m_values.size())
+      return;
+    this->Save(m_values[static_cast<size_t>(index)]);
+  }
+
+  const std::vector<T> m_values;
+};
+}  // namespace detail
+
+// The items are authored in the .ui file; `values` pairs with them by index, so the display text
+// stays in the uic translation path.
+template <typename T>
+void BindMapped(QComboBox* widget, const Config::Info<T>& setting, std::span<const T> values,
+                Config::Layer* layer = nullptr)
+{
+  DEBUG_ASSERT(FindBinding(widget) == nullptr);
+  DEBUG_ASSERT(!values.empty());
+  DEBUG_ASSERT(widget->count() == static_cast<int>(values.size()));
+  new detail::MappedComboBinding<T>{widget, setting, std::vector<T>(values.begin(), values.end()),
+                                    layer};
+}
+
+// For option sets computed at runtime, which cannot be authored in Designer. Populates the combo.
+template <typename T>
+void BindMapped(QComboBox* widget, const Config::Info<T>& setting,
+                std::span<const std::pair<QString, T>> options, Config::Layer* layer = nullptr)
+{
+  DEBUG_ASSERT(FindBinding(widget) == nullptr);
+  DEBUG_ASSERT(!options.empty());
+  DEBUG_ASSERT(widget->count() == 0);
+  std::vector<T> values;
+  values.reserve(options.size());
+  for (const auto& [text, value] : options)
+  {
+    widget->addItem(text);
+    values.push_back(value);
+  }
+  new detail::MappedComboBinding<T>{widget, setting, std::move(values), layer};
+}
 }  // namespace ConfigWidget
