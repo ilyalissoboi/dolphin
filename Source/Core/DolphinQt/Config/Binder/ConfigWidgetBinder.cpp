@@ -12,12 +12,15 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QRadioButton>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStyle>
 #include <QStyleOption>
 
 #include "Common/Assert.h"
+#include "Common/Config/Config.h"
+#include "Common/Config/Layer.h"
 #include "Common/FileUtil.h"
 #include "DolphinQt/Config/Binder/BalloonTipFilter.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
@@ -518,6 +521,115 @@ void MirrorFloatValue(QLabel* label, FloatSliderHandle handle, const QString& fo
   };
   QObject::connect(handle.slider, &QSlider::valueChanged, label, update);
   update();
+}
+
+namespace
+{
+Config::Location LocationOf(const ComplexBinding::InfoVariant& info)
+{
+  return std::visit([](const auto& setting) { return setting.GetLocation(); }, info);
+}
+}  // namespace
+
+ComplexBinding::ComplexBinding(QComboBox* box, const InfoVariant& setting1,
+                               const InfoVariant& setting2, Config::Layer* layer)
+    : ConfigBinding(box, LocationOf(setting1), layer), m_setting1(setting1), m_setting2(setting2)
+{
+  SetSecondaryLocation(LocationOf(setting2));
+  connect(box, &QComboBox::currentIndexChanged, this, &ComplexBinding::OnIndexChanged);
+  RefreshFromConfig();
+}
+
+void ComplexBinding::Add(const QString& name, OptionVariant option1, OptionVariant option2)
+{
+  auto* const box = static_cast<QComboBox*>(GetWidget());
+  // The upper-bound guard in OnIndexChanged already rejects the first addItem's auto-selection
+  // (index 0 arrives while m_options is empty). The blocker is kept so that protection does not
+  // depend on addItem preceding emplace_back.
+  const QSignalBlocker blocker{box};
+  box->addItem(name);
+  m_options.emplace_back(std::move(option1), std::move(option2));
+  RefreshFromConfig();
+}
+
+void ComplexBinding::SetDefault(int index)
+{
+  m_default_index = index;
+  RefreshFromConfig();
+}
+
+void ComplexBinding::Reset()
+{
+  auto* const box = static_cast<QComboBox*>(GetWidget());
+  const QSignalBlocker blocker{box};
+  box->clear();
+  m_options.clear();
+}
+
+std::pair<Config::Location, Config::Location> ComplexBinding::GetLocations() const
+{
+  return {LocationOf(m_setting1), LocationOf(m_setting2)};
+}
+
+void ComplexBinding::LoadFromConfig()
+{
+  // Deliberately NOT Logic::ReadValue. ConfigComplexChoice reads a per-game value with
+  // Layer::Get(), which yields the setting's *default* when the layer has no key, where every other
+  // control falls back to the global value. Reproduced as-is so this slice changes mechanism only;
+  // ConfigComplexBindingTest pins it.
+  const auto read = [this](const auto& setting) -> OptionVariant {
+    if (GetLayer() != nullptr)
+      return static_cast<OptionVariant>(GetLayer()->Get(setting));
+    return static_cast<OptionVariant>(Config::Get(setting));
+  };
+  const auto default_of = [](const auto& setting) -> OptionVariant {
+    return OptionVariant(setting.GetDefaultValue());
+  };
+
+  const auto matches = [&](const InfoVariant& info, const OptionVariant& option) {
+    const OptionVariant wanted = std::holds_alternative<Config::DefaultState>(option) ?
+                                     std::visit(default_of, info) :
+                                     option;
+    return std::visit(read, info) == wanted;
+  };
+
+  const auto it = std::ranges::find_if(m_options, [&](const auto& option) {
+    return matches(m_setting1, option.first) && matches(m_setting2, option.second);
+  });
+
+  const int index = it == m_options.end() ? m_default_index :
+                                            static_cast<int>(std::distance(m_options.begin(), it));
+
+  auto* const box = static_cast<QComboBox*>(GetWidget());
+  const QSignalBlocker blocker{box};
+  box->setCurrentIndex(index);
+}
+
+void ComplexBinding::OnIndexChanged(int index)
+{
+  if (IsUpdating() || index < 0 || static_cast<size_t>(index) >= m_options.size())
+    return;
+
+  const auto set = [this](const auto& setting, const auto& value) {
+    if (Config::Layer* const layer = GetLayer())
+    {
+      layer->Set(setting.GetLocation(), value);
+      Config::OnConfigChanged();
+      return;
+    }
+    Config::SetBaseOrCurrent(setting, value);
+  };
+
+  std::visit(set, m_setting1, m_options[static_cast<size_t>(index)].first);
+  std::visit(set, m_setting2, m_options[static_cast<size_t>(index)].second);
+}
+
+ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant& setting1,
+                            const ComplexBinding::InfoVariant& setting2, Config::Layer* layer)
+{
+  DEBUG_ASSERT(FindBinding(widget) == nullptr);
+  DEBUG_ASSERT(widget->count() == 0);
+  return new ComplexBinding{widget, setting1, setting2, layer};
 }
 
 void BindUserPath(QLineEdit* widget, unsigned int dir_index,

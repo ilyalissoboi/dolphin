@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <QComboBox>
@@ -17,6 +18,7 @@
 #include "Common/Assert.h"
 #include "Common/CommonTypes.h"
 #include "Common/Config/ConfigInfo.h"
+#include "Common/Config/Layer.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigSliderMapping.h"
 
@@ -123,6 +125,41 @@ QString ToolTipDescription(const QWidget* widget);
 
 // The balloon's arrow tip, in the widget's own coordinates.
 QPoint ToolTipAnchor(const QWidget* widget);
+
+// Two settings driving one combo box: today's ConfigComplexChoice. Returned by BindComplex rather
+// than bound in one call, because the option list is pairs of *values*, which cannot be authored in
+// Designer, so callers add them afterwards.
+class ComplexBinding final : public ConfigBinding
+{
+public:
+  using InfoVariant = std::variant<Config::Info<u32>, Config::Info<int>, Config::Info<bool>>;
+  using OptionVariant = std::variant<Config::DefaultState, u32, int, bool>;
+
+  ComplexBinding(QComboBox* box, const InfoVariant& setting1, const InfoVariant& setting2,
+                 Config::Layer* layer);
+
+  void Add(const QString& name, OptionVariant option1, OptionVariant option2);
+  // Index selected when no option matches the current values. -1, meaning "select nothing", until
+  // set.
+  void SetDefault(int index);
+  void Reset();
+
+  std::pair<Config::Location, Config::Location> GetLocations() const;
+
+private:
+  void LoadFromConfig() override;
+  void OnIndexChanged(int index);
+
+  const InfoVariant m_setting1;
+  const InfoVariant m_setting2;
+  std::vector<std::pair<OptionVariant, OptionVariant>> m_options;
+  int m_default_index = -1;
+};
+
+// Returned binding is a QObject child of the widget and lives as long as the widget does.
+ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant& setting1,
+                            const ComplexBinding::InfoVariant& setting2,
+                            Config::Layer* layer = nullptr);
 
 namespace detail
 {

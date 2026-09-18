@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include <vector>
 
 #include <QObject>
@@ -36,6 +37,12 @@ public:
   ~ConfigBinding() override;
 
   const Config::Location& GetLocation() const { return m_location; }
+  // The optional secondary location. A binding with no secondary returns nullopt. A caller sweeping
+  // bindings generically must consult both GetLocation() and GetSecondaryLocation().
+  const std::optional<Config::Location>& GetSecondaryLocation() const
+  {
+    return m_secondary_location;
+  }
   Config::Layer* GetLayer() const { return m_layer; }
 
   // `follower`'s font is set alongside this binding's whenever the override state is re-applied.
@@ -53,6 +60,10 @@ protected:
   // Re-reads config into the widget and re-applies the overridden-value font.
   void RefreshFromConfig();
 
+  // A second location that also counts for the bold font and is also cleared on right-click.
+  // Only ComplexBinding uses it; two is the most any control drives.
+  void SetSecondaryLocation(Config::Location location);
+
   virtual void LoadFromConfig() = 0;
 
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -63,6 +74,7 @@ private:
   const Config::Location m_location;
   Config::Layer* m_layer;  // Caller must keep the layer alive at least as long as the widget.
   bool m_updating = false;
+  std::optional<Config::Location> m_secondary_location;
 
   // QPointer so a follower outliving its control is safe rather than a dangling read.
   std::vector<QPointer<QWidget>> m_font_mirrors;

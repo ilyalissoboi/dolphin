@@ -47,13 +47,21 @@ void ConfigBinding::RefreshFromConfig()
   LoadFromConfig();
 }
 
+void ConfigBinding::SetSecondaryLocation(Config::Location location)
+{
+  m_secondary_location = std::move(location);
+  ApplyOverrideFont();
+}
+
 void ConfigBinding::ApplyOverrideFont()
 {
   QWidget* const widget = GetWidget();
   if (widget == nullptr)
     return;
 
-  const bool local = Logic::IsLocal(m_location, m_layer);
+  const bool local =
+      Logic::IsLocal(m_location, m_layer) ||
+      (m_secondary_location.has_value() && Logic::IsLocal(*m_secondary_location, m_layer));
 
   QFont font = widget->font();
   font.setBold(local);
@@ -85,6 +93,8 @@ bool ConfigBinding::eventFilter(QObject* watched, QEvent* event)
     if (widget != nullptr && widget->isEnabled())
     {
       Logic::ClearLocal(m_location, m_layer);
+      if (m_secondary_location.has_value())
+        Logic::ClearLocal(*m_secondary_location, m_layer);
       // Logic::ClearLocal already calls Config::OnConfigChanged(), which reaches other bound
       // widgets through Settings. Refresh directly as well: qt-tests does not construct Settings.
       RefreshFromConfig();
