@@ -8,6 +8,7 @@ endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
 
@@ -20,6 +21,17 @@ endif()
 message(STATUS "Found Qt version ${Qt6_VERSION}")
 
 set_property(TARGET Qt6::Core PROPERTY INTERFACE_COMPILE_FEATURES "")
+
+# The config binder is its own target so qt-tests can link it without pulling in the rest of
+# DolphinQt. Later tasks add sources here with target_sources().
+add_library(dolphinqt-config-binder STATIC
+  Config/Binder/ConfigBindingLogic.h
+  Config/Binder/ConfigSliderMapping.h
+  Config/Binder/ConfigChangeBroadcaster.cpp
+  Config/Binder/ConfigChangeBroadcaster.h
+)
+target_include_directories(dolphinqt-config-binder PUBLIC ${CMAKE_SOURCE_DIR}/Source/Core)
+target_link_libraries(dolphinqt-config-binder PUBLIC Qt6::Widgets PRIVATE core)
 
 add_executable(dolphin-emu
   AboutDialog.cpp
@@ -453,6 +465,7 @@ PRIVATE
 
 target_link_libraries(dolphin-emu
 PRIVATE
+  dolphinqt-config-binder
   core
   Qt6::Widgets
   uicommon

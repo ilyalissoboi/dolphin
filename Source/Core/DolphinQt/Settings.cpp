@@ -36,6 +36,7 @@
 #include "Core/NetPlayServer.h"
 #include "Core/System.h"
 
+#include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
@@ -72,6 +73,11 @@ Settings::Settings()
       });
     }
   });
+
+  // Drive config-bound widgets from the same coalesced, GUI-thread-marshalled signal the rest of
+  // DolphinQt uses, so the binder library needs no dependency on Settings.
+  connect(this, &Settings::ConfigChanged, &ConfigWidget::ConfigChangeBroadcaster::Instance(),
+          &ConfigWidget::ConfigChangeBroadcaster::Broadcast);
 
   m_hotplug_event_hook = g_controller_interface.RegisterDevicesChangedCallback([this] {
     if (qApp->thread() == QThread::currentThread())
