@@ -4,7 +4,12 @@
 #include <memory>
 
 #include <QCheckBox>
+#include <QComboBox>
+#include <QLineEdit>
 #include <QPointer>
+#include <QRadioButton>
+#include <QSlider>
+#include <QSpinBox>
 #include <gtest/gtest.h>
 
 #include "Common/Config/Config.h"
@@ -16,6 +21,9 @@
 namespace
 {
 const Config::Info<bool> TEST_BOOL{{Config::System::Main, "BinderRoundTrip", "Bool"}, false};
+const Config::Info<int> TEST_INT{{Config::System::Main, "BinderRoundTrip", "Int"}, 0};
+const Config::Info<std::string> TEST_STRING{{Config::System::Main, "BinderRoundTrip", "String"},
+                                            ""};
 
 class NullLoader final : public Config::ConfigLayerLoader
 {
@@ -140,4 +148,117 @@ TEST_F(ConfigBinderRoundTripTest, BindingIsDestroyedWhenWidgetIsDestroyed)
   delete box;
 
   EXPECT_TRUE(binding_ptr.isNull()) << "binding must be destroyed with its widget";
+}
+
+TEST_F(ConfigBinderRoundTripTest, ComboBoxRoundTripsTheCurrentIndex)
+{
+  QComboBox box;
+  box.addItems({QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c")});
+  Config::SetBase(TEST_INT, 2);
+
+  ConfigWidget::Bind(&box, TEST_INT);
+  EXPECT_EQ(box.currentIndex(), 2);
+
+  box.setCurrentIndex(1);
+  EXPECT_EQ(Config::Get(TEST_INT), 1);
+}
+
+TEST_F(ConfigBinderRoundTripTest, SpinBoxRoundTripsAndKeepsItsDesignerRange)
+{
+  QSpinBox spin;
+  spin.setRange(10, 90);
+  Config::SetBase(TEST_INT, 42);
+
+  ConfigWidget::Bind(&spin, TEST_INT);
+  EXPECT_EQ(spin.value(), 42);
+  EXPECT_EQ(spin.minimum(), 10) << "Bind must not overwrite the range from the .ui file";
+  EXPECT_EQ(spin.maximum(), 90);
+
+  spin.setValue(55);
+  EXPECT_EQ(Config::Get(TEST_INT), 55);
+}
+
+TEST_F(ConfigBinderRoundTripTest, SliderRoundTrips)
+{
+  QSlider slider{Qt::Horizontal};
+  slider.setRange(0, 100);
+  Config::SetBase(TEST_INT, 30);
+
+  ConfigWidget::Bind(&slider, TEST_INT);
+  EXPECT_EQ(slider.value(), 30);
+
+  slider.setValue(70);
+  EXPECT_EQ(Config::Get(TEST_INT), 70);
+}
+
+TEST_F(ConfigBinderRoundTripTest, RadioButtonChecksOnlyWhenItsValueIsSelected)
+{
+  QWidget parent;
+  auto* const first = new QRadioButton{&parent};
+  auto* const second = new QRadioButton{&parent};
+  Config::SetBase(TEST_INT, 1);
+
+  ConfigWidget::Bind(first, TEST_INT, 0);
+  ConfigWidget::Bind(second, TEST_INT, 1);
+
+  EXPECT_FALSE(first->isChecked());
+  EXPECT_TRUE(second->isChecked());
+}
+
+TEST_F(ConfigBinderRoundTripTest, CheckingARadioButtonWritesItsOwnValue)
+{
+  QWidget parent;
+  auto* const first = new QRadioButton{&parent};
+  auto* const second = new QRadioButton{&parent};
+  ConfigWidget::Bind(first, TEST_INT, 0);
+  ConfigWidget::Bind(second, TEST_INT, 1);
+
+  second->setChecked(true);
+  EXPECT_EQ(Config::Get(TEST_INT), 1);
+
+  // Qt unchecks `second` as part of checking `first`. Only the winner may write.
+  first->setChecked(true);
+  EXPECT_EQ(Config::Get(TEST_INT), 0);
+}
+
+TEST_F(ConfigBinderRoundTripTest, LineEditWritesOnEditingFinishedNotOnEveryKeystroke)
+{
+  Config::SetBase(TEST_STRING, "before");
+  QLineEdit edit;
+  ConfigWidget::Bind(&edit, TEST_STRING);
+  EXPECT_EQ(edit.text(), QStringLiteral("before"));
+
+  edit.setText(QStringLiteral("partial-p"));
+  EXPECT_EQ(Config::Get(TEST_STRING), "before") << "a keystroke must not write config";
+
+  edit.setText(QStringLiteral("after"));
+  emit edit.editingFinished();
+  EXPECT_EQ(Config::Get(TEST_STRING), "after");
+}
+
+TEST_F(ConfigBinderRoundTripTest, EveryWidgetTypeRefreshesWithoutWritingBack)
+{
+  // Same re-entrancy guard as the check box case, for every type.
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::SetBase(TEST_INT, 5);
+  Config::SetBase(TEST_STRING, "base");
+
+  QComboBox combo;
+  combo.addItems({QStringLiteral("0"), QStringLiteral("1"), QStringLiteral("2"),
+                  QStringLiteral("3"), QStringLiteral("4"), QStringLiteral("5")});
+  QSpinBox spin;
+  spin.setRange(0, 100);
+  QSlider slider{Qt::Horizontal};
+  slider.setRange(0, 100);
+  QLineEdit edit;
+
+  ConfigWidget::Bind(&combo, TEST_INT, &layer);
+  ConfigWidget::Bind(&spin, TEST_INT, &layer);
+  ConfigWidget::Bind(&slider, TEST_INT, &layer);
+  ConfigWidget::Bind(&edit, TEST_STRING, &layer);
+
+  NotifyConfigChanged();
+
+  EXPECT_FALSE(layer.Exists(TEST_INT.GetLocation()));
+  EXPECT_FALSE(layer.Exists(TEST_STRING.GetLocation()));
 }

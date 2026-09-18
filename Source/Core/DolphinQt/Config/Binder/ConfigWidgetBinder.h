@@ -3,9 +3,16 @@
 
 #pragma once
 
+#include <string>
+
 #include "Common/Config/ConfigInfo.h"
 
 class QCheckBox;
+class QComboBox;
+class QLineEdit;
+class QRadioButton;
+class QSlider;
+class QSpinBox;
 class QWidget;
 
 namespace Config
@@ -23,6 +30,18 @@ class ConfigBinding;
 
 void Bind(QCheckBox* widget, const Config::Info<bool>& setting, Config::Layer* layer = nullptr,
           bool reverse = false);
+
+// Binds the combo box's current index. For an index-to-value mapping use BindMapped.
+void Bind(QComboBox* widget, const Config::Info<int>& setting, Config::Layer* layer = nullptr);
+// The spin box's and slider's minimum and maximum come from the .ui file and are left alone.
+void Bind(QSpinBox* widget, const Config::Info<int>& setting, Config::Layer* layer = nullptr);
+void Bind(QSlider* widget, const Config::Info<int>& setting, Config::Layer* layer = nullptr);
+// Checked exactly when the setting equals `value`; writes `value` when it becomes checked.
+void Bind(QRadioButton* widget, const Config::Info<int>& setting, int value,
+          Config::Layer* layer = nullptr);
+// Saves on editingFinished, so a half-typed path is never written to the config file.
+void Bind(QLineEdit* widget, const Config::Info<std::string>& setting,
+          Config::Layer* layer = nullptr);
 
 // The binding attached to `widget`, or nullptr if it has none.
 ConfigBinding* FindBinding(QWidget* widget);

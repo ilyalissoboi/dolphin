@@ -6,6 +6,7 @@
 #include <QObject>
 
 #include "Common/Config/ConfigInfo.h"
+#include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
 
 class QEvent;
 class QWidget;
@@ -55,5 +56,35 @@ private:
   const Config::Location m_location;
   Config::Layer* m_layer;  // Caller must keep the layer alive at least as long as the widget.
   bool m_updating = false;
+};
+
+// Shared state for a binding whose widget holds one value of type T. A template, so it carries no
+// Q_OBJECT and declares no signals or slots; concrete per-widget subclasses connect the widget's
+// value-changed signal and implement LoadFromConfig().
+template <typename Widget, typename T>
+class ValueBinding : public ConfigBinding
+{
+public:
+  ValueBinding(Widget* widget, const Config::Info<T>& setting, Config::Layer* layer)
+      : ConfigBinding(widget, setting.GetLocation(), layer), m_setting(setting)
+  {
+  }
+
+protected:
+  Widget* GetTypedWidget() const { return static_cast<Widget*>(GetWidget()); }
+
+  T Read() const { return Logic::ReadValue(m_setting, GetLayer()); }
+
+  void Save(const T& value)
+  {
+    if (IsUpdating())
+      return;
+    Logic::WriteValue(m_setting, GetLocation(), GetLayer(), value);
+  }
+
+private:
+  // Config::Info<T> has a deleted assignment operator and no move constructor, so it can only be
+  // initialised in the member-initialiser list above.
+  const Config::Info<T> m_setting;
 };
 }  // namespace ConfigWidget
