@@ -25,6 +25,7 @@
 #include "DolphinQt/Config/Binder/BalloonTipFilter.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
+#include "DolphinQt/Config/Binder/ConfigSettingRegistry.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 
 namespace ConfigWidget
@@ -409,48 +410,86 @@ QRect SliderHandleRect(const QSlider* slider)
 
   return style->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle, slider);
 }
+
+void RecordSetting(const Config::Location& location, SettingKind kind, Config::Layer* layer,
+                   const QWidget* widget)
+{
+  SettingEntry entry;
+  entry.location = location;
+  entry.kind = kind;
+  entry.per_game = layer != nullptr;
+
+  if (const auto* const box = qobject_cast<const QComboBox*>(widget))
+  {
+    for (int i = 0; i < box->count(); ++i)
+      entry.choices.push_back(box->itemText(i));
+  }
+  else if (const auto* const spin = qobject_cast<const QSpinBox*>(widget))
+  {
+    entry.minimum = spin->minimum();
+    entry.maximum = spin->maximum();
+    entry.step = spin->singleStep();
+  }
+  else if (const auto* const slider = qobject_cast<const QSlider*>(widget))
+  {
+    entry.minimum = slider->minimum();
+    entry.maximum = slider->maximum();
+  }
+
+  ConfigSettingRegistry::Instance().Record(std::move(entry));
+}
 }  // namespace
 
 void Bind(QCheckBox* widget, const Config::Info<bool>& setting, Config::Layer* layer, bool reverse)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new CheckBoxBinding{widget, setting, layer, reverse};
+  RecordSetting(setting.GetLocation(), SettingKind::Bool, layer, widget);
 }
 
 void Bind(QComboBox* widget, const Config::Info<int>& setting, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new ComboBoxBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Choice, layer, widget);
 }
 
 void Bind(QSpinBox* widget, const Config::Info<int>& setting, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new SpinBoxBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Int, layer, widget);
 }
 
 void Bind(QSlider* widget, const Config::Info<int>& setting, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new SliderBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Int, layer, widget);
 }
 
 void Bind(QRadioButton* widget, const Config::Info<int>& setting, int value, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new RadioButtonBinding{widget, setting, value, layer};
+  // Several radio buttons share one location, each carrying a different `value`. Recording merges
+  // by location, so a three-radio group collapses into one SettingKind::Int entry and the `value`
+  // arguments are lost. The follow-up project's settings browser will special-case radio groups.
+  RecordSetting(setting.GetLocation(), SettingKind::Int, layer, widget);
 }
 
 void Bind(QLineEdit* widget, const Config::Info<std::string>& setting, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new LineEditBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::String, layer, widget);
 }
 
 void Bind(QComboBox* widget, const Config::Info<u32>& setting, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new ComboBoxU32Binding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Choice, layer, widget);
 }
 
 void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& setting,
@@ -465,6 +504,7 @@ void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& settin
     widget->addItem(text, text);
   }
   new StringChoiceBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Choice, layer, widget);
 }
 
 void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& setting,
@@ -476,6 +516,7 @@ void BindStringChoice(QComboBox* widget, const Config::Info<std::string>& settin
   for (const auto& [text, value] : options)
     widget->addItem(text, value);
   new StringChoiceBinding{widget, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Choice, layer, widget);
 }
 
 void BindMapped(QSlider* widget, const Config::Info<int>& setting, std::span<const int> tick_values,
@@ -487,12 +528,28 @@ void BindMapped(QSlider* widget, const Config::Info<int>& setting, std::span<con
                widget->maximum() == static_cast<int>(tick_values.size()) - 1);
   new TickSliderBinding{widget, setting, std::vector<int>(tick_values.begin(), tick_values.end()),
                         layer};
+  SettingEntry entry;
+  entry.location = setting.GetLocation();
+  entry.kind = SettingKind::Int;
+  entry.per_game = layer != nullptr;
+  entry.minimum = static_cast<double>(tick_values.front());
+  entry.maximum = static_cast<double>(tick_values.back());
+  // No step: irregular spacing is the whole point of a mapped slider.
+  ConfigSettingRegistry::Instance().Record(std::move(entry));
 }
 
 void BindScaled(QSlider* widget, const Config::Info<u32>& setting, u32 scale, Config::Layer* layer)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new ScaledSliderBinding{widget, setting, scale, layer};
+  SettingEntry entry;
+  entry.location = setting.GetLocation();
+  entry.kind = SettingKind::U32;
+  entry.per_game = layer != nullptr;
+  entry.minimum = static_cast<double>(widget->minimum()) * scale;
+  entry.maximum = static_cast<double>(widget->maximum()) * scale;
+  entry.step = static_cast<double>(scale);
+  ConfigSettingRegistry::Instance().Record(std::move(entry));
 }
 
 float FloatSliderHandle::Value() const
@@ -508,6 +565,14 @@ FloatSliderHandle BindFloat(QSlider* widget, const Config::Info<float>& setting,
   DEBUG_ASSERT(range.MaximumPosition() > 0);
   DEBUG_ASSERT(widget->minimum() == 0 && widget->maximum() == range.MaximumPosition());
   new FloatSliderBinding{widget, setting, range, layer};
+  SettingEntry entry;
+  entry.location = setting.GetLocation();
+  entry.kind = SettingKind::Float;
+  entry.per_game = layer != nullptr;
+  entry.minimum = minimum;
+  entry.maximum = maximum;
+  entry.step = step;
+  ConfigSettingRegistry::Instance().Record(std::move(entry));
   return FloatSliderHandle{widget, range};
 }
 
@@ -629,7 +694,13 @@ ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   DEBUG_ASSERT(widget->count() == 0);
-  return new ComplexBinding{widget, setting1, setting2, layer};
+  auto* const binding = new ComplexBinding{widget, setting1, setting2, layer};
+  // Complex bindings are populated afterwards, so record kind = Complex with empty choices and
+  // record nothing further. The follow-up project's settings browser will special-case complex
+  // settings.
+  const Config::Location location = LocationOf(setting1);
+  RecordSetting(location, SettingKind::Complex, layer, widget);
+  return binding;
 }
 
 void BindUserPath(QLineEdit* widget, unsigned int dir_index,
@@ -637,6 +708,7 @@ void BindUserPath(QLineEdit* widget, unsigned int dir_index,
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new UserPathBinding{widget, dir_index, setting, layer};
+  RecordSetting(setting.GetLocation(), SettingKind::Path, layer, widget);
 }
 
 void SetPathWarningHandlerForTesting(PathWarningHandler handler)
@@ -684,7 +756,15 @@ void SetDescription(QWidget* widget, QString title, QString description)
   auto* filter = widget->findChild<BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
   if (filter == nullptr)
     filter = new BalloonTipFilter{widget};
-  filter->SetText(std::move(title), std::move(description));
+  // Pass copies to the filter because the registry forward below still needs the strings.
+  filter->SetText(title, description);
+
+  // Unbound widgets get a tooltip and no registry entry: ToolTipPushButton has no setting.
+  if (const ConfigBinding* const binding = FindBinding(widget))
+  {
+    ConfigSettingRegistry::Instance().SetText(binding->GetLocation(), std::move(title),
+                                              std::move(description));
+  }
 }
 
 QString ToolTipTitle(const QWidget* widget)
