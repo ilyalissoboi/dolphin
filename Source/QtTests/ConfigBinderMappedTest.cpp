@@ -17,6 +17,7 @@
 #include "Common/Config/Layer.h"
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
 #include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
+#include "NullConfigLoader.h"
 
 namespace
 {
@@ -31,14 +32,6 @@ const Config::Info<Mode> TEST_MODE{{Config::System::Main, "BinderMapped", "Mode"
 const Config::Info<int> TEST_TICKS{{Config::System::Main, "BinderMapped", "Ticks"}, 0};
 const Config::Info<u32> TEST_U32{{Config::System::Main, "BinderMapped", "U32"}, 0};
 const Config::Info<std::string> TEST_STR{{Config::System::Main, "BinderMapped", "Str"}, ""};
-
-class NullLoader final : public Config::ConfigLayerLoader
-{
-public:
-  NullLoader() : ConfigLayerLoader(Config::LayerType::Base) {}
-  void Load(Config::Layer*) override {}
-  void Save(Config::Layer*) override {}
-};
 
 class ConfigBinderMappedTest : public ::testing::Test
 {

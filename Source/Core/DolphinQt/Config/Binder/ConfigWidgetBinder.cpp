@@ -8,14 +8,17 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QRadioButton>
 #include <QSlider>
 #include <QSpinBox>
 
 #include "Common/Assert.h"
+#include "Common/FileUtil.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
+#include "DolphinQt/QtUtils/ModalMessageBox.h"
 
 namespace ConfigWidget
 {
@@ -237,6 +240,103 @@ private:
 
   const u32 m_scale;
 };
+
+// GUI-thread-only, unguarded. Test fixtures reset to {} in TearDown to restore the default modal.
+PathWarningHandler s_path_warning_handler;
+
+void WarnAboutPath(QWidget* parent, const QString& message)
+{
+  if (s_path_warning_handler)
+  {
+    s_path_warning_handler(parent, message);
+    return;
+  }
+  ModalMessageBox::warning(parent, QObject::tr("Empty Value"), message);
+}
+
+class FloatSliderBinding final : public ValueBinding<QSlider, float>
+{
+public:
+  FloatSliderBinding(QSlider* slider, const Config::Info<float>& setting, FloatSliderRange range,
+                     Config::Layer* layer)
+      : ValueBinding(slider, setting, layer), m_range(range)
+  {
+    connect(slider, &QSlider::valueChanged, this, &FloatSliderBinding::OnValueChanged);
+    RefreshFromConfig();
+  }
+
+private:
+  void LoadFromConfig() override { GetTypedWidget()->setValue(m_range.PositionForValue(Read())); }
+  void OnValueChanged(int position) { Save(m_range.ValueForPosition(position)); }
+
+  const FloatSliderRange m_range;
+};
+
+class UserPathBinding final : public ValueBinding<QLineEdit, std::string>
+{
+public:
+  UserPathBinding(QLineEdit* edit, unsigned int dir_index, const Config::Info<std::string>& setting,
+                  Config::Layer* layer)
+      : ValueBinding(edit, setting, layer), m_dir_index(dir_index)
+  {
+    connect(edit, &QLineEdit::editingFinished, this, &UserPathBinding::OnEditingFinished);
+    RefreshFromConfig();
+  }
+
+private:
+  void LoadFromConfig() override
+  {
+    // An empty config value means "use the current user path"; config only seeds UserPath at
+    // startup, so the effective path is what the field must show.
+    const std::string config_value = Read();
+    const std::string effective =
+        config_value.empty() ? File::GetUserPath(m_dir_index) : config_value;
+    GetTypedWidget()->setText(QString::fromStdString(effective));
+  }
+
+  void OnEditingFinished()
+  {
+    if (IsUpdating())
+      return;
+    auto* const edit = GetTypedWidget();
+    const QString trimmed = edit->text().trimmed();
+    if (trimmed.isEmpty())
+    {
+      WarnAboutPath(edit, QObject::tr("This field cannot be left empty. Please enter a value."));
+      RefreshFromConfig();
+      return;
+    }
+
+    const std::string value = trimmed.toStdString();
+    File::SetUserPath(m_dir_index, value);
+    Save(value);
+  }
+
+  const unsigned int m_dir_index;
+};
+
+// Validates a printf-style format for use with exactly one double argument. QString::asprintf
+// cannot check a caller-supplied format at compile time, and a mismatched conversion reads the
+// argument as the wrong type: %d silently prints nothing useful, %s dereferences it and crashes.
+bool IsValidFloatFormat(const QString& format)
+{
+  // %% is a literal percent rather than a conversion, so drop those before counting.
+  QString conversions = format;
+  conversions.remove(QStringLiteral("%%"));
+  if (conversions.count(u'%') != 1)
+    return false;
+
+  // Whatever sits between the % and the conversion character is flags, width and precision.
+  for (int i = conversions.lastIndexOf(u'%') + 1; i < conversions.length(); ++i)
+  {
+    const QChar c = conversions[i];
+    if (c == u'f' || c == u'F' || c == u'e' || c == u'E' || c == u'g' || c == u'G')
+      return true;
+    if (!c.isDigit() && c != u'-' && c != u'+' && c != u' ' && c != u'#' && c != u'.')
+      return false;
+  }
+  return false;
+}
 }  // namespace
 
 void Bind(QCheckBox* widget, const Config::Info<bool>& setting, Config::Layer* layer, bool reverse)
@@ -321,6 +421,46 @@ void BindScaled(QSlider* widget, const Config::Info<u32>& setting, u32 scale, Co
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);
   new ScaledSliderBinding{widget, setting, scale, layer};
+}
+
+float FloatSliderHandle::Value() const
+{
+  return range.ValueForPosition(slider->value());
+}
+
+FloatSliderHandle BindFloat(QSlider* widget, const Config::Info<float>& setting, float minimum,
+                            float maximum, float step, Config::Layer* layer)
+{
+  DEBUG_ASSERT(FindBinding(widget) == nullptr);
+  const FloatSliderRange range{minimum, maximum, step};
+  DEBUG_ASSERT(range.MaximumPosition() > 0);
+  DEBUG_ASSERT(widget->minimum() == 0 && widget->maximum() == range.MaximumPosition());
+  new FloatSliderBinding{widget, setting, range, layer};
+  return FloatSliderHandle{widget, range};
+}
+
+void MirrorFloatValue(QLabel* label, FloatSliderHandle handle, const QString& format)
+{
+  DEBUG_ASSERT(handle.slider != nullptr);
+  DEBUG_ASSERT(IsValidFloatFormat(format));
+  const auto update = [label, handle, format] {
+    label->setText(
+        QString::asprintf(format.toUtf8().constData(), static_cast<double>(handle.Value())));
+  };
+  QObject::connect(handle.slider, &QSlider::valueChanged, label, update);
+  update();
+}
+
+void BindUserPath(QLineEdit* widget, unsigned int dir_index,
+                  const Config::Info<std::string>& setting, Config::Layer* layer)
+{
+  DEBUG_ASSERT(FindBinding(widget) == nullptr);
+  new UserPathBinding{widget, dir_index, setting, layer};
+}
+
+void SetPathWarningHandlerForTesting(PathWarningHandler handler)
+{
+  s_path_warning_handler = std::move(handler);
 }
 
 ConfigBinding* FindBinding(QWidget* widget)

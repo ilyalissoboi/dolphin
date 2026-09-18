@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <span>
 #include <string>
 #include <utility>
@@ -16,8 +17,10 @@
 #include "Common/CommonTypes.h"
 #include "Common/Config/ConfigInfo.h"
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
+#include "DolphinQt/Config/Binder/ConfigSliderMapping.h"
 
 class QCheckBox;
+class QLabel;
 class QLineEdit;
 class QRadioButton;
 class QSlider;
@@ -71,6 +74,36 @@ void BindMapped(QSlider* widget, const Config::Info<int>& setting, std::span<con
 // Stored value is the slider position times `scale`.
 void BindScaled(QSlider* widget, const Config::Info<u32>& setting, u32 scale,
                 Config::Layer* layer = nullptr);
+
+// The .ui file authors minimum = 0 and maximum = MaximumPosition() for the float range it will be
+// bound to. BindFloat asserts they agree rather than imposing them: Designer owns geometry, and a
+// binding asserts agreement with it. The handle exists because call sites read the mapped value
+// back to drive a value label.
+struct FloatSliderHandle
+{
+  QSlider* slider = nullptr;
+  FloatSliderRange range{};
+
+  float Value() const;
+};
+
+FloatSliderHandle BindFloat(QSlider* widget, const Config::Info<float>& setting, float minimum,
+                            float maximum, float step, Config::Layer* layer = nullptr);
+
+// `format` is a printf-style format taking one double, e.g. "%.0f%%". Sets the label immediately
+// and on every subsequent slider move.
+void MirrorFloatValue(QLabel* label, FloatSliderHandle handle, const QString& format);
+
+// Displays the config value if it is non-empty, otherwise File::GetUserPath(dir_index): an empty
+// config value means "use the current user path". Saving sets both.
+void BindUserPath(QLineEdit* widget, unsigned int dir_index,
+                  const Config::Info<std::string>& setting, Config::Layer* layer = nullptr);
+
+// Replaces the modal warning shown when a user path field is emptied. Passing an empty function
+// restores the default. Exists so qt-tests can assert the rejection without a modal exec() that
+// would block forever.
+using PathWarningHandler = std::function<void(QWidget* parent, const QString& message)>;
+void SetPathWarningHandlerForTesting(PathWarningHandler handler);
 
 // The binding attached to `widget`, or nullptr if it has none.
 ConfigBinding* FindBinding(QWidget* widget);

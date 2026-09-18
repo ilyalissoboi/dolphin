@@ -33,9 +33,19 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigBinding.h
   Config/Binder/ConfigWidgetBinder.cpp
   Config/Binder/ConfigWidgetBinder.h
+  # ModalMessageBox lives here so qt-tests can link ConfigWidgetBinder (which calls it for user path
+  # validation) without pulling in the full dolphin-emu sources.
+  QtUtils/ModalMessageBox.cpp
+  QtUtils/ModalMessageBox.h
 )
 target_include_directories(dolphinqt-config-binder PUBLIC ${CMAKE_SOURCE_DIR}/Source/Core)
 target_link_libraries(dolphinqt-config-binder PUBLIC Qt6::Widgets PRIVATE core)
+target_compile_definitions(dolphinqt-config-binder
+PRIVATE
+  -DQT_USE_QSTRINGBUILDER
+  -DQT_NO_CAST_FROM_ASCII
+  -DQT_NO_CAST_TO_ASCII
+)
 
 add_executable(dolphin-emu
   AboutDialog.cpp
@@ -350,8 +360,6 @@ add_executable(dolphin-emu
   QtUtils/FromStdString.h
   QtUtils/ImageConverter.cpp
   QtUtils/ImageConverter.h
-  QtUtils/ModalMessageBox.cpp
-  QtUtils/ModalMessageBox.h
   QtUtils/NonAutodismissibleMenu.cpp
   QtUtils/NonAutodismissibleMenu.h
   QtUtils/NonDefaultQPushButton.cpp

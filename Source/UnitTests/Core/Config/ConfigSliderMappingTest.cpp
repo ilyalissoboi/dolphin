@@ -14,20 +14,21 @@ constexpr ConfigWidget::FloatSliderRange SCALE_RANGE{0.5f, 2.0f, 0.25f};
 TEST(ConfigSliderMapping, MinimumAndMaximumMapToTheEndPositions)
 {
   EXPECT_EQ(UNIT_RANGE.PositionForValue(0.0f), 0);
-  EXPECT_EQ(UNIT_RANGE.PositionForValue(1.0f), UNIT_RANGE.PositionCount());
+  EXPECT_EQ(UNIT_RANGE.PositionForValue(1.0f), UNIT_RANGE.MaximumPosition());
   EXPECT_FLOAT_EQ(UNIT_RANGE.ValueForPosition(0), 0.0f);
-  EXPECT_FLOAT_EQ(UNIT_RANGE.ValueForPosition(UNIT_RANGE.PositionCount()), 1.0f);
+  EXPECT_FLOAT_EQ(UNIT_RANGE.ValueForPosition(UNIT_RANGE.MaximumPosition()), 1.0f);
 }
 
-TEST(ConfigSliderMapping, PositionCountIsTheNumberOfSteps)
+TEST(ConfigSliderMapping, MaximumPositionIsTheHighestPositionNotThePositionCount)
 {
-  EXPECT_EQ(UNIT_RANGE.PositionCount(), 100);
-  EXPECT_EQ(SCALE_RANGE.PositionCount(), 6);
+  // 0.0 to 1.0 in steps of 0.01 is 101 positions, the highest of which is 100.
+  EXPECT_EQ(UNIT_RANGE.MaximumPosition(), 100);
+  EXPECT_EQ(SCALE_RANGE.MaximumPosition(), 6);
 }
 
 TEST(ConfigSliderMapping, RoundTripsEveryStepExactly)
 {
-  for (int position = 0; position <= SCALE_RANGE.PositionCount(); ++position)
+  for (int position = 0; position <= SCALE_RANGE.MaximumPosition(); ++position)
     EXPECT_EQ(SCALE_RANGE.PositionForValue(SCALE_RANGE.ValueForPosition(position)), position)
         << "position " << position;
 }
@@ -43,7 +44,7 @@ TEST(ConfigSliderMapping, SnapsAnOffStepValueToTheNearestPosition)
 TEST(ConfigSliderMapping, ClampsValuesOutsideTheRange)
 {
   EXPECT_EQ(SCALE_RANGE.PositionForValue(-5.0f), 0);
-  EXPECT_EQ(SCALE_RANGE.PositionForValue(100.0f), SCALE_RANGE.PositionCount());
+  EXPECT_EQ(SCALE_RANGE.PositionForValue(100.0f), SCALE_RANGE.MaximumPosition());
 }
 
 TEST(ConfigSliderMapping, ClampsPositionsOutsideTheRange)

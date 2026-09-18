@@ -17,6 +17,7 @@
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
 #include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
+#include "NullConfigLoader.h"
 
 namespace
 {
@@ -24,14 +25,6 @@ const Config::Info<bool> TEST_BOOL{{Config::System::Main, "BinderRoundTrip", "Bo
 const Config::Info<int> TEST_INT{{Config::System::Main, "BinderRoundTrip", "Int"}, 0};
 const Config::Info<std::string> TEST_STRING{{Config::System::Main, "BinderRoundTrip", "String"},
                                             ""};
-
-class NullLoader final : public Config::ConfigLayerLoader
-{
-public:
-  NullLoader() : ConfigLayerLoader(Config::LayerType::Base) {}
-  void Load(Config::Layer*) override {}
-  void Save(Config::Layer*) override {}
-};
 
 class ConfigBinderRoundTripTest : public ::testing::Test
 {
