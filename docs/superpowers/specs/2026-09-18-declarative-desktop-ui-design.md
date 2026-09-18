@@ -80,25 +80,58 @@ no ownership bookkeeping.
 // Config::Info<T> already carries key, type and default, so no key/default arguments are needed.
 namespace ConfigWidget
 {
+// Integer ranges (minimum, maximum, step, tick interval) come from the .ui file, so no bind takes
+// them. BindFloat is the exception: a float range cannot be expressed on a Designer slider.
 void Bind(QCheckBox*, const Config::Info<bool>&, Config::Layer* = nullptr, bool reverse = false);
 void Bind(QComboBox*, const Config::Info<int>&, Config::Layer* = nullptr);
+void Bind(QComboBox*, const Config::Info<u32>&, Config::Layer* = nullptr);
 void Bind(QSpinBox*, const Config::Info<int>&, Config::Layer* = nullptr);
 void Bind(QSlider*, const Config::Info<int>&, Config::Layer* = nullptr);
 void Bind(QRadioButton*, const Config::Info<int>&, int value, Config::Layer* = nullptr);
 void Bind(QLineEdit*, const Config::Info<std::string>&, Config::Layer* = nullptr);
 
+// Preferred: the items are authored in the .ui file, so their text stays in the uic translation
+// path; `values` pairs with them by index.
 template <typename T>
-void BindMapped(QComboBox*, const Config::Info<T>&, std::span<const std::pair<QString, T>>,
+void BindMapped(QComboBox*, const Config::Info<T>&, std::span<const T> values,
                 Config::Layer* = nullptr);
-void BindFloat(QSlider*, const Config::Info<float>&, float min, float max, float step,
-               Config::Layer* = nullptr);
+// For option sets computed at runtime — the JIT cores available on this platform, the SD card
+// sizes — which cannot be authored in Designer. Populates the combo itself.
+template <typename T>
+void BindMapped(QComboBox*, const Config::Info<T>&, std::span<const std::pair<QString, T>> options,
+                Config::Layer* = nullptr);
+// Today's ConfigStringChoice, whose two forms are options-are-data and display-text-plus-data.
+void BindStringChoice(QComboBox*, const Config::Info<std::string>&,
+                      std::span<const std::string> options, Config::Layer* = nullptr);
+void BindStringChoice(QComboBox*, const Config::Info<std::string>&,
+                      std::span<const std::pair<QString, QString>> options,
+                      Config::Layer* = nullptr);
+// Today's tick-value ConfigSlider: position i means tick_values[i]. Disables the slider when the
+// config value matches no tick, as the existing control does.
+void BindMapped(QSlider*, const Config::Info<int>&, std::span<const int> tick_values,
+                Config::Layer* = nullptr);
+// Today's ConfigSliderU32: stored value is the slider position times `scale`.
+void BindScaled(QSlider*, const Config::Info<u32>&, u32 scale, Config::Layer* = nullptr);
+// Today's ConfigFloatSlider. Returns a handle because four call sites read the mapped float back
+// (ConfigFloatSlider::GetValue) to drive a value label; the handle avoids a downcast, and DolphinQt
+// uses qobject_cast exclusively, which cannot reach a non-Q_OBJECT binding subclass.
+struct FloatSliderHandle
+{
+  QSlider* slider;
+  FloatSliderRange range;
+  float Value() const;
+};
+FloatSliderHandle BindFloat(QSlider*, const Config::Info<float>&, float min, float max, float step,
+                            Config::Layer* = nullptr);
+// Replaces the hand-written slider-to-label updates in GameConfigWidget and EnhancementsWidget.
+void MirrorFloatValue(QLabel*, FloatSliderHandle, const QString& format);
 void BindUserPath(QLineEdit*, unsigned dir_index, const Config::Info<std::string>&,
                   Config::Layer* = nullptr);
 
-// Today's ConfigSliderLabel / ConfigIntegerLabel / ConfigFloatLabel, which mirror a control's
-// value into a label using a text format string.
-void MirrorValue(QLabel*, QSlider*, const QString& text_format);
-void MirrorValue(QLabel*, QSpinBox*, const QString& text_format);
+// Today's ConfigSliderLabel / ConfigIntegerLabel / ConfigFloatLabel. All three mirror the
+// control's *font*, not its value, so a label goes bold beside a control a game INI overrides.
+// One overload replaces all three, because none of them differ.
+void MirrorFont(QLabel*, QWidget* control);
 
 // Today's ConfigComplexChoice: two settings driving one combo. Callers must add options after
 // binding, so this returns a builder rather than binding in one call.
@@ -118,12 +151,23 @@ Three behaviours currently implemented as virtual overrides move into the event 
 the highest-risk part of the binder because the *mechanism* changes, not just the call site:
 
 - **Bold-when-overridden.** On `ConfigChanged`, re-apply the bold font, as
-  `ConfigControl::ConnectConfig` does today.
+  `ConfigControl::ConnectConfig` does today — and additionally at bind time. This is the binder's
+  one intentional behavioural divergence: `ConnectConfig` only ever applies the font from its
+  `ConfigChanged` handler, so a per-game pane that is opened and not touched shows no bold at all.
 - **Right-click clears the per-game key.** Today an override of `mousePressEvent`; becomes a
   `QEvent::MouseButtonPress` case in the filter. Only active when a layer is present.
 - **Balloon tooltips.** `ToolTipWidget`'s four event overrides become filter cases. Its one
   genuinely per-type piece, `GetToolTipPosition()`, becomes a small type switch inside the binder
   (roughly 40 LOC for the 7 widget types).
+
+Two smaller behaviours are easy to lose because they live in classes whose names suggest otherwise:
+
+- **Label fonts follow their control.** `ConfigSliderLabel`, `ConfigIntegerLabel` and
+  `ConfigFloatLabel` exist only to copy the control's font on `ConfigChanged`, so the label goes
+  bold with it. `MirrorFont()` replaces all three.
+- **A tick-value slider disables itself** when the config value matches none of its ticks, and
+  re-enables when it does. That is the existing control's way of showing an out-of-range value
+  rather than silently snapping it.
 
 Description **text** stays in the binder while its **presentation** is a policy. This is
 deliberate: balloon behaviour survives each behaviour-preserving migration commit unchanged, and
