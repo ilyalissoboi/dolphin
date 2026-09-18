@@ -174,6 +174,38 @@ TEST_F(ConfigSettingRegistryTest, ChoiceBindingRecordsTheItemTexts)
   EXPECT_EQ(entry->choices[1], QStringLiteral("On"));
 }
 
+TEST_F(ConfigSettingRegistryTest, MappedComboWithDesignerItemsRecordsTheItemTexts)
+{
+  QComboBox box;
+  box.addItems({QStringLiteral("Low"), QStringLiteral("Medium"), QStringLiteral("High")});
+  const int values[] = {1, 5, 10};
+
+  ConfigWidget::BindMapped(&box, TEST_INT, std::span<const int>{values});
+
+  const auto* const entry = Find(TEST_INT.GetLocation());
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->kind, ConfigWidget::SettingKind::Choice);
+  ASSERT_EQ(entry->choices.size(), 3u);
+  EXPECT_EQ(entry->choices[0], QStringLiteral("Low"));
+  EXPECT_EQ(entry->choices[2], QStringLiteral("High"));
+}
+
+TEST_F(ConfigSettingRegistryTest, MappedComboThatPopulatesItselfRecordsTheItemTexts)
+{
+  QComboBox box;
+  const std::pair<QString, int> options[] = {{QStringLiteral("Option A"), 100},
+                                             {QStringLiteral("Option B"), 200}};
+
+  ConfigWidget::BindMapped(&box, TEST_INT, std::span<const std::pair<QString, int>>{options});
+
+  const auto* const entry = Find(TEST_INT.GetLocation());
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->kind, ConfigWidget::SettingKind::Choice);
+  ASSERT_EQ(entry->choices.size(), 2u);
+  EXPECT_EQ(entry->choices[0], QStringLiteral("Option A"));
+  EXPECT_EQ(entry->choices[1], QStringLiteral("Option B"));
+}
+
 TEST_F(ConfigSettingRegistryTest, EntriesAreInBindOrder)
 {
   QCheckBox box;

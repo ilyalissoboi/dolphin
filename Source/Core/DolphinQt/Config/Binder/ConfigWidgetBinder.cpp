@@ -440,6 +440,15 @@ void RecordSetting(const Config::Location& location, SettingKind kind, Config::L
 }
 }  // namespace
 
+namespace detail
+{
+void RecordMappedCombo(const Config::Location& location, Config::Layer* layer,
+                       const QComboBox* widget)
+{
+  RecordSetting(location, SettingKind::Choice, layer, widget);
+}
+}  // namespace detail
+
 void Bind(QCheckBox* widget, const Config::Info<bool>& setting, Config::Layer* layer, bool reverse)
 {
   DEBUG_ASSERT(FindBinding(widget) == nullptr);

@@ -199,6 +199,10 @@ private:
 
   const std::vector<T> m_values;
 };
+
+// Defined in the .cpp so SettingKind plumbing stays there. Call after the combo is populated.
+void RecordMappedCombo(const Config::Location& location, Config::Layer* layer,
+                       const QComboBox* widget);
 }  // namespace detail
 
 // The items are authored in the .ui file; `values` pairs with them by index, so the display text
@@ -212,6 +216,7 @@ void BindMapped(QComboBox* widget, const Config::Info<T>& setting, std::span<con
   DEBUG_ASSERT(widget->count() == static_cast<int>(values.size()));
   new detail::MappedComboBinding<T>{widget, setting, std::vector<T>(values.begin(), values.end()),
                                     layer};
+  detail::RecordMappedCombo(setting.GetLocation(), layer, widget);
 }
 
 // For option sets computed at runtime, which cannot be authored in Designer. Populates the combo.
@@ -230,5 +235,6 @@ void BindMapped(QComboBox* widget, const Config::Info<T>& setting,
     values.push_back(value);
   }
   new detail::MappedComboBinding<T>{widget, setting, std::move(values), layer};
+  detail::RecordMappedCombo(setting.GetLocation(), layer, widget);
 }
 }  // namespace ConfigWidget
