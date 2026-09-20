@@ -12,8 +12,8 @@ emulation-state restrictions.
   and Wii Remote Settings groups.
 - [ ] Author the static aspect-ratio, system-language, sound-mode, SD-size, and sensor-position
   choices in the form.
-- [ ] Use stock checkboxes, combo boxes, sliders, line edits, list, and buttons with buddies,
-  non-default action buttons, and an explicit tab order.
+- [ ] Use stock checkboxes, combo boxes, sliders, line edits, and buttons plus the existing
+  minimum-size list wrapper, with buddies, non-default action buttons, and an explicit tab order.
 - [ ] Keep the complete pane usable at the settings pane's narrow width without horizontal
   clipping.
 

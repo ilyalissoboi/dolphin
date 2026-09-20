@@ -450,6 +450,7 @@ add_executable(dolphin-emu
   Settings/USBDevicePicker.h
   Settings/WiiPane.cpp
   Settings/WiiPane.h
+  Settings/WiiPane.ui
   SkylanderPortal/SkylanderModifyDialog.cpp
   SkylanderPortal/SkylanderModifyDialog.h
   SkylanderPortal/SkylanderPortalWindow.cpp
