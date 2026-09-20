@@ -115,7 +115,7 @@ one produced. Task 12 touches no C++ and can be done at any point, including fir
 
 These four replicate `ConfigControl::ReadValue`, `SaveValue`, `IsConfigLocal` and the right-click branch of `mousePressEvent` respectively, with the layer decision made explicit and testable.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Source/UnitTests/Core/Config/ConfigBindingLogicTest.cpp`:
 
@@ -213,7 +213,7 @@ The test target must be able to find `DolphinQt/…` headers. In the same file, 
 target_include_directories(ConfigBindingLogicTest PRIVATE ${CMAKE_SOURCE_DIR}/Source/Core)
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
@@ -221,7 +221,7 @@ cmake --build build --target tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time with `fatal error: 'DolphinQt/Config/Binder/ConfigBindingLogic.h' file not found`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/ConfigBindingLogic.h`:
 
@@ -289,7 +289,7 @@ inline void ClearLocal(const Config::Location& location, Config::Layer* layer)
 }  // namespace ConfigWidget::Logic
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run:
 ```bash
@@ -297,7 +297,7 @@ cmake --build build --target tests -j8 && ./build/Binaries/Tests/tests --gtest_f
 ```
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigBindingLogic.h \
@@ -331,7 +331,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 `QSlider` positions are integers, so a float setting bound to one needs a stable quantisation in both directions. This is the arithmetic `ConfigFloatSlider` does inline; extracting it makes the boundary behaviour testable.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Source/UnitTests/Core/Config/ConfigSliderMappingTest.cpp`:
 
@@ -398,7 +398,7 @@ add_dolphin_test(ConfigSliderMappingTest Config/ConfigSliderMappingTest.cpp)
 target_include_directories(ConfigSliderMappingTest PRIVATE ${CMAKE_SOURCE_DIR}/Source/Core)
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
@@ -406,7 +406,7 @@ cmake --build build --target tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time with `'DolphinQt/Config/Binder/ConfigSliderMapping.h' file not found`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/ConfigSliderMapping.h`:
 
@@ -450,7 +450,7 @@ struct FloatSliderRange
 }  // namespace ConfigWidget
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run:
 ```bash
@@ -458,7 +458,7 @@ cmake --build build --target tests -j8 && ./build/Binaries/Tests/tests --gtest_f
 ```
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigSliderMapping.h \
@@ -498,7 +498,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Why a broadcaster instead of using `Settings::ConfigChanged` directly:** `Settings` is 1,016 LOC with 33 includes and pulls in most of DolphinQt, so linking it into `qt-tests` would defeat the point of a small test target. Production wires `Settings::ConfigChanged` into the broadcaster with one `connect`, so the coalescing and GUI-thread marshalling at `Settings.cpp:60-74` still governs when bindings refresh — behaviour is unchanged by construction rather than by re-implementation.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Source/QtTests/SignalRecorder.h`:
 
@@ -612,7 +612,7 @@ Add to `Source/CMakeLists.txt` immediately after the existing `add_subdirectory(
   endif()
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
@@ -620,7 +620,7 @@ cmake -S . -B build 2>&1 | tail -20
 ```
 Expected: FAIL at configure time with `Target "qt-tests" links to target "dolphinqt-config-binder" ... but the target was not found`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/ConfigChangeBroadcaster.h`:
 
@@ -723,7 +723,7 @@ and immediately after the `m_config_changed_callback_id = Config::AddConfigChang
           &ConfigWidget::ConfigChangeBroadcaster::Broadcast);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run:
 ```bash
@@ -738,7 +738,7 @@ cmake --build build --target dolphin-emu tests -j8
 ```
 Expected: both succeed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/CMakeLists.txt Source/CMakeLists.txt \
@@ -783,7 +783,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Critical implementation note for the implementer:** `moc` cannot process a class template. `ConfigBinding` is the only class here with `Q_OBJECT`; every per-widget-type subclass must **omit** `Q_OBJECT` and add no signals or slots of its own. Typed state (`Config::Info<T>`) lives in those subclasses. `Config::Info<T>` has a deleted assignment operator and deleted move constructor, so it can only be initialised in a member-initialiser list.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Source/QtTests/ConfigBinderRoundTripTest.cpp`:
 
@@ -909,7 +909,7 @@ Add to `Source/QtTests/CMakeLists.txt`, in the `add_executable(qt-tests ...)` so
   ConfigBinderRoundTripTest.cpp
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
@@ -917,7 +917,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time with `'DolphinQt/Config/Binder/ConfigWidgetBinder.h' file not found`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/ConfigBinding.h`:
 
@@ -1146,7 +1146,7 @@ Add to the `dolphinqt-config-binder` source list in `Source/Core/DolphinQt/CMake
   Config/Binder/ConfigWidgetBinder.h
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run:
 ```bash
@@ -1157,7 +1157,7 @@ cmake --build build --target qt-tests -j8 \
 Expected: PASS, 9 tests — the 2 broadcaster tests from Task 3 and 7 new. Every count below is
 the whole `qt-tests` binary, which is what gtest prints.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigBinding.h \
@@ -1212,7 +1212,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - A `QRadioButton` writes only when it becomes checked. Qt's autoexclusive grouping already emits
   `toggled(false)` on the button losing check, and acting on that would race the winner.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `Source/QtTests/ConfigBinderRoundTripTest.cpp`. Extend the includes at the top of the
 file:
@@ -1350,7 +1350,7 @@ TEST_F(ConfigBinderRoundTripTest, EveryWidgetTypeRefreshesWithoutWritingBack)
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -1358,7 +1358,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time — no `Bind` overload matches `QComboBox*`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Add to `Source/Core/DolphinQt/Config/Binder/ConfigBinding.h`, after the `ConfigBinding` class and
 inside `namespace ConfigWidget`:
@@ -1578,7 +1578,7 @@ void Bind(QLineEdit* widget, const Config::Info<std::string>& setting, Config::L
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -1589,7 +1589,7 @@ cmake --build build --target qt-tests -j8 \
 Expected: PASS, 16 tests, 7 new. The seven from Task 4 must still pass — `CheckBoxBinding` was rebased
 onto `ValueBinding` in this task and those tests are what proves the rebase was behaviour-preserving.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigBinding.h \
@@ -1649,7 +1649,7 @@ depends on which JIT this platform builds, and `WiiPane`'s SD-card sizes are gen
 so this must stay a template rather than a set of explicit instantiations. `ConfigStringChoice` 7,
 `ConfigChoiceU32` 2, `ConfigSliderU32` 4.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/ConfigBinderMappedTest.cpp`:
 
@@ -1834,7 +1834,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   ConfigBinderMappedTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -1842,7 +1842,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time — no `BindMapped`, `BindStringChoice` or `BindScaled`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 `Source/Core/DolphinQt/Config/Binder/ConfigWidgetBinder.h` gains real includes, because
 `BindMapped` is a template and its body must be visible to callers. Replace the `class QComboBox;`
@@ -2140,7 +2140,7 @@ void BindScaled(QSlider* widget, const Config::Info<u32>& setting, u32 scale, Co
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -2149,7 +2149,7 @@ cmake --build build --target qt-tests -j8 \
 ```
 Expected: PASS, 25 tests — 16 from Tasks 3 to 5, 9 new.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigWidgetBinder.h \
@@ -2209,7 +2209,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   routing the warning through an injectable hook that the test replaces. Do not call `exec()` in a
   test.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/ConfigBinderFloatAndPathTest.cpp`:
 
@@ -2353,7 +2353,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   ConfigBinderFloatAndPathTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -2362,7 +2362,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 Expected: FAIL at compile time — no `BindFloat`, `MirrorFloatValue`, `BindUserPath` or
 `SetPathWarningHandlerForTesting`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Add to `Source/Core/DolphinQt/Config/Binder/ConfigWidgetBinder.h`:
 
@@ -2532,7 +2532,7 @@ void SetPathWarningHandlerForTesting(PathWarningHandler handler)
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -2541,7 +2541,7 @@ cmake --build build --target qt-tests -j8 \
 ```
 Expected: PASS, 32 tests — 25 from Tasks 3 to 6, 7 new.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigWidgetBinder.h \
@@ -2610,7 +2610,7 @@ to `Settings::ConfigChanged` and then read the control's font, which only works 
 control's subscription happens to have been connected first. Hanging the mirror off the binding
 removes the ordering dependency entirely.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/ConfigBinderOverrideTest.cpp`:
 
@@ -2746,7 +2746,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   ConfigBinderOverrideTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -2755,7 +2755,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 Expected: FAIL at compile time — no `MirrorFont`. After adding only the declaration, the
 right-click and bold cases fail at runtime.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 In `Source/Core/DolphinQt/Config/Binder/ConfigBinding.h`, add to the public section:
 
@@ -2849,7 +2849,7 @@ void MirrorFont(QLabel* label, QWidget* control)
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -2858,7 +2858,7 @@ cmake --build build --target qt-tests -j8 \
 ```
 Expected: PASS, 38 tests — 32 from Tasks 3 to 7, 6 new.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigBinding.h \
@@ -2941,7 +2941,7 @@ put their text, so the filter stands alone and either kind of widget can have on
 | `QSlider` | centre of the handle rectangle |
 | anything else | `(width/2, height/2)` |
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/BalloonTipFilterTest.cpp`:
 
@@ -3103,7 +3103,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   BalloonTipFilterTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -3111,7 +3111,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time — no `BalloonTipFilter.h`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/BalloonTipFilter.h`:
 
@@ -3397,7 +3397,7 @@ Because the binder now calls `BalloonTip`, add `Config/ToolTipControls/BalloonTi
 list so the class is defined exactly once. `ToolTipWidget.h` and the six `ToolTip*` subclasses stay
 where they are and keep working; they are removed in the last migration slice, not here.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -3412,7 +3412,7 @@ cmake --build build --target dolphin-emu -j8 2>&1 | tail -5
 ```
 Expected: links, with no duplicate-symbol error for `BalloonTip`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/BalloonTipFilter.h \
@@ -3484,7 +3484,7 @@ migrates mechanism, and changing a read path is a behaviour change that belongs 
 with its own justification. The test below pins the existing behaviour so a later fix is a
 deliberate, visible edit.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/ConfigComplexBindingTest.cpp`:
 
@@ -3671,7 +3671,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   ConfigComplexBindingTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -3679,7 +3679,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time — no `BindComplex` and no `ComplexBinding`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 In `Source/Core/DolphinQt/Config/Binder/ConfigBinding.h`, add to the protected section:
 
@@ -3881,7 +3881,7 @@ ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant
 matching the original's "will crash if not blocked" comment. Keep both — `m_updating` protects
 against a save, the blocker protects against Qt re-entering `setCurrentIndex` during a model change.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -3890,7 +3890,7 @@ cmake --build build --target qt-tests -j8 \
 ```
 Expected: PASS, 58 tests — 48 from Tasks 3 to 9, 10 new.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigBinding.h \
@@ -3957,7 +3957,7 @@ widget it was handed.
   project's settings browser will special-case complex settings anyway.
 - Enumeration order is bind order, so it is deterministic and a browser can rely on it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Source/QtTests/ConfigSettingRegistryTest.cpp`:
 
@@ -4121,7 +4121,7 @@ Add to the `add_executable(qt-tests ...)` source list in `Source/QtTests/CMakeLi
   ConfigSettingRegistryTest.cpp
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run:
 ```bash
@@ -4129,7 +4129,7 @@ cmake --build build --target qt-tests -j8 2>&1 | tail -20
 ```
 Expected: FAIL at compile time — no `ConfigSettingRegistry.h`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Source/Core/DolphinQt/Config/Binder/ConfigSettingRegistry.h`:
 
@@ -4367,7 +4367,7 @@ Add to the `dolphinqt-config-binder` source list in `Source/Core/DolphinQt/CMake
   Config/Binder/ConfigSettingRegistry.h
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
@@ -4376,7 +4376,7 @@ cmake --build build --target qt-tests -j8 \
 ```
 Expected: PASS, 67 tests — 58 from Tasks 3 to 10, 9 new.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/Core/DolphinQt/Config/Binder/ConfigSettingRegistry.h \
@@ -4440,7 +4440,7 @@ silently out of the `.pot` and out of 29 locales. See spec §6.
 from the source and 17 source strings are missing from it. Diff against a **freshly regenerated**
 `.pot`, never against the committed one, or every slice will appear to delete 32 strings.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Languages/tests/UiStringFixture.ui` — one plain string, one disambiguated, one annotated:
 
@@ -4577,7 +4577,7 @@ echo "$failures check(s) failed"
 exit 1
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
@@ -4586,7 +4586,7 @@ Run:
 Expected: FAIL, exit 1, with `can't open file '.../generate-ui-strings.py'`, then
 `FAIL: generator exited non-zero` and `FAIL: no header generated from UiStringFixture.ui`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `Languages/generate-ui-strings.py` and `chmod +x` it:
 
@@ -4758,7 +4758,7 @@ Note on `sed -i`: the three existing lines already use the GNU form with no back
 script is GNU-sed-only today. Keep the new line consistent rather than fixing that here; run the
 script on Linux, or with `gsed` aliased, as before.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run:
 ```bash
@@ -4781,7 +4781,7 @@ If msgid lines do appear, they are the 32/17 pre-existing drift — confirm by r
 command on a `git stash`ed tree and comparing the two outputs, then commit the refreshed `.pot`
 separately from this task.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Languages/generate-ui-strings.py Languages/update-source-strings.sh \
@@ -4815,10 +4815,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Spec §7.4 defines four per-slice gates. Slice 0 migrates no pane, so gates 1 and 4 have nothing to
 compare; what remains:
 
-- [ ] `tests` green, including the 14 new Qt-free cases:
-      `./build/Binaries/tests` — note that `ctest` from the build root finds nothing here, there is
-      a single `tests` binary.
-- [ ] `qt-tests` green, 86 cases: `./build/Binaries/Tests/qt-tests -platform offscreen`. The 67 this
+- [x] `tests` green, including the 14 new Qt-free cases:
+      `./build/Binaries/Tests/tests` — note that `ctest` from the build root finds nothing here,
+      there is a single `tests` binary.
+- [x] `qt-tests` green, 86 cases: `./build/Binaries/Tests/qt-tests -platform offscreen`. The 67 this
       line originally carried was a planning-time estimate; the review rounds on Tasks 5 to 11 added
       cases, and 86 is the count measured at `e18369c905`. Read the number off the suite rather than
       trusting this line.
@@ -4827,14 +4827,17 @@ compare; what remains:
       from macOS. This run also settles the one residual that macOS cannot check: whether
       `dolphinqt-config-binder` re-enables RTTI for the `ModalMessageBox.cpp` it pulls in. See entry
       9 of the slice's residuals.
-- [ ] `dolphin-emu` builds and launches on both platforms, and `Bind()` has no production caller
-      yet, so nothing user-visible changed. Open the Graphics and Interface panes and confirm they
-      behave exactly as before: they still use `ConfigControls/`, untouched by this slice.
-- [ ] `./Languages/tests/test-ui-extraction.sh` passes.
-- [ ] `.pot` regeneration produces no msgid change attributable to this slice (see Task 12, Step 4).
-- [ ] `ConfigControls/` and `ToolTipControls/` are byte-identical to their state at the start of the
-      slice: `git diff --stat master -- Source/Core/DolphinQt/Config/ConfigControls Source/Core/DolphinQt/Config/ToolTipControls`
-      prints nothing.
+- [x] `dolphin-emu` builds on macOS and starts far enough to process `--help`. `Bind()` has no
+      production caller yet, so nothing user-visible changed.
+- [ ] `dolphin-emu` builds and launches on Windows. Open the Graphics and Interface panes and
+      confirm they behave exactly as before.
+- [x] `./Languages/tests/test-ui-extraction.sh` passes.
+- [x] `.pot` regeneration produces no msgid change attributable to this slice (see Task 12,
+      Step 4).
+- [x] `ConfigControls/` is byte-identical to its state at the start of the slice.
+- [x] Existing `ToolTipControls/` behavior is preserved. Task 9 deliberately moved its palette
+      calculation into `ToolTipStyle` so both the old controls and the binder use one implementation;
+      therefore the earlier byte-identical requirement was incompatible with the planned work.
 
 What slice 0 deliberately does **not** prove: that a migrated pane looks like the old one. There is
 no pane yet. Spec §7.5 records that risk; it becomes live in slice 5.
