@@ -24,6 +24,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   InterfacePaneUiTest.cpp
   MainWindowUiTest.cpp
   OnScreenDisplayPaneUiTest.cpp
+  PathPaneUiTest.cpp
   SettingsHelpTest.cpp
   SettingsWindowUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
@@ -45,6 +46,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AudioPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/InterfacePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/OnScreenDisplayPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/PathPane.ui
   # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
   # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is
   # compiler-checked against the declaration.

@@ -34,7 +34,7 @@ all browse actions.
 ## Task 4: Preserve compatibility
 
 - [ ] Keep the existing 21 translated msgids and seven explicit config symbols.
-- [ ] Preserve all ten concrete config references represented by browse and binding sites.
+- [ ] Preserve all seven concrete config locations represented by browse and binding sites.
 - [ ] Add a Qt form test for structure, row placement, buddies, tab order, button defaults, list
   spacing, and narrow layout fit.
 - [ ] Verify `PathPane.cpp` constructs no permanent widget or layout.

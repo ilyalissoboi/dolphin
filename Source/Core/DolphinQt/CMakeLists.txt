@@ -442,6 +442,7 @@ add_executable(dolphin-emu
   Settings/OnScreenDisplayPane.ui
   Settings/PathPane.cpp
   Settings/PathPane.h
+  Settings/PathPane.ui
   Settings/TriforcePane.cpp
   Settings/TriforcePane.h
   Settings/USBDevicePicker.cpp
