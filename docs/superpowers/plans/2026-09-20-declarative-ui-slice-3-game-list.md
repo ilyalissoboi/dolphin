@@ -16,32 +16,45 @@ library behavior.
 
 ## Task 2: Add the library control row
 
-- [ ] Keep search visible and make `Ctrl+F` focus and select it.
-- [ ] Add accessible List and Grid buttons synchronized with the View menu.
-- [ ] Add transient platform and region quick filters without replacing the existing multi-select
+- [x] Keep search visible and make `Ctrl+F` focus and select it.
+- [x] Add accessible List and Grid buttons synchronized with the View menu.
+- [x] Add transient platform and region quick filters without replacing the existing multi-select
   View menu filters.
-- [ ] Add a grid-scale slider synchronized with the existing zoom shortcuts and saved scale.
-- [ ] Keep fixed view controls visible while search and filter fields compress at narrow widths.
+- [x] Add a grid-scale slider synchronized with the existing zoom shortcuts and saved scale.
+- [x] Keep fixed view controls visible while search and filter fields compress at narrow widths.
 
 ## Task 3: Preserve compatibility
 
-- [ ] Keep saved preferred-view, grid-scale, table-header, and column-visibility settings.
-- [ ] Keep all existing platform and country visibility config keys in the filtering path.
-- [ ] Record the `.pot` msgid diff and retain moved search strings.
-- [ ] Keep list/grid selection, sorting, context menus, keyboard launch, and game-count updates.
+- [x] Keep saved preferred-view, grid-scale, table-header, and column-visibility settings.
+- [x] Keep all existing platform and country visibility config keys in the filtering path.
+- [x] Record the `.pot` msgid diff and retain moved search strings.
+- [x] Keep list/grid selection, sorting, context menus, keyboard launch, and game-count updates.
 
 ## Task 4: Verify the slice
 
-- [ ] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
-- [ ] Review light and dark list, grid, empty, filtered, and narrow-window states on macOS.
+- [x] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
+- [x] Review light and dark list, grid, empty, filtered, and narrow-window states on macOS.
 - [ ] Build and run both test binaries on Windows.
 - [ ] Review light and dark controls, keyboard traversal, focus, and narrow-window behavior on
   Windows.
 
+## Verification notes
+
+- macOS built `dolphin-emu` and `qt-tests`; `qt-tests` passed all 99 tests, and `tests`
+  passed 1183 tests with the same two environment-dependent shader tests skipped.
+- The UI extraction regression suite passed.
+- Light and Dark themes were reviewed with empty, populated list, populated grid, and filtered
+  libraries. `Ctrl+F`, Escape, View-menu synchronization, direct view buttons, and zoom shortcut
+  synchronization were exercised. The form test also lays out the row at 360 pixels and keeps both
+  32-pixel view buttons and the 80-pixel scale control intact.
+- Compared with the form-migration checkpoint, `Search games...` remains in extraction and
+  `Close` is removed. The new control labels, accessibility names, platform names, and region names
+  are extracted.
+
 ## Definition of done
 
-- [ ] `GameListWidget.ui` owns the game-library layout.
-- [ ] Search, platform, and region controls are always available.
-- [ ] View buttons, View menu actions, slider, and zoom shortcuts stay synchronized.
-- [ ] Existing saved settings and multi-select menu filters retain their meaning.
+- [x] `GameListWidget.ui` owns the game-library layout.
+- [x] Search, platform, and region controls are always available.
+- [x] View buttons, View menu actions, slider, and zoom shortcuts stay synchronized.
+- [x] Existing saved settings and multi-select menu filters retain their meaning.
 - [ ] macOS and Windows builds, tests, gettext checks, and visual review pass.

@@ -591,6 +591,8 @@ void MainWindow::ConnectMenuBar()
   // View
   connect(m_menu_bar, &MenuBar::ShowList, m_game_list, &GameList::SetListView);
   connect(m_menu_bar, &MenuBar::ShowGrid, m_game_list, &GameList::SetGridView);
+  connect(m_game_list, &GameList::PreferredViewChanged, m_menu_bar,
+          &MenuBar::SetPreferredViewChecked);
   connect(m_menu_bar, &MenuBar::PurgeGameListCache, m_game_list, &GameList::PurgeCache);
   connect(m_menu_bar, &MenuBar::ShowSearch, m_game_list, &GameList::ShowSearch);
 

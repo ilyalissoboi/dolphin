@@ -685,19 +685,23 @@ void MenuBar::AddHelpMenu()
 
 void MenuBar::AddGameListTypeSection()
 {
-  QAction* const list_view = m_ui.actionViewList;
-  QAction* const grid_view = m_ui.actionViewGrid;
+  m_list_view_action = m_ui.actionViewList;
+  m_grid_view_action = m_ui.actionViewGrid;
 
   QActionGroup* list_group = new QActionGroup(this);
-  list_group->addAction(list_view);
-  list_group->addAction(grid_view);
+  list_group->addAction(m_list_view_action);
+  list_group->addAction(m_grid_view_action);
 
-  bool prefer_list = Settings::Instance().GetPreferredView();
-  list_view->setChecked(prefer_list);
-  grid_view->setChecked(!prefer_list);
+  SetPreferredViewChecked(Settings::Instance().GetPreferredView());
 
-  connect(list_view, &QAction::triggered, this, &MenuBar::ShowList);
-  connect(grid_view, &QAction::triggered, this, &MenuBar::ShowGrid);
+  connect(m_list_view_action, &QAction::triggered, this, &MenuBar::ShowList);
+  connect(m_grid_view_action, &QAction::triggered, this, &MenuBar::ShowGrid);
+}
+
+void MenuBar::SetPreferredViewChecked(bool list)
+{
+  SignalBlocking(m_list_view_action)->setChecked(list);
+  SignalBlocking(m_grid_view_action)->setChecked(!list);
 }
 
 void MenuBar::AddListColumnsMenu()

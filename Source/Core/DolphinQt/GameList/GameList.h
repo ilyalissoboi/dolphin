@@ -60,6 +60,7 @@ public:
 signals:
   void GameSelected();
   void GameCountUpdated(int total_games, int visible_games) const;
+  void PreferredViewChanged(bool list);
   void OnStartWithRiivolution(const UICommon::GameFile& game);
   void NetPlayHost(const UICommon::GameFile& game);
   void SelectionChanged(const std::shared_ptr<const UICommon::GameFile>& game_file);
@@ -103,11 +104,11 @@ private:
   void MakeEmptyView();
   // We only have two views, just use a bool to distinguish.
   void SetPreferredView(bool list);
+  void SetGridScale(float scale);
   QAbstractItemView* GetActiveView() const;
   QSortFilterProxyModel* GetActiveProxyModel() const;
   void ConsiderViewChange();
   void UpdateFont();
-  void HideSearch();
   bool eventFilter(QObject* object, QEvent* event) override;
 
   std::unique_ptr<Ui::GameListWidget> m_ui;

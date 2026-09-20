@@ -20,8 +20,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QErrorMessage>
@@ -36,10 +38,13 @@
 #include <QListView>
 #include <QMap>
 #include <QMenu>
-#include <QPushButton>
 #include <QShortcut>
+#include <QSignalBlocker>
+#include <QSlider>
 #include <QSortFilterProxyModel>
+#include <QStyle>
 #include <QTableView>
+#include <QToolButton>
 #include <QUrl>
 
 #ifdef _WIN32
@@ -135,6 +140,27 @@ GameList::GameList(QWidget* parent)
   MakeGridView();
   MakeEmptyView();
 
+  m_ui->listViewButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+  m_ui->gridViewButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogListView));
+
+  m_ui->platformFilter->addItem(Resources::GetPlatform(DiscIO::Platform::GameCubeDisc),
+                                tr("GameCube"), static_cast<int>(DiscIO::Platform::GameCubeDisc));
+  m_ui->platformFilter->addItem(Resources::GetPlatform(DiscIO::Platform::WiiDisc), tr("Wii"),
+                                static_cast<int>(DiscIO::Platform::WiiDisc));
+  m_ui->platformFilter->addItem(Resources::GetPlatform(DiscIO::Platform::WiiWAD),
+                                tr("Wii Channels/WAD"), static_cast<int>(DiscIO::Platform::WiiWAD));
+  m_ui->platformFilter->addItem(Resources::GetPlatform(DiscIO::Platform::Triforce), tr("Triforce"),
+                                static_cast<int>(DiscIO::Platform::Triforce));
+  m_ui->platformFilter->addItem(Resources::GetPlatform(DiscIO::Platform::ELFOrDOL), tr("ELF/DOL"),
+                                static_cast<int>(DiscIO::Platform::ELFOrDOL));
+
+  m_ui->regionFilter->addItem(tr("NTSC-J"), static_cast<int>(DiscIO::Region::NTSC_J));
+  m_ui->regionFilter->addItem(tr("NTSC-U"), static_cast<int>(DiscIO::Region::NTSC_U));
+  m_ui->regionFilter->addItem(tr("PAL"), static_cast<int>(DiscIO::Region::PAL));
+  m_ui->regionFilter->addItem(tr("NTSC-K"), static_cast<int>(DiscIO::Region::NTSC_K));
+  m_ui->regionFilter->addItem(tr("Development"), static_cast<int>(DiscIO::Region::DEV));
+  m_ui->regionFilter->addItem(tr("Unknown"), static_cast<int>(DiscIO::Region::Unknown));
+
   // Use List View's sorting for Grid View too.
   m_grid_proxy->sort(m_list_proxy->sortColumn(), m_list_proxy->sortOrder());
   connect(m_list->horizontalHeader(), &QHeaderView::sortIndicatorChanged, m_grid_proxy,
@@ -142,6 +168,7 @@ GameList::GameList(QWidget* parent)
 
   if (Settings::GetQSettings().contains(QStringLiteral("gridview/scale")))
     m_model.SetScale(Settings::GetQSettings().value(QStringLiteral("gridview/scale")).toFloat());
+  SetGridScale(m_model.GetScale());
 
   connect(m_list, &QTableView::doubleClicked, this, &GameList::GameSelected);
   connect(m_grid, &QListView::doubleClicked, this, &GameList::GameSelected);
@@ -154,11 +181,33 @@ GameList::GameList(QWidget* parent)
   m_ui->viewStack->addWidget(m_grid);
   m_ui->viewStack->addWidget(m_empty);
   m_prefer_list = Settings::Instance().GetPreferredView();
+  m_ui->listViewButton->setChecked(m_prefer_list);
+  m_ui->gridViewButton->setChecked(!m_prefer_list);
+  m_ui->gridScaleSlider->setEnabled(!m_prefer_list);
   ConsiderViewChange();
 
   connect(m_ui->searchEdit, &QLineEdit::textChanged, this, &GameList::SetSearchTerm);
-  connect(m_ui->closeSearchButton, &QPushButton::clicked, this, &GameList::HideSearch);
   m_ui->searchEdit->installEventFilter(this);
+  connect(m_ui->listViewButton, &QToolButton::clicked, this, &GameList::SetListView);
+  connect(m_ui->gridViewButton, &QToolButton::clicked, this, &GameList::SetGridView);
+  connect(m_ui->gridScaleSlider, &QSlider::valueChanged, this,
+          [this](int value) { SetGridScale(static_cast<float>(value) / 100.0f); });
+  connect(m_ui->platformFilter, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index == 0)
+      m_model.SetPlatformFilter(std::nullopt);
+    else
+      m_model.SetPlatformFilter(
+          static_cast<DiscIO::Platform>(m_ui->platformFilter->itemData(index).toInt()));
+    OnGameListVisibilityChanged();
+  });
+  connect(m_ui->regionFilter, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index == 0)
+      m_model.SetRegionFilter(std::nullopt);
+    else
+      m_model.SetRegionFilter(
+          static_cast<DiscIO::Region>(m_ui->regionFilter->itemData(index).toInt()));
+    OnGameListVisibilityChanged();
+  });
 
   auto* zoom_in = new QShortcut(QKeySequence::ZoomIn, this);
   auto* zoom_out = new QShortcut(QKeySequence::ZoomOut, this);
@@ -984,7 +1033,23 @@ void GameList::SetPreferredView(bool list)
 {
   m_prefer_list = list;
   Settings::Instance().SetPreferredView(list);
+  m_ui->listViewButton->setChecked(list);
+  m_ui->gridViewButton->setChecked(!list);
+  m_ui->gridScaleSlider->setEnabled(!list);
   ConsiderViewChange();
+  emit PreferredViewChanged(list);
+}
+
+void GameList::SetGridScale(float scale)
+{
+  const float clamped_scale = std::clamp(scale, 0.1f, 2.0f);
+  m_model.SetScale(clamped_scale);
+  const QSignalBlocker blocker(m_ui->gridScaleSlider);
+  m_ui->gridScaleSlider->setValue(static_cast<int>(std::lround(clamped_scale * 100.0f)));
+
+  m_list_proxy->invalidate();
+  m_grid_proxy->invalidate();
+  UpdateFont();
 }
 
 void GameList::ConsiderViewChange()
@@ -1180,17 +1245,8 @@ void GameList::SetSearchTerm(const QString& term)
 
 void GameList::ShowSearch()
 {
-  m_ui->searchBar->show();
   m_ui->searchEdit->setFocus();
   m_ui->searchEdit->selectAll();
-  SetSearchTerm(m_ui->searchEdit->text());
-}
-
-void GameList::HideSearch()
-{
-  SetSearchTerm(QString{});
-  m_ui->searchEdit->clearFocus();
-  m_ui->searchBar->hide();
 }
 
 bool GameList::eventFilter(QObject* object, QEvent* event)
@@ -1198,7 +1254,11 @@ bool GameList::eventFilter(QObject* object, QEvent* event)
   if (object == m_ui->searchEdit && event->type() == QEvent::KeyPress &&
       static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape)
   {
-    HideSearch();
+    m_ui->searchEdit->clear();
+    if (m_ui->viewStack->currentWidget() == m_empty)
+      m_ui->listViewButton->setFocus();
+    else
+      GetActiveView()->setFocus();
     return true;
   }
 
@@ -1215,25 +1275,12 @@ void GameList::UpdateGameCount() const
 
 void GameList::ZoomIn()
 {
-  m_model.SetScale(m_model.GetScale() + 0.1);
-
-  m_list_proxy->invalidate();
-  m_grid_proxy->invalidate();
-
-  UpdateFont();
+  SetGridScale(m_model.GetScale() + 0.1f);
 }
 
 void GameList::ZoomOut()
 {
-  if (m_model.GetScale() <= 0.1)
-    return;
-
-  m_model.SetScale(m_model.GetScale() - 0.1);
-
-  m_list_proxy->invalidate();
-  m_grid_proxy->invalidate();
-
-  UpdateFont();
+  SetGridScale(m_model.GetScale() - 0.1f);
 }
 
 void GameList::UpdateFont()

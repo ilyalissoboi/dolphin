@@ -62,6 +62,7 @@ public:
   QMenu* GetListColumnsMenu() const { return m_cols_menu; }
 
   void InstallUpdateManually();
+  void SetPreferredViewChecked(bool list);
 
 signals:
   // File
@@ -288,6 +289,8 @@ private:
   QAction* m_show_network;
   QAction* m_show_jit;
   QAction* m_show_assembler;
+  QAction* m_list_view_action;
+  QAction* m_grid_view_action;
   QMenu* m_cols_menu;
 
   // JIT
