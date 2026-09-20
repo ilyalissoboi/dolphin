@@ -431,6 +431,7 @@ add_executable(dolphin-emu
   Settings/BroadbandAdapterSettingsDialog.h
   Settings/GameCubePane.cpp
   Settings/GameCubePane.h
+  Settings/GameCubePane.ui
   Settings/GeneralPane.cpp
   Settings/GeneralPane.h
   Settings/GeneralPane.ui

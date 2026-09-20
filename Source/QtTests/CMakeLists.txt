@@ -20,6 +20,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   GraphicsGeneralUiTest.cpp
   GraphicsHacksUiTest.cpp
   GraphicsPaneUiTest.cpp
+  GameCubePaneUiTest.cpp
   GeneralPaneUiTest.cpp
   InterfacePaneUiTest.cpp
   MainWindowUiTest.cpp
@@ -43,6 +44,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GraphicsPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/HacksWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GeneralPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GameCubePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AudioPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/InterfacePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/OnScreenDisplayPane.ui
