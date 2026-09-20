@@ -316,6 +316,7 @@ add_executable(dolphin-emu
   GameCount.h
   GameList/GameList.cpp
   GameList/GameList.h
+  GameList/GameListWidget.ui
   GameList/GameListModel.cpp
   GameList/GameListModel.h
   GameList/GameTracker.cpp
@@ -408,8 +409,6 @@ add_executable(dolphin-emu
   Resources.h
   RiivolutionBootWidget.cpp
   RiivolutionBootWidget.h
-  SearchBar.cpp
-  SearchBar.h
   Settings.cpp
   Settings.h
   Settings/AdvancedPane.cpp

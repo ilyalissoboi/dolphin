@@ -118,7 +118,6 @@
 #include "DolphinQt/ResourcePackManager.h"
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/RiivolutionBootWidget.h"
-#include "DolphinQt/SearchBar.h"
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/SkylanderPortal/SkylanderPortalWindow.h"
 #include "DolphinQt/TAS/GBATASInputWindow.h"
@@ -455,7 +454,6 @@ void MainWindow::CreateComponents()
 {
   m_menu_bar = new MenuBar(*m_ui, this);
   m_tool_bar = new ToolBar(*m_ui, this);
-  m_search_bar = new SearchBar(m_ui->gameListPage);
   m_game_list = new GameList(m_ui->gameListPage);
   m_emulation_status = new EmulationStatusWidget(m_ui->statusBar);
   m_ui->statusBar->addPermanentWidget(m_emulation_status);
@@ -594,7 +592,7 @@ void MainWindow::ConnectMenuBar()
   connect(m_menu_bar, &MenuBar::ShowList, m_game_list, &GameList::SetListView);
   connect(m_menu_bar, &MenuBar::ShowGrid, m_game_list, &GameList::SetGridView);
   connect(m_menu_bar, &MenuBar::PurgeGameListCache, m_game_list, &GameList::PurgeCache);
-  connect(m_menu_bar, &MenuBar::ShowSearch, m_search_bar, &SearchBar::Show);
+  connect(m_menu_bar, &MenuBar::ShowSearch, m_game_list, &GameList::ShowSearch);
 
   connect(m_menu_bar, &MenuBar::ColumnVisibilityToggled, m_game_list,
           &GameList::OnColumnVisibilityToggled);
@@ -739,9 +737,6 @@ void MainWindow::ConnectHost()
 void MainWindow::ConnectStack()
 {
   m_ui->gameListLayout->addWidget(m_game_list);
-  m_ui->gameListLayout->addWidget(m_search_bar);
-
-  connect(m_search_bar, &SearchBar::Search, m_game_list, &GameList::SetSearchTerm);
   connect(m_game_list, &GameList::GameCountUpdated, this,
           [this](const int total_games, const int visible_games) {
             m_total_games = total_games;

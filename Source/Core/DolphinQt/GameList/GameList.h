@@ -5,7 +5,7 @@
 
 #include <memory>
 
-#include <QStackedWidget>
+#include <QWidget>
 
 #include "DolphinQt/GameList/GameListModel.h"
 
@@ -15,12 +15,17 @@ class QListView;
 class QSortFilterProxyModel;
 class QTableView;
 
+namespace Ui
+{
+class GameListWidget;
+}
+
 namespace UICommon
 {
 class GameFile;
 }
 
-class GameList final : public QStackedWidget
+class GameList final : public QWidget
 {
   Q_OBJECT
 
@@ -39,6 +44,7 @@ public:
   void SetGridView() { SetPreferredView(false); }
   void SetViewColumn(int col, bool view);
   void SetSearchTerm(const QString& term);
+  void ShowSearch();
 
   void OnColumnVisibilityToggled(const QString& row, bool visible);
   void OnGameListVisibilityChanged();
@@ -101,7 +107,10 @@ private:
   QSortFilterProxyModel* GetActiveProxyModel() const;
   void ConsiderViewChange();
   void UpdateFont();
+  void HideSearch();
+  bool eventFilter(QObject* object, QEvent* event) override;
 
+  std::unique_ptr<Ui::GameListWidget> m_ui;
   GameListModel m_model;
   QSortFilterProxyModel* m_list_proxy;
   QSortFilterProxyModel* m_grid_proxy;

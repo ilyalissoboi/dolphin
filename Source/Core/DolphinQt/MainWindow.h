@@ -48,7 +48,6 @@ class NetPlaySetupDialog;
 class NetworkWidget;
 class RegisterWidget;
 class RenderWidget;
-class SearchBar;
 class SettingsWindow;
 class SkylanderPortalWindow;
 class ThreadWidget;
@@ -247,7 +246,6 @@ private:
   QStackedWidget* m_stack;
   ToolBar* m_tool_bar;
   MenuBar* m_menu_bar;
-  SearchBar* m_search_bar;
   GameList* m_game_list;
   EmulationStatusWidget* m_emulation_status;
   RenderWidget* m_render_widget = nullptr;

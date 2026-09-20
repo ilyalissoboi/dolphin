@@ -32,9 +32,11 @@
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListView>
 #include <QMap>
 #include <QMenu>
+#include <QPushButton>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QTableView>
@@ -69,6 +71,8 @@
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/WiiUpdate.h"
+
+#include "ui_GameListWidget.h"
 
 #include "UICommon/GameFile.h"
 
@@ -113,8 +117,11 @@ protected:
 };
 }  // namespace
 
-GameList::GameList(QWidget* parent) : QStackedWidget(parent), m_model(this)
+GameList::GameList(QWidget* parent)
+    : QWidget(parent), m_ui(std::make_unique<Ui::GameListWidget>()), m_model(this)
 {
+  m_ui->setupUi(this);
+
   m_list_proxy = new ListProxyModel(this);
   m_list_proxy->setSortCaseSensitivity(Qt::CaseInsensitive);
   m_list_proxy->setSortRole(GameListModel::SORT_ROLE);
@@ -143,11 +150,15 @@ GameList::GameList(QWidget* parent) : QStackedWidget(parent), m_model(this)
   connect(&m_model, &QAbstractItemModel::rowsInserted, this, &GameList::UpdateGameCount);
   connect(&m_model, &QAbstractItemModel::rowsRemoved, this, &GameList::UpdateGameCount);
 
-  addWidget(m_list);
-  addWidget(m_grid);
-  addWidget(m_empty);
+  m_ui->viewStack->addWidget(m_list);
+  m_ui->viewStack->addWidget(m_grid);
+  m_ui->viewStack->addWidget(m_empty);
   m_prefer_list = Settings::Instance().GetPreferredView();
   ConsiderViewChange();
+
+  connect(m_ui->searchEdit, &QLineEdit::textChanged, this, &GameList::SetSearchTerm);
+  connect(m_ui->closeSearchButton, &QPushButton::clicked, this, &GameList::HideSearch);
+  m_ui->searchEdit->installEventFilter(this);
 
   auto* zoom_in = new QShortcut(QKeySequence::ZoomIn, this);
   auto* zoom_out = new QShortcut(QKeySequence::ZoomOut, this);
@@ -898,7 +909,7 @@ void GameList::ChangeDisc()
 
 QAbstractItemView* GameList::GetActiveView() const
 {
-  if (currentWidget() == m_list)
+  if (m_ui->viewStack->currentWidget() == m_list)
   {
     return m_list;
   }
@@ -907,7 +918,7 @@ QAbstractItemView* GameList::GetActiveView() const
 
 QSortFilterProxyModel* GameList::GetActiveProxyModel() const
 {
-  if (currentWidget() == m_list)
+  if (m_ui->viewStack->currentWidget() == m_list)
   {
     return m_list_proxy;
   }
@@ -981,15 +992,16 @@ void GameList::ConsiderViewChange()
   if (m_model.rowCount(QModelIndex()) > 0)
   {
     if (m_prefer_list)
-      setCurrentWidget(m_list);
+      m_ui->viewStack->setCurrentWidget(m_list);
     else
-      setCurrentWidget(m_grid);
+      m_ui->viewStack->setCurrentWidget(m_grid);
   }
   else
   {
-    setCurrentWidget(m_empty);
+    m_ui->viewStack->setCurrentWidget(m_empty);
   }
 }
+
 void GameList::keyPressEvent(QKeyEvent* event)
 {
   if (event->key() == Qt::Key_Return && GetSelectedGame() != nullptr)
@@ -1001,7 +1013,7 @@ void GameList::keyPressEvent(QKeyEvent* event)
   }
   else
   {
-    QStackedWidget::keyPressEvent(event);
+    QWidget::keyPressEvent(event);
   }
 }
 
@@ -1164,6 +1176,33 @@ void GameList::SetSearchTerm(const QString& term)
 
   UpdateColumnVisibility();
   UpdateGameCount();
+}
+
+void GameList::ShowSearch()
+{
+  m_ui->searchBar->show();
+  m_ui->searchEdit->setFocus();
+  m_ui->searchEdit->selectAll();
+  SetSearchTerm(m_ui->searchEdit->text());
+}
+
+void GameList::HideSearch()
+{
+  SetSearchTerm(QString{});
+  m_ui->searchEdit->clearFocus();
+  m_ui->searchBar->hide();
+}
+
+bool GameList::eventFilter(QObject* object, QEvent* event)
+{
+  if (object == m_ui->searchEdit && event->type() == QEvent::KeyPress &&
+      static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape)
+  {
+    HideSearch();
+    return true;
+  }
+
+  return QWidget::eventFilter(object, event);
 }
 
 void GameList::UpdateGameCount() const
