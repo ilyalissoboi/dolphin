@@ -1,6 +1,6 @@
 # Declarative UI Slice 3: Game Library
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Move the game-library shell into a Qt Designer form and add compact, always-available
 view and filtering controls while preserving the existing list, grid, menu, launch, and empty
@@ -34,19 +34,27 @@ library behavior.
 
 - [x] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
 - [x] Review light and dark list, grid, empty, filtered, and narrow-window states on macOS.
-- [ ] Build and run both test binaries on Windows.
-- [ ] Review light and dark controls, keyboard traversal, focus, and narrow-window behavior on
+- [x] Build and run both test binaries on Windows.
+- [x] Review light and dark controls, keyboard traversal, focus, and narrow-window behavior on
   Windows.
 
 ## Verification notes
 
 - macOS built `dolphin-emu` and `qt-tests`; `qt-tests` passed all 99 tests, and `tests`
   passed 1183 tests with the same two environment-dependent shader tests skipped.
+- Windows built `dolphin-emu`, `qt-tests`, and `tests`; native `qt-tests -platform windows`
+  passed all 99 tests, and `tests` passed 1505 tests with the same two environment-dependent
+  shader tests skipped.
 - The UI extraction regression suite passed.
 - Light and Dark themes were reviewed with empty, populated list, populated grid, and filtered
   libraries. `Ctrl+F`, Escape, View-menu synchronization, direct view buttons, and zoom shortcut
   synchronization were exercised. The form test also lays out the row at 360 pixels and keeps both
   32-pixel view buttons and the 80-pixel scale control intact.
+- Windows light and dark list and grid states were reviewed at 1100 by 720 and 520 by 640 pixels.
+  At the narrow size, both view buttons remained 32 pixels wide, the scale control remained 84
+  pixels wide, and both filters and search remained visible. Right Arrow moved focus from List to
+  Grid and activated it; Tab then traversed the enabled scale, platform, region, search, and grid
+  controls. `Ctrl+F` focused search, and Escape cleared it and returned focus to the active view.
 - Compared with the form-migration checkpoint, `Search games...` remains in extraction and
   `Close` is removed. The new control labels, accessibility names, platform names, and region names
   are extracted.
@@ -57,4 +65,4 @@ library behavior.
 - [x] Search, platform, and region controls are always available.
 - [x] View buttons, View menu actions, slider, and zoom shortcuts stay synchronized.
 - [x] Existing saved settings and multi-select menu filters retain their meaning.
-- [ ] macOS and Windows builds, tests, gettext checks, and visual review pass.
+- [x] macOS and Windows builds, tests, gettext checks, and visual review pass.
