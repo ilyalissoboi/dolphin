@@ -446,6 +446,7 @@ add_executable(dolphin-emu
   Settings/PathPane.ui
   Settings/TriforcePane.cpp
   Settings/TriforcePane.h
+  Settings/TriforcePane.ui
   Settings/USBDevicePicker.cpp
   Settings/USBDevicePicker.h
   Settings/WiiPane.cpp
