@@ -4,6 +4,13 @@
  <widget class="QWidget" name="UiStringFixture">
   <layout class="QVBoxLayout" name="layout">
    <item>
+    <widget class="QLabel" name="class_name">
+     <property name="text">
+      <string extracomment="A label whose text equals the form class name">UiStringFixture</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="plain">
      <property name="text">
       <string>Enable Progressive Scan</string>

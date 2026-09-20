@@ -9,6 +9,7 @@ to its xgettext file list."""
 
 import bisect
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -147,9 +148,13 @@ def annotate(header_path, comments):
         start = body.find(literal)
         while start != -1:
             index = bisect.bisect_right(line_starts, start) - 1
-            # uic emits a bare setText(QString()) for some strings; only a line that
-            # really is a translate() call can carry a translator comment.
-            if "translate(" in lines[index]:
+            column = start - line_starts[index]
+            prefix = lines[index][:column]
+            # The form class is translate()'s first argument on every generated call. If
+            # a message has the same text, matching the literal alone finds every context
+            # argument as well as the one message argument. Require this occurrence to
+            # begin exactly where the second argument begins.
+            if re.search(r'\btranslate\(\s*"(?:\\.|[^"\\])*"\s*,\s*$', prefix):
                 notes_by_line.setdefault(index, note)
                 injected.add(literal)
             start = body.find(literal, start + 1)

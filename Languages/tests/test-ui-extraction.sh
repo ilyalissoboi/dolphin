@@ -93,6 +93,29 @@ grep -A1 "// i18n: A short label whose whole text is another label's second line
 	grep -q 'translate(.*"for GameCube"' ||
 	fail "substring label's extracomment is not above its own translate() call"
 
+# C7: a string whose text is the form's <class> name. uic writes that name as translate()'s
+# *first* argument on every call it emits, so this string's literal occurs once per
+# translate() line in the file on top of its own msgid. annotate() must reject a match that
+# sits at translate()'s first argument; without that, this string -- declared first, so it
+# is matched first -- claims every line, and because notes_by_line is first-wins every
+# other string's own comment is then silently dropped. The exit status stays 0, because
+# every literal did match something, so only these assertions can catch it.
+grep -A1 '// i18n: A label whose text equals the form class name' "$HEADER" |
+	grep -q 'translate("UiStringFixture", "UiStringFixture"' ||
+	fail "class-name label's extracomment is not above its own translate() call"
+# The assertion that matters: an unrelated string must still carry its *own* comment. The
+# positive check above passes with or without the fix, because the class-name string's own
+# translate() line is one of the lines it wrongly claims.
+grep -B1 'translate("UiStringFixture", "Address:"' "$HEADER" |
+	grep -q '// i18n: A hexadecimal address, not a street address' ||
+	fail "address label's own comment was displaced by the class-name label's"
+# And the class-name comment must appear exactly once. The lines it wrongly claims include
+# the calls for strings that have no comment of their own, which the assertion above cannot
+# see: those strings would reach translators carrying a note about a different string.
+class_name_notes=$(grep -c '// i18n: A label whose text equals the form class name' "$HEADER")
+[ "$class_name_notes" -eq 1 ] ||
+	fail "class-name label's extracomment appears $class_name_notes times, expected 1"
+
 extract "$SCRATCH/both.pot" "$BOTH_KEYWORDS" "$HEADER"
 
 grep -q '^msgid "Enable Progressive Scan"$' "$SCRATCH/both.pot" ||
@@ -143,14 +166,14 @@ grep -q '^msgid "0x80000000"$' "$SCRATCH/both.pot" &&
 grep -q '^msgid "   "$' "$SCRATCH/both.pot" &&
 	fail "whitespace-only string appeared in the .pot"
 
-# Count is 10: plain, disambiguated, annotated, nonascii, escape, numeric-CR, multiline,
-# the two shared-first-line labels and the substring label. Not counted: the notr string
-# and the whitespace-only string, for neither of which uic emits a translate() call at all.
-# Note: xgettext represents multiline strings as msgid "" followed by quoted lines,
+# Count is 11: class-name, plain, disambiguated, annotated, nonascii, escape, numeric-CR,
+# multiline, the two shared-first-line labels and the substring label. Not counted: the notr
+# string and the whitespace-only string, for neither of which uic emits a translate() call
+# at all. Note: xgettext represents multiline strings as msgid "" followed by quoted lines,
 # so we count all msgid lines minus 1 for the header's empty msgid.
 count=$(grep -c '^msgid' "$SCRATCH/both.pot")
 count=$((count - 1))
-[ "$count" -eq 10 ] || fail "expected 10 strings, got $count (duplicates or over-extraction)"
+[ "$count" -eq 11 ] || fail "expected 11 strings, got $count (duplicates or over-extraction)"
 
 # The reason both keyword forms are listed: translate:2,3c alone drops every
 # string whose disambiguation uic emitted as nullptr, which is nearly all of
@@ -160,7 +183,7 @@ extract "$SCRATCH/ctx-only.pot" "--keyword=translate:2,3c" "$HEADER"
 ctx_only=$(grep -c '^msgid' "$SCRATCH/ctx-only.pot")
 ctx_only=$((ctx_only - 1))
 [ "$ctx_only" -eq 1 ] ||
-	fail "expected translate:2,3c alone to extract 1 of 10 strings, got $ctx_only"
+	fail "expected translate:2,3c alone to extract 1 of 11 strings, got $ctx_only"
 
 # QPainter::translate is also called `translate`, so the keywords must not turn
 # painter transforms into msgids.
