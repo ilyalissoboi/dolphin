@@ -3,6 +3,7 @@
 
 #include <QComboBox>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QVBoxLayout>
@@ -39,13 +40,27 @@ TEST(GeneralPaneUiTest, FormOwnsTheGeneralSettingsStructure)
   EXPECT_NE(ui.rootLayout->itemAt(4)->spacerItem(), nullptr);
 
   ASSERT_EQ(ui.basicLayout->count(), 7);
-  EXPECT_EQ(ui.basicLayout->itemAt(0)->widget(), ui.dualCoreCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(1)->widget(), ui.cheatsCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(2)->widget(), ui.loadGameIntoMemoryCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(3)->widget(), ui.overrideRegionSettingsCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(4)->widget(), ui.autoDiscChangeCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(5)->widget(), ui.discordPresenceCheckBox);
-  EXPECT_EQ(ui.basicLayout->itemAt(6)->layout(), ui.speedLimitLayout);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(0, 0)->widget(), ui.dualCoreCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(0, 1)->widget(), ui.cheatsCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(1, 0)->widget(), ui.loadGameIntoMemoryCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(1, 1)->widget(), ui.autoDiscChangeCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(2, 0)->widget(), ui.overrideRegionSettingsCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(2, 1)->widget(), ui.discordPresenceCheckBox);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(3, 0)->layout(), ui.speedLimitLayout);
+  EXPECT_EQ(ui.basicLayout->itemAtPosition(3, 1)->layout(), ui.speedLimitLayout);
+  EXPECT_EQ(ui.basicLayout->rowCount(), 4);
+  EXPECT_EQ(ui.basicLayout->columnCount(), 2);
+
+  widget.resize(560, 620);
+  ui.rootLayout->setGeometry(widget.rect());
+  ui.basicLayout->setGeometry(ui.basicGroup->contentsRect());
+  EXPECT_LT(ui.dualCoreCheckBox->geometry().right(), ui.cheatsCheckBox->geometry().left());
+  EXPECT_LT(ui.loadGameIntoMemoryCheckBox->geometry().right(),
+            ui.autoDiscChangeCheckBox->geometry().left());
+  EXPECT_LT(ui.overrideRegionSettingsCheckBox->geometry().right(),
+            ui.discordPresenceCheckBox->geometry().left());
+  EXPECT_LE(ui.discordPresenceCheckBox->geometry().right(), ui.basicGroup->contentsRect().right());
+  EXPECT_LE(ui.speedLimitComboBox->geometry().right(), ui.basicGroup->contentsRect().right());
 
   EXPECT_EQ(ui.speedLimitLayout->fieldGrowthPolicy(),
             QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow);

@@ -16,50 +16,50 @@
      <property name="title">
       <string>Basic Settings</string>
      </property>
-     <layout class="QVBoxLayout" name="basicLayout">
-      <item>
+     <layout class="QGridLayout" name="basicLayout">
+      <item row="0" column="0">
        <widget class="QCheckBox" name="dualCoreCheckBox">
         <property name="text">
          <string>Enable Dual Core (speedhack)</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="0" column="1">
        <widget class="QCheckBox" name="cheatsCheckBox">
         <property name="text">
          <string>Enable Cheats</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="1" column="0">
        <widget class="QCheckBox" name="loadGameIntoMemoryCheckBox">
         <property name="text">
          <string>Load Whole Game Into Memory</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="2" column="0">
        <widget class="QCheckBox" name="overrideRegionSettingsCheckBox">
         <property name="text">
          <string>Allow Mismatched Region Settings</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="1" column="1">
        <widget class="QCheckBox" name="autoDiscChangeCheckBox">
         <property name="text">
          <string>Change Discs Automatically</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="2" column="1">
        <widget class="QCheckBox" name="discordPresenceCheckBox">
         <property name="text">
          <string>Show Current Game on Discord</string>
         </property>
        </widget>
       </item>
-      <item>
+      <item row="3" column="0" colspan="2">
        <layout class="QFormLayout" name="speedLimitLayout">
         <property name="fieldGrowthPolicy">
          <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
