@@ -14,45 +14,50 @@ features.
 
 ## Task 1: Migrate the pane shell
 
-- [ ] Add `ControllersPane.ui` for the GameCube, Wii Remote, and common-input section order.
-- [ ] Keep construction of the three section controllers in C++ and place them into form-owned
+- [x] Add `ControllersPane.ui` for the GameCube, Wii Remote, and common-input section order.
+- [x] Keep construction of the three section controllers in C++ and place them into form-owned
   layout slots.
-- [ ] Preserve the shared settings scroll wrapper and top-aligned sizing.
-- [ ] Add a Qt form test for the permanent pane structure.
+- [x] Preserve the shared settings scroll wrapper and top-aligned sizing.
+- [x] Add a Qt form test for the permanent pane structure.
 
 ## Task 2: Migrate GameCube controller selection
 
-- [ ] Add `GamecubeControllersWidget.ui` for the four port rows.
-- [ ] Keep platform-dependent device choices and translated numbered port labels in C++.
-- [ ] Preserve device-to-menu mappings, Configure availability, NetPlay restrictions, config
+- [x] Add `GamecubeControllersWidget.ui` for the four port rows.
+- [x] Keep platform-dependent device choices and translated numbered port labels in C++.
+- [x] Preserve device-to-menu mappings, Configure availability, NetPlay restrictions, config
   writes, and every mapping-dialog type.
-- [ ] Replace the custom non-default buttons with stock form buttons whose `autoDefault` property
+- [x] Replace the custom non-default buttons with stock form buttons whose `autoDefault` property
   is disabled.
 
 ## Task 3: Migrate Wii Remote selection
 
-- [ ] Add `WiimoteControllersWidget.ui` for passthrough, emulated remotes, shared options, and
+- [x] Add `WiimoteControllersWidget.ui` for passthrough, emulated remotes, shared options, and
   refresh controls.
-- [ ] Keep Bluetooth adapter discovery and device entries dynamic.
-- [ ] Keep the Windows-only host Sync and Reset menu actions dynamic.
-- [ ] Preserve all emulation-state, NetPlay, controller-interface, continuous-scanning, and
+- [x] Keep Bluetooth adapter discovery and device entries dynamic.
+- [x] Keep the Windows-only host Sync and Reset menu actions dynamic.
+- [x] Preserve all emulation-state, NetPlay, controller-interface, continuous-scanning, and
   Balance Board dependencies.
-- [ ] Preserve asynchronous refresh indicator behavior and shutdown synchronization.
+- [x] Preserve asynchronous refresh indicator behavior and shutdown synchronization.
 
 ## Task 4: Migrate common input controls
 
-- [ ] Add `CommonControllersWidget.ui` for Background Input and the two standalone configuration
+- [x] Add `CommonControllersWidget.ui` for Background Input and the two standalone configuration
   dialogs.
-- [ ] Preserve explicit config persistence and both window-launch paths.
-- [ ] Preserve the translator note for the Common group title.
+- [x] Preserve explicit config persistence and both window-launch paths.
+- [x] Preserve the translator note for the Common group title.
 
 ## Task 5: Preserve compatibility
 
-- [ ] Keep every existing config key and device enum mapping.
-- [ ] Keep all labels, group titles, combo choices, action text, and dialog text.
-- [ ] Keep config-change and emulation-state refresh connections.
-- [ ] Record the targeted gettext msgid comparison.
-- [ ] Verify no migrated section constructs a permanent control or layout in C++.
+- [x] Keep every existing config key and device enum mapping.
+- [x] Keep all labels, group titles, combo choices, action text, and dialog text.
+- [x] Keep config-change and emulation-state refresh connections.
+- [x] Record the targeted gettext msgid comparison.
+- [x] Verify no migrated section constructs a permanent control or layout in C++.
+
+Implementation checkpoint: all four forms build in `dolphin-emu` and `qt-tests`; all 113 Qt tests
+pass. The UI extraction regression suite passes, the targeted catalog retains the same 41 msgids,
+and the source audit retains the same eight explicit config keys. The exact macOS app shows the
+form-owned sections and expected enabled states in the light theme.
 
 ## Task 6: Verify the slice
 

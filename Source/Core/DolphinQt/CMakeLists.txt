@@ -98,6 +98,7 @@ add_executable(dolphin-emu
   Config/CheatWarningWidget.h
   Config/CommonControllersWidget.cpp
   Config/CommonControllersWidget.h
+  Config/CommonControllersWidget.ui
   Config/ConfigControls/ConfigBool.cpp
   Config/ConfigControls/ConfigBool.h
   Config/ConfigControls/ConfigChoice.cpp
@@ -129,6 +130,7 @@ add_executable(dolphin-emu
   Config/ControllerInterface/ServerStringValidator.h
   Config/ControllersPane.cpp
   Config/ControllersPane.h
+  Config/ControllersPane.ui
   Config/FilesystemWidget.cpp
   Config/FilesystemWidget.h
   Config/FreeLookWidget.cpp
@@ -143,6 +145,7 @@ add_executable(dolphin-emu
   Config/GameConfigWidget.h
   Config/GamecubeControllersWidget.cpp
   Config/GamecubeControllersWidget.h
+  Config/GamecubeControllersWidget.ui
   Config/GeckoCodeWidget.cpp
   Config/GeckoCodeWidget.h
   Config/Graphics/AdvancedWidget.cpp
@@ -263,6 +266,7 @@ add_executable(dolphin-emu
   Config/VerifyWidget.h
   Config/WiimoteControllersWidget.cpp
   Config/WiimoteControllersWidget.h
+  Config/WiimoteControllersWidget.ui
   ConvertDialog.cpp
   ConvertDialog.h
   Debugger/AssembleInstructionDialog.cpp
