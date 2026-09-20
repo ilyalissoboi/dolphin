@@ -454,7 +454,7 @@ static void InstallHotkeyFilter(QWidget* dialog)
 void MainWindow::CreateComponents()
 {
   m_menu_bar = new MenuBar(this);
-  m_tool_bar = new ToolBar(this);
+  m_tool_bar = new ToolBar(*m_ui, this);
   m_search_bar = new SearchBar(m_ui->gameListPage);
   m_game_list = new GameList(m_ui->gameListPage);
   m_emulation_status = new EmulationStatusWidget(m_ui->statusBar);
@@ -690,8 +690,6 @@ void MainWindow::ConnectHotkeys()
 
 void MainWindow::ConnectToolBar()
 {
-  addToolBar(m_tool_bar);
-
   connect(m_tool_bar, &ToolBar::OpenPressed, this, &MainWindow::Open);
   connect(m_tool_bar, &ToolBar::RefreshPressed, this, &MainWindow::RefreshGameList);
 

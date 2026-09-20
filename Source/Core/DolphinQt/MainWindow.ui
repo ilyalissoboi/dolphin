@@ -41,6 +41,121 @@
    </widget>
   </widget>
   <widget class="GameCount" name="statusBar"/>
+  <widget class="QToolBar" name="toolbar">
+   <property name="windowTitle">
+    <string>Toolbar</string>
+   </property>
+   <property name="iconSize">
+    <size>
+     <width>32</width>
+     <height>32</height>
+    </size>
+   </property>
+   <property name="toolButtonStyle">
+    <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+   </property>
+   <property name="floatable">
+    <bool>false</bool>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionToolbarStep"/>
+   <addaction name="actionToolbarStepOver"/>
+   <addaction name="actionToolbarStepOut"/>
+   <addaction name="actionToolbarSkip"/>
+   <addaction name="actionToolbarShowPC"/>
+   <addaction name="actionToolbarSetPC"/>
+   <addaction name="actionToolbarOpen"/>
+   <addaction name="actionToolbarRefresh"/>
+   <addaction name="separator"/>
+   <addaction name="actionToolbarPlayPause"/>
+   <addaction name="actionToolbarStop"/>
+   <addaction name="actionToolbarFullScreen"/>
+   <addaction name="actionToolbarScreenShot"/>
+   <addaction name="separator"/>
+   <addaction name="actionToolbarSettings"/>
+   <addaction name="actionToolbarGraphics"/>
+   <addaction name="actionToolbarControllers"/>
+  </widget>
+  <action name="actionToolbarStep">
+   <property name="text">
+    <string extracomment="Here, &quot;Step&quot; is a verb. This feature is used for going through code step by step.">Step</string>
+   </property>
+  </action>
+  <action name="actionToolbarStepOver">
+   <property name="text">
+    <string extracomment="Here, &quot;Step&quot; is a verb. This feature is used for going through code step by step.">Step Over</string>
+   </property>
+  </action>
+  <action name="actionToolbarStepOut">
+   <property name="text">
+    <string extracomment="Here, &quot;Step&quot; is a verb. This feature is used for going through code step by step.">Step Out</string>
+   </property>
+  </action>
+  <action name="actionToolbarSkip">
+   <property name="text">
+    <string>Skip</string>
+   </property>
+  </action>
+  <action name="actionToolbarShowPC">
+   <property name="text">
+    <string extracomment="PC is an acronym for program counter, not personal computer.">Show PC</string>
+   </property>
+  </action>
+  <action name="actionToolbarSetPC">
+   <property name="text">
+    <string extracomment="PC is an acronym for program counter, not personal computer.">Set PC</string>
+   </property>
+  </action>
+  <action name="actionToolbarOpen">
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+  <action name="actionToolbarRefresh">
+   <property name="text">
+    <string>Refresh</string>
+   </property>
+  </action>
+  <action name="actionToolbarPlayPause">
+   <property name="text">
+    <string>Play</string>
+   </property>
+  </action>
+  <action name="actionToolbarStop">
+   <property name="text">
+    <string>Stop</string>
+   </property>
+  </action>
+  <action name="actionToolbarFullScreen">
+   <property name="text">
+    <string>FullScr</string>
+   </property>
+  </action>
+  <action name="actionToolbarScreenShot">
+   <property name="text">
+    <string>ScrShot</string>
+   </property>
+  </action>
+  <action name="actionToolbarSettings">
+   <property name="text">
+    <string>Config</string>
+   </property>
+  </action>
+  <action name="actionToolbarGraphics">
+   <property name="text">
+    <string>Graphics</string>
+   </property>
+  </action>
+  <action name="actionToolbarControllers">
+   <property name="text">
+    <string>Controllers</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
