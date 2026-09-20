@@ -1,6 +1,6 @@
 # Declarative UI Slice 1: Main Shell
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Put the first production DolphinQt layout under AUTOUIC and add the PCSX2-style
 emulation status area without changing menu, toolbar, debugger, render, or game-launch behavior.
@@ -53,4 +53,4 @@ production form.
 - [x] The stopped-state game-count preference still works.
 - [x] Existing menu, toolbar, render-stack, and debugger behavior is preserved.
 - [x] `tests`, `qt-tests`, `.ui` extraction, and `dolphin-emu` are green on macOS.
-- [ ] Windows build and interactive visual verification are complete.
+- [x] Windows build and interactive visual verification are complete.
