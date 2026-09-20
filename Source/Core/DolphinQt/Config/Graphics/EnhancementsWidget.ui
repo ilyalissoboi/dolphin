@@ -66,7 +66,7 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="3" column="1" colspan="2">
        <widget class="QLineEdit" name="postProcessingPresetLineEdit">
         <property name="readOnly">
          <bool>true</bool>
@@ -76,7 +76,7 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="2">
+      <item row="4" column="0" colspan="3">
        <layout class="QHBoxLayout" name="postProcessingButtonsLayout">
         <item>
          <widget class="QPushButton" name="postProcessingBrowseButton">
@@ -120,56 +120,56 @@
         </item>
        </layout>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QCheckBox" name="scaledEfbCopyCheckBox">
         <property name="text">
          <string>Scaled EFB Copy</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1" colspan="2">
+      <item row="5" column="1" colspan="2">
        <widget class="QCheckBox" name="perPixelLightingCheckBox">
         <property name="text">
          <string>Per-Pixel Lighting</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QCheckBox" name="widescreenHackCheckBox">
         <property name="text">
          <string>Widescreen Hack</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1" colspan="2">
+      <item row="6" column="1" colspan="2">
        <widget class="QCheckBox" name="force24BitColorCheckBox">
         <property name="text">
          <string>Force 24-Bit Color</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="7" column="0">
        <widget class="QCheckBox" name="disableFogCheckBox">
         <property name="text">
          <string>Disable Fog</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1" colspan="2">
+      <item row="7" column="1" colspan="2">
        <widget class="QCheckBox" name="arbitraryMipmapDetectionCheckBox">
         <property name="text">
          <string>Arbitrary Mipmap Detection</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <widget class="QCheckBox" name="disableCopyFilterCheckBox">
         <property name="text">
          <string>Disable Copy Filter</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1" colspan="2">
+      <item row="8" column="1" colspan="2">
        <widget class="QCheckBox" name="hdrCheckBox">
         <property name="text">
          <string>HDR Post-Processing</string>

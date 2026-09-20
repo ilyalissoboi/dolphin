@@ -27,6 +27,7 @@ TEST(GraphicsEnhancementsUiTest, FormOwnsTheEnhancementsGraphicsStructure)
   EXPECT_EQ(ui.enhancementsLayout->itemAtPosition(1, 1)->widget(), ui.antiAliasingComboBox);
   EXPECT_EQ(ui.enhancementsLayout->itemAtPosition(2, 1)->widget(), ui.textureFilteringComboBox);
   EXPECT_TRUE(ui.postProcessingPresetLineEdit->isReadOnly());
+  EXPECT_EQ(ui.enhancementsLayout->itemAtPosition(4, 0)->layout(), ui.postProcessingButtonsLayout);
   EXPECT_FALSE(ui.postProcessingBrowseButton->autoDefault());
   EXPECT_FALSE(ui.postProcessingClearButton->autoDefault());
   EXPECT_FALSE(ui.downloadShaderPackButton->autoDefault());
