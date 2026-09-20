@@ -14,6 +14,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   EmulationStatusWidgetTest.cpp
   GameListUiTest.cpp
   MainWindowUiTest.cpp
+  SettingsHelpTest.cpp
   SettingsWindowUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp

@@ -48,6 +48,7 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigWidgetBinder.h
   Config/Binder/ConfigSettingRegistry.cpp
   Config/Binder/ConfigSettingRegistry.h
+  Config/SettingsHelp.h
   Config/Binder/BalloonTipFilter.cpp
   Config/Binder/BalloonTipFilter.h
   Config/ToolTipControls/BalloonTip.cpp

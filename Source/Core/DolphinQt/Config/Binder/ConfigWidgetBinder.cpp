@@ -26,6 +26,7 @@
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigBindingLogic.h"
 #include "DolphinQt/Config/Binder/ConfigSettingRegistry.h"
+#include "DolphinQt/Config/SettingsHelp.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 
 namespace ConfigWidget
@@ -761,6 +762,8 @@ void SetDescription(QWidget* widget, QString title, QString description)
     if (const auto* const button = qobject_cast<const QAbstractButton*>(widget))
       title = button->text();
   }
+
+  SettingsHelp::Set(widget, title, description);
 
   auto* filter = widget->findChild<BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
   if (filter == nullptr)

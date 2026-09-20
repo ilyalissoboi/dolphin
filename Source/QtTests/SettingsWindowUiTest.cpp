@@ -32,6 +32,7 @@ TEST(SettingsWindowUiTest, FormOwnsTheSharedSettingsShell)
             QAbstractScrollArea::SizeAdjustPolicy::AdjustToContents);
   EXPECT_EQ(ui.navigationList->iconSize(), QSize(32, 32));
   EXPECT_TRUE(ui.navigationList->wordWrap());
+  EXPECT_EQ(ui.navigationList->accessibleName(), QStringLiteral("Settings categories"));
 
   EXPECT_EQ(ui.contentLayout->contentsMargins(), QMargins());
   EXPECT_EQ(ui.contentLayout->spacing(), 0);
@@ -44,6 +45,7 @@ TEST(SettingsWindowUiTest, FormOwnsTheSharedSettingsShell)
   EXPECT_EQ(ui.helpText->minimumHeight(), 122);
   EXPECT_EQ(ui.helpText->maximumHeight(), 122);
   EXPECT_TRUE(ui.helpText->isHidden());
+  EXPECT_EQ(ui.helpText->accessibleName(), QStringLiteral("Setting description"));
 
   EXPECT_NE(ui.buttonBox->button(QDialogButtonBox::StandardButton::Close), nullptr);
 }

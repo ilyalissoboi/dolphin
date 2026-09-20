@@ -7,6 +7,7 @@
 
 #include <QString>
 
+#include "DolphinQt/Config/SettingsHelp.h"
 #include "DolphinQt/Config/ToolTipControls/BalloonTip.h"
 
 class QEnterEvent;
@@ -22,9 +23,17 @@ class ToolTipWidget : public Derived
 public:
   using Derived::Derived;
 
-  void SetTitle(QString title) { m_title = std::move(title); }
+  void SetTitle(QString title)
+  {
+    m_title = std::move(title);
+    SettingsHelp::SetTitle(this, m_title);
+  }
 
-  void SetDescription(QString description) { m_description = std::move(description); }
+  void SetDescription(QString description)
+  {
+    m_description = std::move(description);
+    SettingsHelp::SetDescription(this, m_description);
+  }
 
 private:
   void enterEvent(QEnterEvent* const event) override
