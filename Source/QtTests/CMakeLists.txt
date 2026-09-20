@@ -14,11 +14,13 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   EmulationStatusWidgetTest.cpp
   GameListUiTest.cpp
   MainWindowUiTest.cpp
+  SettingsWindowUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/NonAutodismissibleMenu.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/GameListWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
   # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is
   # compiler-checked against the declaration.
@@ -34,7 +36,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core

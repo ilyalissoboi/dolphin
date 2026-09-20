@@ -3,18 +3,18 @@
 
 #include "DolphinQt/Config/SettingsWindow.h"
 
+#include <memory>
 #include <utility>
 
 #include <QApplication>
 #include <QColor>
 #include <QDialogButtonBox>
 #include <QEvent>
-#include <QHBoxLayout>
 #include <QListWidget>
 #include <QPalette>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QTabWidget>
-#include <QVBoxLayout>
 
 #include "DolphinQt/Config/ControllersPane.h"
 #include "DolphinQt/Config/Graphics/GraphicsPane.h"
@@ -32,25 +32,15 @@
 #include "DolphinQt/Settings/TriforcePane.h"
 #include "DolphinQt/Settings/WiiPane.h"
 
-StackedSettingsWindow::StackedSettingsWindow(QWidget* parent) : QDialog{parent}
-{
-  // This eliminates the ugly line between the title bar and window contents with KDE Plasma.
-  setStyleSheet(QStringLiteral("QDialog { border: none; }"));
+#include "ui_SettingsWindow.h"
 
-  auto* const layout = new QHBoxLayout{this};
+StackedSettingsWindow::StackedSettingsWindow(QWidget* parent)
+    : QDialog{parent}, m_ui{std::make_unique<Ui::SettingsWindow>()}
+{
+  m_ui->setupUi(this);
 
   // Calculated value for the padding in our list items.
-  const int list_item_padding = layout->contentsMargins().left() / 2;
-
-  // Eliminate padding around layouts.
-  layout->setContentsMargins(QMargins{});
-  layout->setSpacing(0);
-
-  m_navigation_list = new QListWidget;
-
-  // Ensure list doesn't grow horizontally and is not resized smaller than its contents.
-  m_navigation_list->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
-  m_navigation_list->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+  const int list_item_padding = style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 2;
 
   // FYI: "base" is the window color on Windows and "alternate-base" is very high contrast on macOS.
   const auto* const list_background =
@@ -60,7 +50,7 @@ StackedSettingsWindow::StackedSettingsWindow(QWidget* parent) : QDialog{parent}
       "palette(base)";
 #endif
 
-  m_navigation_list->setStyleSheet(
+  m_ui->navigationList->setStyleSheet(
       QString::fromUtf8(
           // Remove border around entire widget and adjust background color.
           "QListWidget { border: 0; background: %1; } "
@@ -79,27 +69,12 @@ StackedSettingsWindow::StackedSettingsWindow(QWidget* parent) : QDialog{parent}
 
   UpdateNavigationListStyle();
 
-  layout->addWidget(m_navigation_list);
-
-  auto* const right_side = new QVBoxLayout;
-  layout->addLayout(right_side);
-
-  m_stacked_panes = new QStackedWidget;
-
-  right_side->addWidget(m_stacked_panes);
-
-  // The QFrame gives us some padding around the button.
-  auto* const button_frame = new QFrame;
-  auto* const button_layout = new QGridLayout{button_frame};
-  auto* const button_box = new QDialogButtonBox(QDialogButtonBox::Close);
-  right_side->addWidget(button_frame);
-  button_layout->addWidget(button_box);
-
-  connect(button_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
-
-  connect(m_navigation_list, &QListWidget::currentRowChanged, m_stacked_panes,
+  connect(m_ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  connect(m_ui->navigationList, &QListWidget::currentRowChanged, m_ui->stackedPanes,
           &QStackedWidget::setCurrentIndex);
 }
+
+StackedSettingsWindow::~StackedSettingsWindow() = default;
 
 void StackedSettingsWindow::OnDoneCreatingPanes()
 {
@@ -138,10 +113,10 @@ void StackedSettingsWindow::changeEvent(QEvent* event)
 
 void StackedSettingsWindow::UpdateNavigationListStyle()
 {
-  if (!m_navigation_list)
+  if (!m_ui)
     return;
 
-  QPalette list_palette = m_navigation_list->palette();
+  QPalette list_palette = m_ui->navigationList->palette();
   const QPalette app_palette = qApp->palette();
 
   QColor highlight_color = app_palette.color(QPalette::Active, QPalette::Highlight);
@@ -166,14 +141,14 @@ void StackedSettingsWindow::UpdateNavigationListStyle()
     list_palette.setColor(group, QPalette::HighlightedText, highlighted_text);
   }
 
-  m_navigation_list->setPalette(list_palette);
+  m_ui->navigationList->setPalette(list_palette);
 }
 
 void StackedSettingsWindow::AddPane(QWidget* widget, const QString& name)
 {
-  m_stacked_panes->addWidget(widget);
+  m_ui->stackedPanes->addWidget(widget);
   // Pad the left and right of each item.
-  m_navigation_list->addItem(QStringLiteral("  %1  ").arg(name));
+  m_ui->navigationList->addItem(QStringLiteral("  %1  ").arg(name));
 }
 
 void StackedSettingsWindow::AddWrappedPane(QWidget* widget, const QString& name)
@@ -183,7 +158,7 @@ void StackedSettingsWindow::AddWrappedPane(QWidget* widget, const QString& name)
 
 void StackedSettingsWindow::ActivatePane(int index)
 {
-  m_navigation_list->setCurrentRow(index);
+  m_ui->navigationList->setCurrentRow(index);
 }
 
 SettingsWindow::SettingsWindow(MainWindow* parent) : StackedSettingsWindow{parent}

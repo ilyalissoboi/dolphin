@@ -3,12 +3,17 @@
 
 #pragma once
 
+#include <memory>
+
 #include <QDialog>
 
-class QStackedWidget;
-class QListWidget;
 class MainWindow;
 class QEvent;
+
+namespace Ui
+{
+class SettingsWindow;
+}
 
 // A settings window with a QListWidget to switch between panes of a QStackedWidget.
 class StackedSettingsWindow : public QDialog
@@ -16,6 +21,7 @@ class StackedSettingsWindow : public QDialog
   Q_OBJECT
 public:
   explicit StackedSettingsWindow(QWidget* parent = nullptr);
+  ~StackedSettingsWindow() override;
 
   void ActivatePane(int index);
 
@@ -33,8 +39,7 @@ protected:
 private:
   void UpdateNavigationListStyle();
 
-  QStackedWidget* m_stacked_panes = nullptr;
-  QListWidget* m_navigation_list = nullptr;
+  std::unique_ptr<Ui::SettingsWindow> m_ui;
   bool m_handling_theme_change = false;
 };
 

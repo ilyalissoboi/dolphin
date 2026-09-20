@@ -239,6 +239,7 @@ add_executable(dolphin-emu
   Config/PropertiesDialog.h
   Config/SettingsWindow.cpp
   Config/SettingsWindow.h
+  Config/SettingsWindow.ui
   Config/ToolTipControls/ToolTipCheckBox.cpp
   Config/ToolTipControls/ToolTipCheckBox.h
   Config/ToolTipControls/ToolTipComboBox.cpp
