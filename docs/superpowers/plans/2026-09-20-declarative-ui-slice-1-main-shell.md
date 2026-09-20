@@ -41,9 +41,9 @@ production form.
 ## Task 5: Flatten the remaining shell structure
 
 - [x] Move static toolbar actions into `MainWindow.ui` and convert `ToolBar` to a controller.
-- [ ] Move static menus and actions into `MainWindow.ui` and convert `MenuBar` to a controller.
-- [ ] Leave runtime-built menus and conditional debugger sections in C++.
-- [ ] Verify saved toolbar and dock state compatibility.
+- [x] Move static menus and actions into `MainWindow.ui` and convert `MenuBar` to a controller.
+- [x] Leave runtime-built menus and conditional debugger sections in C++.
+- [x] Verify saved toolbar and dock state compatibility.
 
 ## Definition of done
 

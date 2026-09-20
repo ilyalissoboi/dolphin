@@ -453,7 +453,7 @@ static void InstallHotkeyFilter(QWidget* dialog)
 
 void MainWindow::CreateComponents()
 {
-  m_menu_bar = new MenuBar(this);
+  m_menu_bar = new MenuBar(*m_ui, this);
   m_tool_bar = new ToolBar(*m_ui, this);
   m_search_bar = new SearchBar(m_ui->gameListPage);
   m_game_list = new GameList(m_ui->gameListPage);
@@ -524,7 +524,6 @@ void MainWindow::CreateComponents()
 
 void MainWindow::ConnectMenuBar()
 {
-  setMenuBar(m_menu_bar);
   // File
   connect(m_menu_bar, &MenuBar::Open, this, &MainWindow::Open);
   connect(m_menu_bar, &MenuBar::Exit, this, &MainWindow::close);
