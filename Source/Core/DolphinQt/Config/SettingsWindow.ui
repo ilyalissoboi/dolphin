@@ -30,28 +30,61 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QListWidget" name="navigationList">
-     <property name="accessibleName">
-      <string>Settings categories</string>
-     </property>
+    <widget class="QFrame" name="navigationFrame">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+      <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
-     <property name="sizeAdjustPolicy">
-      <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustToContents</enum>
+     <property name="frameShape">
+      <enum>QFrame::Shape::NoFrame</enum>
      </property>
-     <property name="iconSize">
-      <size>
-       <width>32</width>
-       <height>32</height>
-      </size>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Plain</enum>
      </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
+     <layout class="QVBoxLayout" name="navigationLayout">
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QListWidget" name="navigationList">
+        <property name="accessibleName">
+         <string>Settings categories</string>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustToContents</enum>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>32</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>

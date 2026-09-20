@@ -4,6 +4,7 @@
 #include <QAbstractScrollArea>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFrame>
 #include <QListWidget>
 #include <QMargins>
 #include <QSize>
@@ -24,8 +25,15 @@ TEST(SettingsWindowUiTest, FormOwnsTheSharedSettingsShell)
   EXPECT_EQ(ui.rootLayout->contentsMargins(), QMargins());
   EXPECT_EQ(ui.rootLayout->spacing(), 0);
   ASSERT_EQ(ui.rootLayout->count(), 2);
-  EXPECT_EQ(ui.rootLayout->itemAt(0)->widget(), ui.navigationList);
+  EXPECT_EQ(ui.rootLayout->itemAt(0)->widget(), ui.navigationFrame);
   EXPECT_EQ(ui.rootLayout->itemAt(1)->widget(), ui.contentWidget);
+
+  EXPECT_EQ(ui.navigationFrame->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
+  EXPECT_EQ(ui.navigationFrame->frameShape(), QFrame::NoFrame);
+  EXPECT_EQ(ui.navigationLayout->contentsMargins(), QMargins(12, 0, 12, 0));
+  EXPECT_EQ(ui.navigationLayout->spacing(), 0);
+  ASSERT_EQ(ui.navigationLayout->count(), 1);
+  EXPECT_EQ(ui.navigationLayout->itemAt(0)->widget(), ui.navigationList);
 
   EXPECT_EQ(ui.navigationList->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
   EXPECT_EQ(ui.navigationList->sizeAdjustPolicy(),

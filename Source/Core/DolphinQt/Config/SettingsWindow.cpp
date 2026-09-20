@@ -57,15 +57,14 @@ StackedSettingsWindow::StackedSettingsWindow(QWidget* parent)
       "palette(base)";
 #endif
 
-  m_ui->navigationList->setStyleSheet(
+  m_ui->navigationFrame->setStyleSheet(
       QString::fromUtf8(
-          // Remove border around entire widget and adjust background color.
-          "QListWidget { border: 0; background: %1; } "
-          // Note: padding-left is broken unless border is set, which then breaks colors.
-          // see: https://bugreports.qt.io/browse/QTBUG-122698
-          "QListWidget::item { padding-top: %2px; padding-bottom: %2px; } "
+          // Fill the sidebar while leaving its layout margins as gutters around the category cards.
+          "QFrame#navigationFrame { border: 0; background: %1; } "
+          "QListWidget#navigationList { border: 0; background: transparent; } "
+          "QListWidget#navigationList::item { padding-top: %2px; padding-bottom: %2px; } "
           // Maintain selected item color when unfocused.
-          "QListWidget::item:selected { background: palette(highlight); "
+          "QListWidget#navigationList::item:selected { background: palette(highlight); "
           // Prevent text color change on focus loss.
           "color: palette(highlighted-text); "
           "} "
