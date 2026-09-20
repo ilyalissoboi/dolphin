@@ -58,6 +58,10 @@ library behavior.
 - Compared with the form-migration checkpoint, `Search games...` remains in extraction and
   `Close` is removed. The new control labels, accessibility names, platform names, and region names
   are extracted.
+- Follow-up grid polish reserves a 160 by 224 portrait cover canvas for every fallback game card
+  and scales 16-pixel card and window-edge spacing with the saved grid scale. Both changes were
+  reviewed in Light and Dark themes at wide and narrow sizes on macOS and Windows; all 102 Qt tests
+  continued to pass.
 
 ## Definition of done
 
