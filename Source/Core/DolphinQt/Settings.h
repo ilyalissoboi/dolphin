@@ -14,6 +14,7 @@
 #include "Common/HookableEvent.h"
 #include "Core/Config/MainSettings.h"
 #include "DiscIO/Enums.h"
+#include "DolphinQt/ApplicationTheme.h"
 
 namespace Core
 {
@@ -60,19 +61,7 @@ public:
   void SetUserStyleName(const QString& stylesheet_name);
   QString GetUserStyleName() const;
 
-  enum class StyleType : int
-  {
-    System = 0,
-    Light = 1,
-    Dark = 2,
-    User = 3,
-    FusionLight = 4,
-    FusionDarkGray = 5,
-    FusionDark = 6,
-
-    MinValue = 0,
-    MaxValue = 6,
-  };
+  using StyleType = ApplicationTheme::Type;
 
   void SetStyleType(StyleType type);
   StyleType GetStyleType() const;

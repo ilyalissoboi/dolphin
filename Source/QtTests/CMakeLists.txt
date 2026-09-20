@@ -1,4 +1,5 @@
 add_executable(qt-tests EXCLUDE_FROM_ALL
+  ApplicationThemeTest.cpp
   QtTestsMain.cpp
   SignalRecorder.h
   NullConfigLoader.h
@@ -37,6 +38,7 @@ target_include_directories(qt-tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(qt-tests PRIVATE
+  dolphinqt-application-theme
   dolphinqt-config-binder
   gtest::gtest
   core

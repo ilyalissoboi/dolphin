@@ -22,6 +22,19 @@ message(STATUS "Found Qt version ${Qt6_VERSION}")
 
 set_property(TARGET Qt6::Core PROPERTY INTERFACE_COMPILE_FEATURES "")
 
+add_library(dolphinqt-application-theme STATIC
+  ApplicationTheme.cpp
+  ApplicationTheme.h
+)
+target_include_directories(dolphinqt-application-theme PUBLIC ${CMAKE_SOURCE_DIR}/Source/Core)
+target_link_libraries(dolphinqt-application-theme PUBLIC Qt6::Gui)
+target_compile_definitions(dolphinqt-application-theme
+PRIVATE
+  -DQT_USE_QSTRINGBUILDER
+  -DQT_NO_CAST_FROM_ASCII
+  -DQT_NO_CAST_TO_ASCII
+)
+
 # The config binder is its own target so qt-tests can link it without pulling in the rest of
 # DolphinQt. Later tasks add sources here with target_sources().
 add_library(dolphinqt-config-binder STATIC
@@ -455,12 +468,6 @@ add_executable(dolphin-emu
   WiiUpdate.h
 )
 
-if (WIN32)
-  target_sources(dolphin-emu PRIVATE
-    Styles/Dark/dark.qrc
-  )
-endif()
-
 if (NOT WIN32)
   target_sources(dolphin-emu PRIVATE
     QtUtils/SignalDaemon.cpp
@@ -486,6 +493,7 @@ PRIVATE
 
 target_link_libraries(dolphin-emu
 PRIVATE
+  dolphinqt-application-theme
   dolphinqt-config-binder
   core
   Qt6::Widgets

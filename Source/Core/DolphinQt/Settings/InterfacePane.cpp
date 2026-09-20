@@ -147,19 +147,9 @@ void InterfacePane::CreateUI()
   auto userstyle_search_results = Common::DoFileSearch(File::GetUserPath(D_STYLES_IDX));
 
   m_combobox_userstyle->addItem(tr("(System)"), static_cast<int>(Settings::StyleType::System));
-
-  // TODO: Support forcing light/dark on other OSes too.
-#ifdef _WIN32
   m_combobox_userstyle->addItem(tr("(Light)"), static_cast<int>(Settings::StyleType::Light));
+  m_combobox_userstyle->addItem(tr("(Dark Gray)"), static_cast<int>(Settings::StyleType::DarkGray));
   m_combobox_userstyle->addItem(tr("(Dark)"), static_cast<int>(Settings::StyleType::Dark));
-#endif
-
-  m_combobox_userstyle->addItem(tr("(Fusion Light)"),
-                                static_cast<int>(Settings::StyleType::FusionLight));
-  m_combobox_userstyle->addItem(tr("(Fusion Dark Gray)"),
-                                static_cast<int>(Settings::StyleType::FusionDarkGray));
-  m_combobox_userstyle->addItem(tr("(Fusion Dark)"),
-                                static_cast<int>(Settings::StyleType::FusionDark));
 
   for (const std::string& path : userstyle_search_results)
   {
