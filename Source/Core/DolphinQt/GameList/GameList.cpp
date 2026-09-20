@@ -83,6 +83,8 @@
 
 namespace
 {
+constexpr int GRID_CARD_SPACING = 16;
+
 class GameListTableView : public QTableView
 {
 public:
@@ -1046,6 +1048,7 @@ void GameList::SetGridScale(float scale)
   m_model.SetScale(clamped_scale);
   const QSignalBlocker blocker(m_ui->gridScaleSlider);
   m_ui->gridScaleSlider->setValue(static_cast<int>(std::lround(clamped_scale * 100.0f)));
+  m_grid->setSpacing(std::max(1, static_cast<int>(std::lround(GRID_CARD_SPACING * clamped_scale))));
 
   m_list_proxy->invalidate();
   m_grid_proxy->invalidate();
