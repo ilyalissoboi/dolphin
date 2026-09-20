@@ -438,6 +438,7 @@ add_executable(dolphin-emu
   Settings/InterfacePane.ui
   Settings/OnScreenDisplayPane.cpp
   Settings/OnScreenDisplayPane.h
+  Settings/OnScreenDisplayPane.ui
   Settings/PathPane.cpp
   Settings/PathPane.h
   Settings/TriforcePane.cpp
