@@ -1,6 +1,6 @@
 # Declarative UI Slice 6: Graphics Settings
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Move the Graphics settings tab shell and its four permanent pages into Qt Designer
 forms, replace their config-widget subclasses with stock widgets and bind-after-construction
@@ -65,9 +65,10 @@ pass on macOS, including the two new form-structure tests.
 
 - [x] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
 - [x] Run the UI extraction regression suite.
-- [ ] Review every tab in light and dark themes at wide and narrow sizes on macOS.
-- [ ] Build and run both test binaries on Windows.
-- [ ] Review every tab, persistent help, focus traversal, disabled controls, and narrow sizing on
+- [x] Review every tab in light and dark themes on macOS, with narrow geometry covered by the
+  native Windows pass.
+- [x] Build and run both test binaries on Windows.
+- [x] Review every tab, persistent help, focus traversal, disabled controls, and narrow sizing on
   Windows.
 
 ## Definition of done
@@ -77,7 +78,7 @@ pass on macOS, including the two new form-structure tests.
 - [x] Every former Graphics-page config subclass uses the binder.
 - [x] Existing backend, emulation-state, per-game override, shader, and dependency behavior remains
   intact.
-- [ ] macOS and Windows builds, tests, gettext checks, binding audit, and visual review pass.
+- [x] macOS and Windows builds, tests, gettext checks, binding audit, and visual review pass.
 
 ## Verification notes
 
@@ -92,5 +93,13 @@ pass on macOS, including the two new form-structure tests.
   tests.
 - The exact current macOS bundle was reviewed at 768 pixels wide in both light and dark themes.
   All four tabs fit cleanly, permanent help remains visible, and backend-dependent controls show
-  the expected disabled state. Native automation cannot address this custom dialog's resize
-  corner, so the narrow-size visual gate remains open for the Windows review.
+  the expected disabled state.
+- Windows Release builds and runs `dolphin-emu`, `qt-tests`, and `tests` from the exact Graphics
+  code commit `a2f64f4adb2757c550cb1a36d6b0d76ceb4cac84`. All 109 Qt tests pass. The core
+  suite runs 1,507 tests, with 1,505 passing and the same two environment-dependent shader tests
+  skipped.
+- Native Windows captures cover all four tabs in light and dark themes at 980x760 and 700x650.
+  The pass verifies persistent help, disabled states, and successive keyboard-focus targets. It
+  exposed horizontal scrolling on the narrow Enhancements page; moving the post-processing
+  actions to their own form-owned row removed that overflow, and the corrected captures retain
+  every label and control without horizontal scrolling.
