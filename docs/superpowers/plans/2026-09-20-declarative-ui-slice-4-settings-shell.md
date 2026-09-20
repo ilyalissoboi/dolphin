@@ -58,6 +58,11 @@ window sizing, and the game-properties use of the same shell.
   dereference in `UpdateNavigationListStyle`; guarding the not-yet-created navigation list fixed
   it. The final audit opened Settings through the normal Config toolbar button in both themes and
   completed without the temporary audit hook.
+- Follow-up shell polish added 12-pixel horizontal gutters around the category cards while keeping
+  the sidebar background flush with the window edge. The form assertion, UI extraction check,
+  macOS visual review, and all 103 Qt tests passed; Windows rebuilt the app and both test binaries
+  at exact commit `3ee5981fb990ff70453b0a121ddcaa350b451bfd`, passing all 103 Qt tests and
+  1,505 of 1,507 core tests with the same two environment-dependent skips.
 
 ## Definition of done
 
