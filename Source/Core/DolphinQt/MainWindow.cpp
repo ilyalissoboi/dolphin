@@ -15,7 +15,7 @@
 #include <QMimeData>
 #include <QStackedWidget>
 #include <QStyleHints>
-#include <QVBoxLayout>
+#include <QTimer>
 #include <QWindow>
 
 #include <fmt/format.h>
@@ -94,6 +94,7 @@
 #include "DolphinQt/DiscordHandler.h"
 #include "DolphinQt/EmulatedUSB/LogitechMicWindow.h"
 #include "DolphinQt/EmulatedUSB/WiiSpeakWindow.h"
+#include "DolphinQt/EmulationStatusWidget.h"
 #include "DolphinQt/FIFO/FIFOPlayerWindow.h"
 #include "DolphinQt/GCMemcardManager.h"
 #include "DolphinQt/GameCount.h"
@@ -126,6 +127,8 @@
 #include "DolphinQt/ToolBar.h"
 #include "DolphinQt/WiiUpdate.h"
 
+#include "ui_MainWindow.h"
+
 #include "UICommon/DiscordPresence.h"
 #include "UICommon/GameFile.h"
 #include "UICommon/ResourcePack/Manager.h"
@@ -134,6 +137,8 @@
 #include "UICommon/UICommon.h"
 
 #include "VideoCommon/NetPlayChatUI.h"
+#include "VideoCommon/PerformanceMetrics.h"
+#include "VideoCommon/VideoBackendBase.h"
 
 #ifdef HAVE_XRANDR
 #include "UICommon/X11Utils.h"
@@ -215,12 +220,12 @@ static std::vector<std::string> StringListToStdVector(const QStringList& list)
 
 MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boot_parameters,
                        const std::string& movie_path)
-    : QMainWindow(nullptr), m_system(system)
+    : QMainWindow(nullptr), m_system(system), m_ui(std::make_unique<Ui::MainWindow>())
 {
+  m_ui->setupUi(this);
+
   setWindowTitle(QString::fromStdString(Common::GetScmRevStr()));
   setWindowIcon(Resources::GetAppIcon());
-  setUnifiedTitleAndToolBarOnMac(true);
-  setAcceptDrops(true);
   setAttribute(Qt::WA_NativeWindow);
 
   CreateComponents();
@@ -450,11 +455,12 @@ void MainWindow::CreateComponents()
 {
   m_menu_bar = new MenuBar(this);
   m_tool_bar = new ToolBar(this);
-  m_search_bar = new SearchBar(this);
-  m_game_count = new GameCount(this);
-  m_game_list = new GameList(this);
+  m_search_bar = new SearchBar(m_ui->gameListPage);
+  m_game_list = new GameList(m_ui->gameListPage);
+  m_emulation_status = new EmulationStatusWidget(m_ui->statusBar);
+  m_ui->statusBar->addPermanentWidget(m_emulation_status);
   m_render_widget = new RenderWidget;
-  m_stack = new QStackedWidget(this);
+  m_stack = m_ui->mainStack;
 
   for (int i = 0; i < 4; i++)
   {
@@ -735,40 +741,27 @@ void MainWindow::ConnectHost()
 
 void MainWindow::ConnectStack()
 {
-  auto* widget = new QWidget;
-  auto* layout = new QVBoxLayout;
-  widget->setLayout(layout);
-
-  layout->addWidget(m_game_list);
-  layout->addWidget(m_search_bar);
-  layout->addWidget(m_game_count);
-  layout->setSpacing(0);
-  layout->setContentsMargins(0, 0, 0, 0);
+  m_ui->gameListLayout->addWidget(m_game_list);
+  m_ui->gameListLayout->addWidget(m_search_bar);
 
   connect(m_search_bar, &SearchBar::Search, m_game_list, &GameList::SetSearchTerm);
-  connect(m_game_list, &GameList::GameCountUpdated, m_game_count, &GameCount::OnGameCountUpdated);
+  connect(m_game_list, &GameList::GameCountUpdated, this,
+          [this](const int total_games, const int visible_games) {
+            m_total_games = total_games;
+            m_visible_games = visible_games;
+            UpdateStatusBar();
+          });
 
   m_game_list->UpdateGameCount();
 
-  const auto update_spacing = [this](const bool game_count_is_visible) {
-    // The bottom margin of the search bar and the top margin of the game count are both suitable
-    // when the other widget is hidden, but when both are visible the gap created by the combination
-    // is too large. To fix this we set the bottom margin of the search bar to 0 when the game count
-    // is visible and set it to the top margin when the game count is hidden.
-    m_game_count->setVisible(game_count_is_visible);
-    auto* const search_layout = m_search_bar->layout();
-    QMargins search_margins = search_layout->contentsMargins();
-    const int new_bottom_margin = game_count_is_visible ? 0 : search_margins.top();
-    search_margins.setBottom(new_bottom_margin);
-    search_layout->setContentsMargins(search_margins);
-  };
-  update_spacing(Settings::Instance().IsGameCountVisible());
+  connect(&Settings::Instance(), &Settings::GameCountVisibilityChanged, this,
+          [this] { UpdateStatusBar(); });
+  connect(&Settings::Instance(), &Settings::EmulationStateChanged, this,
+          [this] { UpdateStatusBar(); });
 
-  connect(&Settings::Instance(), &Settings::GameCountVisibilityChanged, update_spacing);
-
-  m_stack->addWidget(widget);
-
-  setCentralWidget(m_stack);
+  auto* const status_timer = new QTimer(this);
+  connect(status_timer, &QTimer::timeout, this, &MainWindow::UpdateStatusBar);
+  status_timer->start(500);
 
   setDockOptions(DockOption::AllowNestedDocks | DockOption::AllowTabbedDocks);
   setTabPosition(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea, QTabWidget::North);
@@ -794,6 +787,48 @@ void MainWindow::ConnectStack()
   tabifyDockWidget(m_log_widget, m_network_widget);
   tabifyDockWidget(m_log_widget, m_jit_widget);
   tabifyDockWidget(m_log_widget, m_assembler_widget);
+}
+
+void MainWindow::UpdateStatusBar()
+{
+  const Core::State state = Core::GetState(m_system);
+  const bool is_emulating = state == Core::State::Running || state == Core::State::Paused;
+
+  if (!is_emulating)
+  {
+    m_emulation_status->SetStatus({});
+
+    if (Settings::Instance().IsGameCountVisible())
+    {
+      m_ui->statusBar->OnGameCountUpdated(m_total_games, m_visible_games);
+      m_ui->statusBar->show();
+    }
+    else
+    {
+      m_ui->statusBar->clearMessage();
+      m_ui->statusBar->hide();
+    }
+    return;
+  }
+
+  EmulationStatus status;
+  status.active = true;
+  if (g_video_backend)
+    status.renderer = tr(g_video_backend->GetDisplayName().c_str());
+
+  auto& performance_metrics = m_system.GetPerfMetrics();
+  const auto [width, height] = performance_metrics.GetLatestFrameBufferSize();
+  status.width = width;
+  status.height = height;
+  status.fps = performance_metrics.GetFPS();
+  status.vps = performance_metrics.GetVPS();
+  status.speed = performance_metrics.GetSpeed();
+  status.volume = Config::Get(Config::MAIN_AUDIO_VOLUME);
+  status.muted = Config::Get(Config::MAIN_AUDIO_MUTED);
+
+  m_ui->statusBar->clearMessage();
+  m_ui->statusBar->show();
+  m_emulation_status->SetStatus(status);
 }
 
 void MainWindow::RefreshGameList()

@@ -321,9 +321,12 @@ add_executable(dolphin-emu
   HotkeyScheduler.h
   InfinityBase/InfinityBaseWindow.cpp
   InfinityBase/InfinityBaseWindow.h
+  EmulationStatusWidget.cpp
+  EmulationStatusWidget.h
   Main.cpp
   MainWindow.cpp
   MainWindow.h
+  MainWindow.ui
   MenuBar.cpp
   MenuBar.h
   NetPlay/ChunkedProgressDialog.cpp

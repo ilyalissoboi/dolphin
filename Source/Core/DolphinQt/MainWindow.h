@@ -30,8 +30,8 @@ class CheatsManager;
 class CodeWidget;
 class DiscordHandler;
 class DragEnterEvent;
+class EmulationStatusWidget;
 class FreeLookWindow;
-class GameCount;
 class GameList;
 class GBATASInputWindow;
 class GCTASInputWindow;
@@ -62,6 +62,11 @@ struct WindowSystemInfo;
 namespace Core
 {
 class System;
+}
+
+namespace Ui
+{
+class MainWindow;
 }
 
 namespace DiscIO
@@ -143,6 +148,7 @@ private:
   void ConnectRenderWidget();
   void ConnectStack();
   void ConnectToolBar();
+  void UpdateStatusBar();
 
   void InitControllers();
   void ShutdownControllers();
@@ -232,6 +238,7 @@ private:
   QSize sizeHint() const override;
 
   Core::System& m_system;
+  std::unique_ptr<Ui::MainWindow> m_ui;
 
 #ifdef HAVE_XRANDR
   std::unique_ptr<X11Utils::XRRConfiguration> m_xrr_config;
@@ -242,8 +249,10 @@ private:
   MenuBar* m_menu_bar;
   SearchBar* m_search_bar;
   GameList* m_game_list;
-  GameCount* m_game_count;
+  EmulationStatusWidget* m_emulation_status;
   RenderWidget* m_render_widget = nullptr;
+  int m_total_games = 0;
+  int m_visible_games = 0;
   bool m_rendering_to_main;
   bool m_stop_confirm_showing = false;
   bool m_stop_requested = false;
