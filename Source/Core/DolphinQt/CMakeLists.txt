@@ -423,6 +423,7 @@ add_executable(dolphin-emu
   Settings/GameCubePane.h
   Settings/GeneralPane.cpp
   Settings/GeneralPane.h
+  Settings/GeneralPane.ui
   Settings/InterfacePane.cpp
   Settings/InterfacePane.h
   Settings/OnScreenDisplayPane.cpp
