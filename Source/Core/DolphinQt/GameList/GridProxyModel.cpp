@@ -3,8 +3,10 @@
 
 #include "DolphinQt/GameList/GridProxyModel.h"
 
+#include <QApplication>
 #include <QImage>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QSize>
 
@@ -14,7 +16,7 @@
 
 #include "UICommon/GameFile.h"
 
-const QSize LARGE_BANNER_SIZE(144, 48);
+const QSize COVER_SIZE(160, 224);
 
 GridProxyModel::GridProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
 {
@@ -36,8 +38,7 @@ QVariant GridProxyModel::data(const QModelIndex& i, int role) const
 
     const auto& buffer = model->GetGameFile(source_index.row())->GetCoverImage().buffer;
 
-    QSize size = Config::Get(Config::MAIN_USE_GAME_COVERS) ? QSize(160, 224) : LARGE_BANNER_SIZE;
-    QPixmap pixmap(size * model->GetScale() * QPixmap().devicePixelRatio());
+    QPixmap pixmap(COVER_SIZE * model->GetScale() * QPixmap().devicePixelRatio());
 
     if (buffer.empty() || !Config::Get(Config::MAIN_USE_GAME_COVERS))
     {
@@ -49,12 +50,16 @@ QVariant GridProxyModel::data(const QModelIndex& i, int role) const
 
       banner = banner.scaled(pixmap.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-      pixmap.fill();
+      const QPalette palette = QApplication::palette();
+      pixmap.fill(palette.color(QPalette::AlternateBase));
 
       QPainter painter(&pixmap);
 
-      painter.drawPixmap(0, pixmap.height() / 2 - banner.height() / 2, banner.width(),
-                         banner.height(), banner);
+      painter.drawPixmap((pixmap.width() - banner.width()) / 2,
+                         (pixmap.height() - banner.height()) / 2, banner.width(), banner.height(),
+                         banner);
+      painter.setPen(palette.color(QPalette::Mid));
+      painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
 
       return pixmap;
     }
@@ -63,7 +68,7 @@ QVariant GridProxyModel::data(const QModelIndex& i, int role) const
       pixmap = QPixmap::fromImage(QImage::fromData(
           reinterpret_cast<const unsigned char*>(&buffer[0]), static_cast<int>(buffer.size())));
 
-      return pixmap.scaled(QSize(160, 224) * model->GetScale() * pixmap.devicePixelRatio(),
+      return pixmap.scaled(COVER_SIZE * model->GetScale() * pixmap.devicePixelRatio(),
                            Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
   }
