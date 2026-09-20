@@ -147,8 +147,10 @@ add_executable(dolphin-emu
   Config/GeckoCodeWidget.h
   Config/Graphics/AdvancedWidget.cpp
   Config/Graphics/AdvancedWidget.h
+  Config/Graphics/AdvancedWidget.ui
   Config/Graphics/EnhancementsWidget.cpp
   Config/Graphics/EnhancementsWidget.h
+  Config/Graphics/EnhancementsWidget.ui
   Config/Graphics/GeneralWidget.cpp
   Config/Graphics/GeneralWidget.h
   Config/Graphics/GeneralWidget.ui
@@ -157,6 +159,7 @@ add_executable(dolphin-emu
   Config/Graphics/GraphicsPane.ui
   Config/Graphics/HacksWidget.cpp
   Config/Graphics/HacksWidget.h
+  Config/Graphics/HacksWidget.ui
   Config/Graphics/ShaderParametersDialog.cpp
   Config/Graphics/ShaderParametersDialog.h
   Config/Graphics/ShaderPresetPickerDialog.cpp

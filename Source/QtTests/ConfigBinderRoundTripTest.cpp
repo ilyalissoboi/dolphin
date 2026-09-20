@@ -229,6 +229,22 @@ TEST_F(ConfigBinderRoundTripTest, LineEditWritesOnEditingFinishedNotOnEveryKeyst
   EXPECT_EQ(Config::Get(TEST_STRING), "after");
 }
 
+TEST_F(ConfigBinderRoundTripTest, ReadOnlyLineEditDoesNotWriteOnEditingFinished)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::SetBase(TEST_STRING, "inherited");
+  QLineEdit edit;
+  edit.setReadOnly(true);
+  ConfigWidget::Bind(&edit, TEST_STRING, &layer);
+  ASSERT_EQ(edit.text(), QStringLiteral("inherited"));
+
+  edit.setText(QStringLiteral("display-only"));
+  emit edit.editingFinished();
+
+  EXPECT_FALSE(layer.Exists(TEST_STRING.GetLocation()));
+  EXPECT_EQ(Config::GetBase(TEST_STRING), "inherited");
+}
+
 TEST_F(ConfigBinderRoundTripTest, EveryWidgetTypeRefreshesWithoutWritingBack)
 {
   // Same re-entrancy guard as the check box case, for every type.

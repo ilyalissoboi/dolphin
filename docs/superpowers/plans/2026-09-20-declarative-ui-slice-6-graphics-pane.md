@@ -32,39 +32,39 @@ pass on macOS, including the two new form-structure tests.
 
 ## Task 3: Migrate Enhancements
 
-- [ ] Add `EnhancementsWidget.ui` for enhancement, post-processing, and stereoscopy controls.
-- [ ] Replace simple, mapped, complex, text, and float-slider config subclasses with binder
+- [x] Add `EnhancementsWidget.ui` for enhancement, post-processing, and stereoscopy controls.
+- [x] Replace simple, mapped, complex, text, and float-slider config subclasses with binder
   equivalents.
-- [ ] Preserve backend capability gating, shader preset browsing and parameters, anti-aliasing
+- [x] Preserve backend capability gating, shader preset browsing and parameters, anti-aliasing
   population, stereoscopy behavior, value labels, and inter-control dependencies.
 
 ## Task 4: Migrate Hacks
 
-- [ ] Add `HacksWidget.ui` for EFB, texture-cache, XFB, and other controls.
-- [ ] Replace every config subclass with stock widgets and binder calls, including reversed
+- [x] Add `HacksWidget.ui` for EFB, texture-cache, XFB, and other controls.
+- [x] Replace every config subclass with stock widgets and binder calls, including reversed
   boolean bindings and the mapped accuracy slider.
-- [ ] Preserve backend capability descriptions and all dependent enabled states.
+- [x] Preserve backend capability descriptions and all dependent enabled states.
 
 ## Task 5: Migrate Advanced
 
-- [ ] Add `AdvancedWidget.ui` for debugging, utility, texture dumping, frame dumping, crop, misc,
+- [x] Add `AdvancedWidget.ui` for debugging, utility, texture dumping, frame dumping, crop, misc,
   and experimental controls.
-- [ ] Replace every config subclass with stock widgets and binder calls.
-- [ ] Preserve global-only controls, runtime restrictions, backend-specific availability,
+- [x] Replace every config subclass with stock widgets and binder calls.
+- [x] Preserve global-only controls, runtime restrictions, backend-specific availability,
   dependent enabled states, and label font mirroring.
 
 ## Task 6: Preserve compatibility
 
-- [ ] Record an exact before/after binding-key comparison for all four pages.
-- [ ] Keep every existing config key, reversed value, range, step, and default.
-- [ ] Keep global-versus-per-game layer choices unchanged.
-- [ ] Keep tab order, labels, group titles, descriptions, and all emitted signals.
-- [ ] Record the targeted gettext msgid comparison.
+- [x] Record an exact before/after binding-key comparison for all four pages.
+- [x] Keep every existing config key, reversed value, range, step, and default.
+- [x] Keep global-versus-per-game layer choices unchanged.
+- [x] Keep tab order, labels, group titles, descriptions, and all emitted signals.
+- [x] Record the targeted gettext msgid comparison.
 
 ## Task 7: Verify the slice
 
-- [ ] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
-- [ ] Run the UI extraction regression suite.
+- [x] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
+- [x] Run the UI extraction regression suite.
 - [ ] Review every tab in light and dark themes at wide and narrow sizes on macOS.
 - [ ] Build and run both test binaries on Windows.
 - [ ] Review every tab, persistent help, focus traversal, disabled controls, and narrow sizing on
@@ -72,9 +72,25 @@ pass on macOS, including the two new form-structure tests.
 
 ## Definition of done
 
-- [ ] Five Designer forms own the Graphics pane's permanent tab and page layouts.
-- [ ] No Graphics page constructs a permanent control or layout in C++.
-- [ ] Every former Graphics-page config subclass uses the binder.
-- [ ] Existing backend, emulation-state, per-game override, shader, and dependency behavior remains
+- [x] Five Designer forms own the Graphics pane's permanent tab and page layouts.
+- [x] No Graphics page constructs a permanent control or layout in C++.
+- [x] Every former Graphics-page config subclass uses the binder.
+- [x] Existing backend, emulation-state, per-game override, shader, and dependency behavior remains
   intact.
 - [ ] macOS and Windows builds, tests, gettext checks, binding audit, and visual review pass.
+
+## Verification notes
+
+- macOS builds `dolphin-emu`, `qt-tests`, and `tests`. All 109 Qt tests pass. The core suite runs
+  1,185 tests, with 1,183 passing and the two environment-dependent shader tests skipped.
+- The UI extraction regression suite passes. The targeted Graphics catalog contains 244 msgids
+  before and after the migration, with no additions or removals; the Advanced vertex-shader
+  translator comment is preserved in the generated form header.
+- The source binding audit retains the exact unique config-key sets: General 12, Enhancements 24,
+  Hacks 16, and Advanced 30, with no additions or removals. Reversed bindings, slider ranges and
+  steps, and global-only dump and timing controls remain explicit in the binder calls and form
+  tests.
+- The exact current macOS bundle was reviewed at 768 pixels wide in both light and dark themes.
+  All four tabs fit cleanly, permanent help remains visible, and backend-dependent controls show
+  the expected disabled state. Native automation cannot address this custom dialog's resize
+  corner, so the narrow-size visual gate remains open for the Windows review.

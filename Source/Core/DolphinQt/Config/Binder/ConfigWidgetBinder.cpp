@@ -134,7 +134,15 @@ public:
 private:
   void LoadFromConfig() override { GetTypedWidget()->setText(QString::fromStdString(Read())); }
 
-  void OnEditingFinished() { Save(GetTypedWidget()->text().toStdString()); }
+  void OnEditingFinished()
+  {
+    // Read-only fields are displays with programmatic write paths. They remain focusable, so Qt
+    // still emits editingFinished when they lose focus or their window closes. Saving here would
+    // turn a displayed inherited value into a per-game override.
+    if (GetTypedWidget()->isReadOnly())
+      return;
+    Save(GetTypedWidget()->text().toStdString());
+  }
 };
 
 class ComboBoxU32Binding final : public ValueBinding<QComboBox, u32>

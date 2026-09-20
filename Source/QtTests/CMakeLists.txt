@@ -13,7 +13,10 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigSettingRegistryTest.cpp
   EmulationStatusWidgetTest.cpp
   GameListUiTest.cpp
+  GraphicsAdvancedUiTest.cpp
+  GraphicsEnhancementsUiTest.cpp
   GraphicsGeneralUiTest.cpp
+  GraphicsHacksUiTest.cpp
   GraphicsPaneUiTest.cpp
   GeneralPaneUiTest.cpp
   MainWindowUiTest.cpp
@@ -25,8 +28,11 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/GameListWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/AdvancedWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/EnhancementsWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GeneralWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GraphicsPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/HacksWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GeneralPane.ui
   # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
   # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is

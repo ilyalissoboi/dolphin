@@ -3,41 +3,36 @@
 
 #include "DolphinQt/Config/Graphics/EnhancementsWidget.h"
 
+#include <array>
 #include <atomic>
 #include <future>
 #include <memory>
 
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QEventLoop>
-#include <QGridLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
 #include <QInputDialog>
-#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPointer>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QTimer>
-#include <QVBoxLayout>
 
 #include "Common/CommonTypes.h"
 #include "Common/FileUtil.h"
 
 #include "Core/Config/GraphicsSettings.h"
+#include "Core/Config/MainSettings.h"
 
-#include "DolphinQt/Config/ConfigControls/ConfigBool.h"
-#include "DolphinQt/Config/ConfigControls/ConfigChoice.h"
-#include "DolphinQt/Config/ConfigControls/ConfigFloatSlider.h"
-#include "DolphinQt/Config/ConfigControls/ConfigText.h"
+#include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
 #include "DolphinQt/Config/GameConfigWidget.h"
 #include "DolphinQt/Config/Graphics/GraphicsPane.h"
 #include "DolphinQt/Config/Graphics/ShaderParametersDialog.h"
 #include "DolphinQt/Config/Graphics/ShaderPresetPickerDialog.h"
-#include "DolphinQt/Config/ToolTipControls/ToolTipPushButton.h"
-#include "DolphinQt/QtUtils/NonDefaultQPushButton.h"
 
 #include "VideoCommon/PostProcessing/LibrashaderLoader.h"
 #include "VideoCommon/PostProcessing/PostProcessingConfig.h"
@@ -48,11 +43,14 @@
 #include "VideoCommon/VideoCommon.h"
 #include "VideoCommon/VideoConfig.h"
 
+#include "ui_EnhancementsWidget.h"
+
 EnhancementsWidget::EnhancementsWidget(GraphicsPane* gfx_pane)
-    : m_game_layer{gfx_pane->GetConfigLayer()}
+    : m_ui{std::make_unique<Ui::EnhancementsWidget>()}, m_game_layer{gfx_pane->GetConfigLayer()}
 {
   MigrateRemovedStereoModes();
-  CreateWidgets();
+  m_ui->setupUi(this);
+  BindSettings();
   ShaderChanged();
   ConnectWidgets();
   AddDescriptions();
@@ -64,12 +62,14 @@ EnhancementsWidget::EnhancementsWidget(GraphicsPane* gfx_pane)
   // BackendChanged is called by parent on window creation.
   connect(gfx_pane, &GraphicsPane::BackendChanged, this, &EnhancementsWidget::OnBackendChanged);
   connect(gfx_pane, &GraphicsPane::UseFastTextureSamplingChanged, this, [this] {
-    m_texture_filtering_combo->setEnabled(
+    m_ui->textureFilteringComboBox->setEnabled(
         Get(m_game_layer, Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
   });
-  connect(m_arbitrary_mipmap_detection, &QCheckBox::toggled, gfx_pane,
+  connect(m_ui->arbitraryMipmapDetectionCheckBox, &QCheckBox::toggled, gfx_pane,
           [gfx_pane] { emit gfx_pane->UpdateGPUTextureDecoding(); });
 }
+
+EnhancementsWidget::~EnhancementsWidget() = default;
 
 constexpr int ANISO_1x = std::to_underlying(AnisotropicFilteringMode::Force1x);
 constexpr int ANISO_2X = std::to_underlying(AnisotropicFilteringMode::Force2x);
@@ -96,7 +96,7 @@ void EnhancementsWidget::MigrateRemovedStereoModes()
   // this function exists to prevent. Mirror ReadValue's resolution order instead.
   const bool has_game_value =
       m_game_layer != nullptr && m_game_layer->Exists(Config::GFX_STEREO_MODE.GetLocation());
-  const StereoMode mode = has_game_value ? m_game_layer->Get(Config::GFX_STEREO_MODE) :
+  const StereoMode mode = has_game_value          ? m_game_layer->Get(Config::GFX_STEREO_MODE) :
                           m_game_layer != nullptr ? Config::GetBase(Config::GFX_STEREO_MODE) :
                                                     Config::Get(Config::GFX_STEREO_MODE);
   if (mode != StereoMode::Anaglyph && mode != StereoMode::Passive)
@@ -116,15 +116,8 @@ void EnhancementsWidget::MigrateRemovedStereoModes()
   }
 }
 
-void EnhancementsWidget::CreateWidgets()
+void EnhancementsWidget::BindSettings()
 {
-  auto* main_layout = new QVBoxLayout;
-
-  // Enhancements
-  auto* enhancements_box = new QGroupBox(tr("Enhancements"));
-  auto* enhancements_layout = new QGridLayout();
-  enhancements_box->setLayout(enhancements_layout);
-
   QStringList resolution_options{tr("Auto (Multiple of 640x528)"), tr("Native (640x528)")};
   // From 2x up.
   // To calculate the suggested internal resolution scale for each common output resolution,
@@ -163,188 +156,112 @@ void EnhancementsWidget::CreateWidgets()
     }
   }
 
-  m_ir_combo = new ConfigChoice(resolution_options, Config::GFX_EFB_SCALE, m_game_layer);
-  m_ir_combo->setMaxVisibleItems(visible_resolution_option_count);
+  m_ui->internalResolutionComboBox->addItems(resolution_options);
+  m_ui->internalResolutionComboBox->setMaxVisibleItems(visible_resolution_option_count);
+  ConfigWidget::Bind(m_ui->internalResolutionComboBox, Config::GFX_EFB_SCALE, m_game_layer);
 
-  m_antialiasing_combo = new ConfigComplexChoice(Config::GFX_MSAA, Config::GFX_SSAA, m_game_layer);
-  m_antialiasing_combo->Add(tr("None"), (u32)1, false);
+  m_antialiasing_binding = ConfigWidget::BindComplex(m_ui->antiAliasingComboBox, Config::GFX_MSAA,
+                                                     Config::GFX_SSAA, m_game_layer);
+  m_antialiasing_binding->Add(tr("None"), static_cast<u32>(1), false);
 
-  m_texture_filtering_combo =
-      new ConfigComplexChoice(Config::GFX_ENHANCE_MAX_ANISOTROPY,
-                              Config::GFX_ENHANCE_FORCE_TEXTURE_FILTERING, m_game_layer);
+  m_texture_filtering_binding =
+      ConfigWidget::BindComplex(m_ui->textureFilteringComboBox, Config::GFX_ENHANCE_MAX_ANISOTROPY,
+                                Config::GFX_ENHANCE_FORCE_TEXTURE_FILTERING, m_game_layer);
+  m_texture_filtering_binding->Add(tr("Default"), Config::DefaultState{}, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("1x Anisotropic"), ANISO_1x, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("2x Anisotropic"), ANISO_2X, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("4x Anisotropic"), ANISO_4X, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("8x Anisotropic"), ANISO_8X, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("16x Anisotropic"), ANISO_16X, FILTERING_DEFAULT);
+  m_texture_filtering_binding->Add(tr("Force Nearest and 1x Anisotropic "), ANISO_1x,
+                                   FILTERING_NEAREST);
+  m_texture_filtering_binding->Add(tr("Force Linear and 1x Anisotropic"), ANISO_1x,
+                                   FILTERING_LINEAR);
+  m_texture_filtering_binding->Add(tr("Force Linear and 2x Anisotropic"), ANISO_2X,
+                                   FILTERING_LINEAR);
+  m_texture_filtering_binding->Add(tr("Force Linear and 4x Anisotropic"), ANISO_4X,
+                                   FILTERING_LINEAR);
+  m_texture_filtering_binding->Add(tr("Force Linear and 8x Anisotropic"), ANISO_8X,
+                                   FILTERING_LINEAR);
+  m_texture_filtering_binding->Add(tr("Force Linear and 16x Anisotropic"), ANISO_16X,
+                                   FILTERING_LINEAR);
+  m_ui->textureFilteringComboBox->setEnabled(
+      Get(m_game_layer, Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
 
-  m_texture_filtering_combo->Add(tr("Default"), Config::DefaultState{}, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("1x Anisotropic"), ANISO_1x, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("2x Anisotropic"), ANISO_2X, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("4x Anisotropic"), ANISO_4X, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("8x Anisotropic"), ANISO_8X, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("16x Anisotropic"), ANISO_16X, FILTERING_DEFAULT);
-  m_texture_filtering_combo->Add(tr("Force Nearest and 1x Anisotropic "), ANISO_1x,
-                                 FILTERING_NEAREST);
-  m_texture_filtering_combo->Add(tr("Force Linear and 1x Anisotropic"), ANISO_1x, FILTERING_LINEAR);
-  m_texture_filtering_combo->Add(tr("Force Linear and 2x Anisotropic"), ANISO_2X, FILTERING_LINEAR);
-  m_texture_filtering_combo->Add(tr("Force Linear and 4x Anisotropic"), ANISO_4X, FILTERING_LINEAR);
-  m_texture_filtering_combo->Add(tr("Force Linear and 8x Anisotropic"), ANISO_8X, FILTERING_LINEAR);
-  m_texture_filtering_combo->Add(tr("Force Linear and 16x Anisotropic"), ANISO_16X,
-                                 FILTERING_LINEAR);
-  m_texture_filtering_combo->Refresh();
-  m_texture_filtering_combo->setEnabled(Get(m_game_layer, Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
-
-  // The preset is picked in ShaderPresetPickerDialog and only displayed here, so the field is
-  // read-only. It is still a ConfigText: that is what bolds it when a game INI overrides the
-  // global setting and what drops the override on a right-click, exactly as the combo box it
-  // replaced did. An empty setting means no post-processing, and shows the placeholder.
-  m_post_processing_preset = new ConfigText(Config::GFX_ENHANCE_POST_SHADER, m_game_layer);
-  m_post_processing_preset->setReadOnly(true);
-  m_post_processing_preset->setPlaceholderText(tr("(None)"));
-  m_post_processing_browse = new ToolTipPushButton(tr("Browse…"));
-  m_post_processing_clear = new NonDefaultQPushButton(tr("Clear"));
-  m_download_shader_pack = new NonDefaultQPushButton(tr("Download…"));
-  m_post_processing_parameters = new ToolTipPushButton(tr("Parameters…"));
-
-  m_scaled_efb_copy =
-      new ConfigBool(tr("Scaled EFB Copy"), Config::GFX_HACK_COPY_EFB_SCALED, m_game_layer);
-  m_per_pixel_lighting =
-      new ConfigBool(tr("Per-Pixel Lighting"), Config::GFX_ENABLE_PIXEL_LIGHTING, m_game_layer);
-
-  m_widescreen_hack =
-      new ConfigBool(tr("Widescreen Hack"), Config::GFX_WIDESCREEN_HACK, m_game_layer);
-  m_disable_fog = new ConfigBool(tr("Disable Fog"), Config::GFX_DISABLE_FOG, m_game_layer);
-  m_force_24bit_color =
-      new ConfigBool(tr("Force 24-Bit Color"), Config::GFX_ENHANCE_FORCE_TRUE_COLOR, m_game_layer);
-  m_disable_copy_filter = new ConfigBool(tr("Disable Copy Filter"),
-                                         Config::GFX_ENHANCE_DISABLE_COPY_FILTER, m_game_layer);
-  m_arbitrary_mipmap_detection =
-      new ConfigBool(tr("Arbitrary Mipmap Detection"),
+  ConfigWidget::Bind(m_ui->postProcessingPresetLineEdit, Config::GFX_ENHANCE_POST_SHADER,
+                     m_game_layer);
+  ConfigWidget::Bind(m_ui->scaledEfbCopyCheckBox, Config::GFX_HACK_COPY_EFB_SCALED, m_game_layer);
+  ConfigWidget::Bind(m_ui->perPixelLightingCheckBox, Config::GFX_ENABLE_PIXEL_LIGHTING,
+                     m_game_layer);
+  ConfigWidget::Bind(m_ui->widescreenHackCheckBox, Config::GFX_WIDESCREEN_HACK, m_game_layer);
+  ConfigWidget::Bind(m_ui->disableFogCheckBox, Config::GFX_DISABLE_FOG, m_game_layer);
+  ConfigWidget::Bind(m_ui->force24BitColorCheckBox, Config::GFX_ENHANCE_FORCE_TRUE_COLOR,
+                     m_game_layer);
+  ConfigWidget::Bind(m_ui->disableCopyFilterCheckBox, Config::GFX_ENHANCE_DISABLE_COPY_FILTER,
+                     m_game_layer);
+  ConfigWidget::Bind(m_ui->arbitraryMipmapDetectionCheckBox,
                      Config::GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION, m_game_layer);
-  m_hdr = new ConfigBool(tr("HDR Post-Processing"), Config::GFX_ENHANCE_HDR_OUTPUT, m_game_layer);
-
-  int row = 0;
-  enhancements_layout->addWidget(new QLabel(tr("Internal Resolution:")), row, 0);
-  enhancements_layout->addWidget(m_ir_combo, row, 1, 1, -1);
-  ++row;
-
-  enhancements_layout->addWidget(new QLabel(tr("Anti-Aliasing:")), row, 0);
-  enhancements_layout->addWidget(m_antialiasing_combo, row, 1, 1, -1);
-  ++row;
-
-  enhancements_layout->addWidget(new QLabel(tr("Texture Filtering:")), row, 0);
-  enhancements_layout->addWidget(m_texture_filtering_combo, row, 1, 1, -1);
-  ++row;
-
-  // Preset field plus its buttons, following PCSX2's row: the field, Browse…, Clear. Dolphin's
-  // Download… goes on the end of the same row rather than into a second one, so the grid keeps the
-  // three columns the rows below it span. Parameters… follows Download… because that is the order
-  // PCSX2 lists them in, one row apart.
-  auto* const post_processing_buttons = new QHBoxLayout();
-  post_processing_buttons->addWidget(m_post_processing_browse);
-  post_processing_buttons->addWidget(m_post_processing_clear);
-  post_processing_buttons->addWidget(m_download_shader_pack);
-  post_processing_buttons->addWidget(m_post_processing_parameters);
-
-  enhancements_layout->addWidget(new QLabel(tr("Post-Processing Effect:")), row, 0);
-  enhancements_layout->addWidget(m_post_processing_preset, row, 1);
-  enhancements_layout->addLayout(post_processing_buttons, row, 2);
-  ++row;
-
-  enhancements_layout->addWidget(m_scaled_efb_copy, row, 0);
-  enhancements_layout->addWidget(m_per_pixel_lighting, row, 1, 1, -1);
-  ++row;
-
-  enhancements_layout->addWidget(m_widescreen_hack, row, 0);
-  enhancements_layout->addWidget(m_force_24bit_color, row, 1, 1, -1);
-  ++row;
-
-  enhancements_layout->addWidget(m_disable_fog, row, 0);
-  enhancements_layout->addWidget(m_arbitrary_mipmap_detection, row, 1, 1, -1);
-  ++row;
-
-  enhancements_layout->addWidget(m_disable_copy_filter, row, 0);
-  enhancements_layout->addWidget(m_hdr, row, 1, 1, -1);
-  ++row;
-
-  // Stereoscopy
-  auto* stereoscopy_box = new QGroupBox(tr("Stereoscopy"));
-  auto* stereoscopy_layout = new QGridLayout();
-  stereoscopy_box->setLayout(stereoscopy_layout);
+  ConfigWidget::Bind(m_ui->hdrCheckBox, Config::GFX_ENHANCE_HDR_OUTPUT, m_game_layer);
 
   // Anaglyph and Passive were implemented by the old post-processing shader, which no longer
   // exists; selecting them renders a second layer for no visible effect. ConfigChoiceMap stores
   // explicit values, so the remaining entries keep their StereoMode meanings. Stored Anaglyph /
   // Passive values are rewritten to Off by MigrateRemovedStereoModes() before we get here.
-  m_3d_mode = new ConfigChoiceMap<StereoMode>({{tr("Off"), StereoMode::Off},
-                                               {tr("Side-by-Side"), StereoMode::SideBySide},
-                                               {tr("Top-and-Bottom"), StereoMode::TopAndBottom},
-                                               {tr("HDMI 3D"), StereoMode::QuadBuffer}},
-                                              Config::GFX_STEREO_MODE, m_game_layer);
-  m_3d_depth = new ConfigFloatSlider(0, Config::GFX_STEREO_DEPTH_MAXIMUM, Config::GFX_STEREO_DEPTH,
-                                     1.0f, m_game_layer);
-  m_3d_convergence = new ConfigFloatSlider(0, Config::GFX_STEREO_CONVERGENCE_MAXIMUM,
-                                           Config::GFX_STEREO_CONVERGENCE, 0.01f, m_game_layer);
-  m_3d_depth_value = new QLabel();
-  m_3d_convergence_value = new QLabel();
-
-  m_3d_swap_eyes = new ConfigBool(tr("Swap Eyes"), Config::GFX_STEREO_SWAP_EYES, m_game_layer);
-
-  m_3d_per_eye_resolution = new ConfigBool(
-      tr("Use Full Resolution Per Eye"), Config::GFX_STEREO_PER_EYE_RESOLUTION_FULL, m_game_layer);
-
-  stereoscopy_layout->addWidget(new QLabel(tr("Stereoscopic 3D Mode:")), 0, 0);
-  stereoscopy_layout->addWidget(m_3d_mode, 0, 1);
-  stereoscopy_layout->addWidget(new ConfigFloatLabel(tr("Depth:"), m_3d_depth), 1, 0);
-  stereoscopy_layout->addWidget(m_3d_depth, 1, 1);
-  stereoscopy_layout->addWidget(m_3d_depth_value, 1, 2);
-  stereoscopy_layout->addWidget(new ConfigFloatLabel(tr("Convergence:"), m_3d_convergence), 2, 0);
-  stereoscopy_layout->addWidget(m_3d_convergence, 2, 1);
-  stereoscopy_layout->addWidget(m_3d_convergence_value, 2, 2);
-  stereoscopy_layout->addWidget(m_3d_swap_eyes, 3, 0);
-  stereoscopy_layout->addWidget(m_3d_per_eye_resolution, 4, 0);
-
-  m_3d_depth_value->setText(QString::asprintf("%.0f", m_3d_depth->GetValue()));
-  m_3d_convergence_value->setText(QString::asprintf("%.2f", m_3d_convergence->GetValue()));
+  constexpr std::array stereo_modes{StereoMode::Off, StereoMode::SideBySide,
+                                    StereoMode::TopAndBottom, StereoMode::QuadBuffer};
+  ConfigWidget::BindMapped(m_ui->stereoModeComboBox, Config::GFX_STEREO_MODE,
+                           std::span<const StereoMode>{stereo_modes}, m_game_layer);
+  const ConfigWidget::FloatSliderHandle depth =
+      ConfigWidget::BindFloat(m_ui->stereoDepthSlider, Config::GFX_STEREO_DEPTH, 0,
+                              Config::GFX_STEREO_DEPTH_MAXIMUM, 1.0f, m_game_layer);
+  const ConfigWidget::FloatSliderHandle convergence =
+      ConfigWidget::BindFloat(m_ui->stereoConvergenceSlider, Config::GFX_STEREO_CONVERGENCE, 0,
+                              Config::GFX_STEREO_CONVERGENCE_MAXIMUM, 0.01f, m_game_layer);
+  ConfigWidget::MirrorFloatValue(m_ui->stereoDepthValueLabel, depth, QStringLiteral("%.0f"));
+  ConfigWidget::MirrorFloatValue(m_ui->stereoConvergenceValueLabel, convergence,
+                                 QStringLiteral("%.2f"));
+  ConfigWidget::MirrorFont(m_ui->stereoDepthLabel, m_ui->stereoDepthSlider);
+  ConfigWidget::MirrorFont(m_ui->stereoConvergenceLabel, m_ui->stereoConvergenceSlider);
+  ConfigWidget::Bind(m_ui->swapEyesCheckBox, Config::GFX_STEREO_SWAP_EYES, m_game_layer);
+  ConfigWidget::Bind(m_ui->fullResolutionPerEyeCheckBox, Config::GFX_STEREO_PER_EYE_RESOLUTION_FULL,
+                     m_game_layer);
 
   auto current_stereo_mode = Get(m_game_layer, Config::GFX_STEREO_MODE);
   if (current_stereo_mode != StereoMode::SideBySide &&
       current_stereo_mode != StereoMode::TopAndBottom)
   {
-    m_3d_per_eye_resolution->hide();
+    m_ui->fullResolutionPerEyeCheckBox->hide();
   }
-
-  main_layout->addWidget(enhancements_box);
-  main_layout->addWidget(stereoscopy_box);
-  main_layout->addStretch();
-
-  setLayout(main_layout);
 }
 
 void EnhancementsWidget::ConnectWidgets()
 {
-  connect(m_3d_mode, &QComboBox::currentIndexChanged, this, [this] {
+  connect(m_ui->stereoModeComboBox, &QComboBox::currentIndexChanged, this, [this] {
     auto current_stereo_mode = Get(m_game_layer, Config::GFX_STEREO_MODE);
 
     if (current_stereo_mode == StereoMode::SideBySide ||
         current_stereo_mode == StereoMode::TopAndBottom)
     {
-      m_3d_per_eye_resolution->show();
+      m_ui->fullResolutionPerEyeCheckBox->show();
     }
     else
     {
-      m_3d_per_eye_resolution->hide();
+      m_ui->fullResolutionPerEyeCheckBox->hide();
     }
   });
 
-  connect(m_post_processing_browse, &QPushButton::clicked, this,
+  connect(m_ui->postProcessingBrowseButton, &QPushButton::clicked, this,
           &EnhancementsWidget::BrowseForShaderPreset);
-  connect(m_post_processing_clear, &QPushButton::clicked, this,
+  connect(m_ui->postProcessingClearButton, &QPushButton::clicked, this,
           &EnhancementsWidget::ClearShaderPreset);
-  connect(m_post_processing_parameters, &QPushButton::clicked, this,
+  connect(m_ui->postProcessingParametersButton, &QPushButton::clicked, this,
           &EnhancementsWidget::EditShaderParameters);
 
   // Parameters… needs a preset, and the field is what every path that changes one goes through:
-  // the picker, Clear, and the right-click that drops a game override (ConfigText::OnConfigChanged
-  // calls setText, which emits this too). Reading the field is what makes this correct rather than
-  // one edit behind -- see CurrentShaderPreset().
-  connect(m_post_processing_preset, &QLineEdit::textChanged, this, [this] {
+  // the picker, Clear, and the right-click that drops a game override (the binder refresh calls
+  // setText, which emits this too). Reading the field is what makes this correct rather than one
+  // edit behind -- see CurrentShaderPreset().
+  connect(m_ui->postProcessingPresetLineEdit, &QLineEdit::textChanged, this, [this] {
     ShowResolvedPreset();
     UpdateParametersButtonState();
   });
@@ -373,54 +290,66 @@ void EnhancementsWidget::ConnectWidgets()
       connect(action, &QAction::triggered, this, [this, id] { DownloadShaderPack(id, ""); });
     }
   }
-  m_download_shader_pack->setMenu(menu);
-
-  connect(m_3d_depth, &ConfigFloatSlider::valueChanged, this,
-          [this] { m_3d_depth_value->setText(QString::asprintf("%.0f", m_3d_depth->GetValue())); });
-  connect(m_3d_convergence, &ConfigFloatSlider::valueChanged, this, [this] {
-    m_3d_convergence_value->setText(QString::asprintf("%.2f", m_3d_convergence->GetValue()));
-  });
+  m_ui->downloadShaderPackButton->setMenu(menu);
 }
 
 std::string EnhancementsWidget::CurrentShaderPreset() const
 {
-  // The field rather than the config, for two reasons. ConfigText::SetTextAndUpdate emits
-  // textChanged from setText() and writes the config only afterwards, so anything reached from that
-  // signal would read the value from before the edit. And the field is what resolves the game layer
-  // the way this page displays it -- the game's value if the game overrides the preset, the global
-  // one if it does not -- which Config::Get on a layer does not do: it falls back to the setting's
-  // default, so in Game Properties it reports "no preset" for every game without an override.
+  // The field rather than the config, for two reasons. SetShaderPreset emits textChanged from
+  // setText() and writes the config only afterwards, so anything reached from that signal would
+  // read the value from before the edit. And the field is what resolves the game layer the way this
+  // page displays it -- the game's value if the game overrides the preset, the global one if it
+  // does not -- which Config::Get on a layer does not do: it falls back to the setting's default,
+  // so in Game Properties it reports "no preset" for every game without an override.
   //
   // ResolveConfiguredPreset, not the raw text: a GFX.ini written before chains were removed can
   // hold a ';'-separated list, and both the picker and the parameters dialog have to act on the
   // preset that is actually in use rather than on a string neither can match. Only ever one preset
   // is written back.
-  return VideoCommon::ResolveConfiguredPreset(m_post_processing_preset->text().toStdString());
+  return VideoCommon::ResolveConfiguredPreset(
+      m_ui->postProcessingPresetLineEdit->text().toStdString());
 }
 
 void EnhancementsWidget::ShowResolvedPreset()
 {
-  // The field is a plain ConfigText, so it displays the stored string verbatim -- and a GFX.ini
-  // written before chains were removed stores a ';'-separated list. Every path that acts on the
-  // value uses only the first entry (CurrentShaderPreset, the picker, the parameters dialog, the
-  // post-processor), so left alone the row would name presets that nothing loads. Show the one in
-  // use instead.
+  // The bound line edit displays the stored string verbatim -- and a GFX.ini written before chains
+  // were removed stores a ';'-separated list. Every path that acts on the value uses only the first
+  // entry (CurrentShaderPreset, the picker, the parameters dialog, the post-processor), so left
+  // alone the row would name presets that nothing loads. Show the one in use instead.
   //
   // Display only, no write-back: replacing the stored value here would silently rewrite a game or
   // global INI just because someone opened the graphics page. The row now matches what runs; the
-  // stored chain is rewritten only when the user picks or clears a preset. Safe because a read-only
-  // ConfigText no longer saves on editingFinished (ConfigText::Update), so this setText cannot
-  // become a write by way of the window closing.
+  // stored chain is rewritten only when the user picks or clears a preset. The binder treats a
+  // read-only line edit as display-only, so this setText cannot become a write when the window
+  // closes.
   //
   // The guard also terminates the recursion through textChanged -> here, since the resolved value
   // resolves to itself, and it means ResolveConfiguredPreset stops warning about the dropped tail
   // after the first pass instead of on every keystroke-sized signal.
-  const QString resolved = QString::fromStdString(
-      VideoCommon::ResolveConfiguredPreset(m_post_processing_preset->text().toStdString()));
-  if (resolved == m_post_processing_preset->text())
+  const QString resolved = QString::fromStdString(VideoCommon::ResolveConfiguredPreset(
+      m_ui->postProcessingPresetLineEdit->text().toStdString()));
+  if (resolved == m_ui->postProcessingPresetLineEdit->text())
     return;
 
-  m_post_processing_preset->setText(resolved);
+  m_ui->postProcessingPresetLineEdit->setText(resolved);
+}
+
+void EnhancementsWidget::SetShaderPreset(const QString& preset)
+{
+  if (preset == m_ui->postProcessingPresetLineEdit->text())
+    return;
+
+  m_ui->postProcessingPresetLineEdit->setText(preset);
+  const std::string value = preset.toStdString();
+  if (m_game_layer != nullptr)
+  {
+    m_game_layer->Set(Config::GFX_ENHANCE_POST_SHADER, value);
+    Config::OnConfigChanged();
+  }
+  else
+  {
+    Config::SetBaseOrCurrent(Config::GFX_ENHANCE_POST_SHADER, value);
+  }
 }
 
 void EnhancementsWidget::BrowseForShaderPreset()
@@ -429,7 +358,7 @@ void EnhancementsWidget::BrowseForShaderPreset()
   if (dialog.exec() != QDialog::Accepted || dialog.SelectedPreset().isEmpty())
     return;
 
-  m_post_processing_preset->SetTextAndUpdate(dialog.SelectedPreset());
+  SetShaderPreset(dialog.SelectedPreset());
 }
 
 void EnhancementsWidget::EditShaderParameters()
@@ -455,29 +384,29 @@ void EnhancementsWidget::UpdateParametersButtonState()
   // button that can only ever open an error is better disabled, with the reason in its tooltip
   // (see AddDescriptions) -- the built-in engine still post-processes, it just cannot be tuned
   // from here.
-  m_post_processing_parameters->setEnabled(g_backend_info.bSupportsPostProcessing &&
-                                           VideoCommon::Librashader::GetAvailability().available &&
-                                           !CurrentShaderPreset().empty());
+  m_ui->postProcessingParametersButton->setEnabled(
+      g_backend_info.bSupportsPostProcessing &&
+      VideoCommon::Librashader::GetAvailability().available && !CurrentShaderPreset().empty());
 }
 
 void EnhancementsWidget::ClearShaderPreset()
 {
   // The picker cannot select "nothing", so this is what turns post-processing back off -- the job
   // the combo box's "(off)" entry used to do.
-  m_post_processing_preset->SetTextAndUpdate(QString{});
+  SetShaderPreset(QString{});
   ShaderChanged();
 }
 
 void EnhancementsWidget::OnBackendChanged()
 {
-  m_hdr->setEnabled(g_backend_info.bSupportsHDROutput);
+  m_ui->hdrCheckBox->setEnabled(g_backend_info.bSupportsHDROutput);
 
   // Stereoscopy
   const bool supports_stereoscopy = g_backend_info.bSupportsGeometryShaders;
-  m_3d_mode->setEnabled(supports_stereoscopy);
-  m_3d_convergence->setEnabled(supports_stereoscopy);
-  m_3d_depth->setEnabled(supports_stereoscopy);
-  m_3d_swap_eyes->setEnabled(supports_stereoscopy);
+  m_ui->stereoModeComboBox->setEnabled(supports_stereoscopy);
+  m_ui->stereoConvergenceSlider->setEnabled(supports_stereoscopy);
+  m_ui->stereoDepthSlider->setEnabled(supports_stereoscopy);
+  m_ui->swapEyesCheckBox->setEnabled(supports_stereoscopy);
 
   // PostProcessing
   const bool supports_postprocessing = g_backend_info.bSupportsPostProcessing;
@@ -485,10 +414,10 @@ void EnhancementsWidget::OnBackendChanged()
       supports_postprocessing ?
           QString{} :
           tr("%1 doesn't support this feature.").arg(tr(g_video_backend->GetDisplayName().c_str()));
-  for (QWidget* const widget : {static_cast<QWidget*>(m_post_processing_preset),
-                                static_cast<QWidget*>(m_post_processing_browse),
-                                static_cast<QWidget*>(m_post_processing_clear),
-                                static_cast<QWidget*>(m_post_processing_parameters)})
+  for (QWidget* const widget : {static_cast<QWidget*>(m_ui->postProcessingPresetLineEdit),
+                                static_cast<QWidget*>(m_ui->postProcessingBrowseButton),
+                                static_cast<QWidget*>(m_ui->postProcessingClearButton),
+                                static_cast<QWidget*>(m_ui->postProcessingParametersButton)})
   {
     widget->setEnabled(supports_postprocessing);
     widget->setToolTip(unsupported_tooltip);
@@ -520,16 +449,16 @@ void EnhancementsWidget::ShaderChanged()
 
 void EnhancementsWidget::UpdateAntialiasingOptions()
 {
-  const QSignalBlocker blocker(m_antialiasing_combo);
+  const QSignalBlocker blocker(m_ui->antiAliasingComboBox);
 
-  m_antialiasing_combo->Reset();
-  m_antialiasing_combo->Add(tr("None"), (u32)1, false);
+  m_antialiasing_binding->Reset();
+  m_antialiasing_binding->Add(tr("None"), static_cast<u32>(1), false);
 
   const std::vector<u32>& aa_modes = g_backend_info.AAModes;
   for (const u32 aa_mode : aa_modes)
   {
     if (aa_mode > 1)
-      m_antialiasing_combo->Add(tr("%1x MSAA").arg(aa_mode), aa_mode, false);
+      m_antialiasing_binding->Add(tr("%1x MSAA").arg(aa_mode), aa_mode, false);
   }
 
   if (g_backend_info.bSupportsSSAA)
@@ -537,11 +466,9 @@ void EnhancementsWidget::UpdateAntialiasingOptions()
     for (const u32 aa_mode : aa_modes)
     {
       if (aa_mode > 1)
-        m_antialiasing_combo->Add(tr("%1x SSAA").arg(aa_mode), aa_mode, true);
+        m_antialiasing_binding->Add(tr("%1x SSAA").arg(aa_mode), aa_mode, true);
     }
   }
-
-  m_antialiasing_combo->Refresh();
 
   // Backend info can't be populated in the local game settings window. Only enable local game AA
   // edits when the backend info is correct - global and local have the same backend.
@@ -549,7 +476,7 @@ void EnhancementsWidget::UpdateAntialiasingOptions()
       m_game_layer == nullptr || !m_game_layer->Exists(Config::MAIN_GFX_BACKEND.GetLocation()) ||
       Config::Get(Config::MAIN_GFX_BACKEND) == m_game_layer->Get(Config::MAIN_GFX_BACKEND);
 
-  m_antialiasing_combo->setEnabled(m_antialiasing_combo->count() > 1 && good_info);
+  m_ui->antiAliasingComboBox->setEnabled(m_ui->antiAliasingComboBox->count() > 1 && good_info);
 }
 
 void EnhancementsWidget::AddDescriptions()
@@ -610,7 +537,8 @@ void EnhancementsWidget::AddDescriptions()
       "of depth if the necessary hardware is present. Heavily decreases "
       "emulation speed and sometimes causes issues.<br><br>Side-by-Side and Top-and-Bottom are "
       "used by most 3D TVs.<br>HDMI 3D is "
-      "used when the monitor supports 3D display resolutions.<br><br><dolphin_emphasis>If unsure, select Off.</dolphin_emphasis>");
+      "used when the monitor supports 3D display resolutions.<br><br><dolphin_emphasis>If unsure, "
+      "select Off.</dolphin_emphasis>");
   static const char TR_3D_DEPTH_DESCRIPTION[] = QT_TR_NOOP(
       "Controls the separation distance between the virtual cameras.<br><br>A higher "
       "value creates a stronger feeling of depth while a lower value is more comfortable.");
@@ -652,25 +580,21 @@ void EnhancementsWidget::AddDescriptions()
       "<br><br>Note that games still render in SDR internally."
       "<br><br><dolphin_emphasis>If unsure, leave this unchecked.</dolphin_emphasis>");
 
-  m_ir_combo->SetTitle(tr("Internal Resolution"));
-  m_ir_combo->SetDescription(tr(TR_INTERNAL_RESOLUTION_DESCRIPTION));
-
-  m_antialiasing_combo->SetTitle(tr("Anti-Aliasing"));
-  m_antialiasing_combo->SetDescription(tr(TR_ANTIALIAS_DESCRIPTION));
-
-  m_texture_filtering_combo->SetTitle(tr("Texture Filtering"));
-  m_texture_filtering_combo->SetDescription(tr(TR_FORCE_TEXTURE_FILTERING_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->internalResolutionComboBox, tr("Internal Resolution"),
+                               tr(TR_INTERNAL_RESOLUTION_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->antiAliasingComboBox, tr("Anti-Aliasing"),
+                               tr(TR_ANTIALIAS_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->textureFilteringComboBox, tr("Texture Filtering"),
+                               tr(TR_FORCE_TEXTURE_FILTERING_DESCRIPTION));
 
   // The description hangs off Browse… rather than the field: the field is read-only, so the button
   // is what a user hovers to find out what the row does.
-  m_post_processing_browse->SetTitle(tr("Post-Processing Effect"));
-  m_post_processing_browse->SetDescription(tr(TR_POSTPROCESSING_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->postProcessingBrowseButton, tr("Post-Processing Effect"),
+                               tr(TR_POSTPROCESSING_DESCRIPTION));
 
   // Its own description rather than none: the row's, on Browse… above, is about choosing a preset
   // and says nothing about editing one. Same ToolTipPushButton + SetDescription pattern for the
   // same reason -- the field it belongs to is read-only, so the buttons carry the row's help.
-  m_post_processing_parameters->SetTitle(tr("Shader Parameters"));
-
   // When librashader did not load, the button is disabled (UpdateParametersButtonState) and this is
   // where the user finds out why: Qt still delivers hover events to a disabled widget, so the
   // balloon still opens. Composed once rather than per state change because availability is decided
@@ -679,45 +603,39 @@ void EnhancementsWidget::AddDescriptions()
       VideoCommon::Librashader::GetAvailability();
   if (librashader.available)
   {
-    m_post_processing_parameters->SetDescription(tr(TR_POSTPROCESSING_PARAMETERS_DESCRIPTION));
+    ConfigWidget::SetDescription(m_ui->postProcessingParametersButton, tr("Shader Parameters"),
+                                 tr(TR_POSTPROCESSING_PARAMETERS_DESCRIPTION));
   }
   else
   {
-    m_post_processing_parameters->SetDescription(
+    ConfigWidget::SetDescription(
+        m_ui->postProcessingParametersButton, tr("Shader Parameters"),
         tr("Unavailable: editing shader parameters needs the librashader library, which could "
            "not be loaded (%1). Post-processing itself still works.<br><br>%2")
             .arg(QString::fromStdString(librashader.reason),
                  tr(TR_POSTPROCESSING_PARAMETERS_DESCRIPTION)));
   }
 
-  m_scaled_efb_copy->SetDescription(tr(TR_SCALED_EFB_COPY_DESCRIPTION));
-
-  m_per_pixel_lighting->SetDescription(tr(TR_PER_PIXEL_LIGHTING_DESCRIPTION));
-
-  m_widescreen_hack->SetDescription(tr(TR_WIDESCREEN_HACK_DESCRIPTION));
-
-  m_disable_fog->SetDescription(tr(TR_REMOVE_FOG_DESCRIPTION));
-
-  m_force_24bit_color->SetDescription(tr(TR_FORCE_24BIT_DESCRIPTION));
-
-  m_disable_copy_filter->SetDescription(tr(TR_DISABLE_COPY_FILTER_DESCRIPTION));
-
-  m_arbitrary_mipmap_detection->SetDescription(tr(TR_ARBITRARY_MIPMAP_DETECTION_DESCRIPTION));
-
-  m_hdr->SetDescription(tr(TR_HDR_DESCRIPTION));
-
-  m_3d_mode->SetTitle(tr("Stereoscopic 3D Mode"));
-  m_3d_mode->SetDescription(tr(TR_3D_MODE_DESCRIPTION));
-
-  m_3d_depth->SetTitle(tr("Depth"));
-  m_3d_depth->SetDescription(tr(TR_3D_DEPTH_DESCRIPTION));
-
-  m_3d_convergence->SetTitle(tr("Convergence"));
-  m_3d_convergence->SetDescription(tr(TR_3D_CONVERGENCE_DESCRIPTION));
-
-  m_3d_per_eye_resolution->SetDescription(tr(TR_3D_PER_EYE_RESOLUTION_DESCRIPTION));
-
-  m_3d_swap_eyes->SetDescription(tr(TR_3D_SWAP_EYES_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->scaledEfbCopyCheckBox, {}, tr(TR_SCALED_EFB_COPY_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->perPixelLightingCheckBox, {},
+                               tr(TR_PER_PIXEL_LIGHTING_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->widescreenHackCheckBox, {},
+                               tr(TR_WIDESCREEN_HACK_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->disableFogCheckBox, {}, tr(TR_REMOVE_FOG_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->force24BitColorCheckBox, {}, tr(TR_FORCE_24BIT_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->disableCopyFilterCheckBox, {},
+                               tr(TR_DISABLE_COPY_FILTER_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->arbitraryMipmapDetectionCheckBox, {},
+                               tr(TR_ARBITRARY_MIPMAP_DETECTION_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->hdrCheckBox, {}, tr(TR_HDR_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->stereoModeComboBox, tr("Stereoscopic 3D Mode"),
+                               tr(TR_3D_MODE_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->stereoDepthSlider, tr("Depth"), tr(TR_3D_DEPTH_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->stereoConvergenceSlider, tr("Convergence"),
+                               tr(TR_3D_CONVERGENCE_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->fullResolutionPerEyeCheckBox, {},
+                               tr(TR_3D_PER_EYE_RESOLUTION_DESCRIPTION));
+  ConfigWidget::SetDescription(m_ui->swapEyesCheckBox, {}, tr(TR_3D_SWAP_EYES_DESCRIPTION));
 }
 
 void EnhancementsWidget::DownloadShaderPack(const std::string& pack_id, const std::string& profile)
@@ -750,18 +668,18 @@ void EnhancementsWidget::DownloadShaderPack(const std::string& pack_id, const st
   // timeout inside it.
   //
   // QtUtils/ParallelProgressDialog::SetValueSlot has that same guard under that same bug number and
-  // seven other DolphinQt sites use it, so this near-duplicate is a decision, not an oversight: that
-  // class holds its QProgressDialog *by value* while handing the caller's widget to it as a parent,
-  // so ~QWidget would `delete` a member address. Heap-allocating the dialog is precisely what makes
-  // this function survive `this` being destroyed mid-download, and adopting the wrapper would trade
-  // that away to save the five lines below.
+  // seven other DolphinQt sites use it, so this near-duplicate is a decision, not an oversight:
+  // that class holds its QProgressDialog *by value* while handing the caller's widget to it as a
+  // parent, so ~QWidget would `delete` a member address. Heap-allocating the dialog is precisely
+  // what makes this function survive `this` being destroyed mid-download, and adopting the wrapper
+  // would trade that away to save the five lines below.
   //
   // `progress` is captured raw here while the post-loop code goes through a QPointer, deliberately:
-  // the connection's context object is `progress` itself, so this lambda cannot be invoked after the
-  // dialog is gone, and the one hazard a null test could not answer anyway -- `this` being destroyed
-  // inside setValue()'s nested dispatch, which deletes `progress` as one of its children -- is not
-  // visible to a check made before the call. The post-loop code needs the QPointer because nothing
-  // scopes it to the dialog's lifetime.
+  // the connection's context object is `progress` itself, so this lambda cannot be invoked after
+  // the dialog is gone, and the one hazard a null test could not answer anyway -- `this` being
+  // destroyed inside setValue()'s nested dispatch, which deletes `progress` as one of its children
+  // -- is not visible to a check made before the call. The post-loop code needs the QPointer
+  // because nothing scopes it to the dialog's lifetime.
   auto* const poll = new QTimer(progress);
   connect(poll, &QTimer::timeout, progress, [progress, state, setting = false]() mutable {
     if (setting)
@@ -812,8 +730,8 @@ void EnhancementsWidget::DownloadShaderPack(const std::string& pack_id, const st
   if (self)
   {
     // stop() before close(): closing a dialog does not stop a timer that happens to be its child,
-    // and the deleteLater() below is posted at *this* loop level, so it is not dispatched inside the
-    // nested loop of the QMessageBox that follows. Without this the poll would keep firing
+    // and the deleteLater() below is posted at *this* loop level, so it is not dispatched inside
+    // the nested loop of the QMessageBox that follows. Without this the poll would keep firing
     // setValue() on the hidden dialog for as long as that message box is up.
     poll->stop();
     progress->close();
@@ -833,13 +751,11 @@ void EnhancementsWidget::DownloadShaderPack(const std::string& pack_id, const st
   {
     // Nothing to refresh here any more: the picker enumerates the Shaders folders each time it is
     // opened, so a freshly installed pack shows up on the next Browse….
-    QMessageBox::information(
-        this, tr("Shader Pack Installed"),
-        tr("Installed %1 shader presets.").arg(result.preset_count));
+    QMessageBox::information(this, tr("Shader Pack Installed"),
+                             tr("Installed %1 shader presets.").arg(result.preset_count));
   }
   else
   {
-    QMessageBox::warning(this, tr("Download Failed"),
-                         QString::fromStdString(result.error));
+    QMessageBox::warning(this, tr("Download Failed"), QString::fromStdString(result.error));
   }
 }
