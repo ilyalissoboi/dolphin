@@ -126,7 +126,7 @@ void StackedSettingsWindow::changeEvent(QEvent* event)
 
 void StackedSettingsWindow::UpdateNavigationListStyle()
 {
-  if (!m_ui)
+  if (!m_ui || !m_ui->navigationList)
     return;
 
   QPalette list_palette = m_ui->navigationList->palette();
