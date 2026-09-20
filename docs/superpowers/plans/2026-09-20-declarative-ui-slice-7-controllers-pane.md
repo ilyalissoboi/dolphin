@@ -1,6 +1,6 @@
 # Declarative UI Slice 7: Controller Settings
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Move the Controllers settings pane and its GameCube, Wii Remote, and common-input
 sections into Qt Designer forms while preserving device selection, mapping-window launches,
@@ -61,17 +61,37 @@ form-owned sections and expected enabled states in the light theme.
 
 ## Task 6: Verify the slice
 
-- [ ] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
-- [ ] Run the UI extraction regression suite.
-- [ ] Review Controller settings in light and dark themes on macOS.
-- [ ] Build and run both test binaries on Windows.
-- [ ] Review wide and narrow layouts, keyboard traversal, disabled states, and platform-only
+- [x] Build `dolphin-emu`, `qt-tests`, and `tests` on macOS.
+- [x] Run the UI extraction regression suite.
+- [x] Review Controller settings in light and dark themes on macOS.
+- [x] Build and run both test binaries on Windows.
+- [x] Review wide and narrow layouts, keyboard traversal, disabled states, and platform-only
   refresh actions on Windows.
 
 ## Definition of done
 
-- [ ] Four Designer forms own the Controllers pane and section layouts.
-- [ ] Device discovery, dynamic menu contents, and behavior remain in C++.
-- [ ] Existing controller selection, mapping, config persistence, and runtime restrictions remain
+- [x] Four Designer forms own the Controllers pane and section layouts.
+- [x] Device discovery, dynamic menu contents, and behavior remain in C++.
+- [x] Existing controller selection, mapping, config persistence, and runtime restrictions remain
   intact.
-- [ ] macOS and Windows builds, tests, gettext checks, and visual review pass.
+- [x] macOS and Windows builds, tests, gettext checks, and visual review pass.
+
+## Verification
+
+- Exact implementation commit `17bfe9809e83cb9a48b5a86d5eccb119987dba7a` builds
+  `dolphin-emu`, `qt-tests`, and `tests` on macOS. All 113 Qt tests pass. The core suite runs
+  1,185 tests: 1,183 pass and the two real-preset shader tests skip because `SLANG_PRESET` is not
+  set.
+- The UI extraction regression suite passes. The targeted Controller catalog contains the same
+  41 msgids before and after the migration, and the source audit contains the same eight explicit
+  config keys.
+- The rebuilt macOS app shows the complete GameCube, Wii Remote, and Common sections in the
+  built-in light and dark themes. Enabled and disabled states, the fixed help panel, scrolling,
+  and section spacing are intact.
+- Windows builds the app and both test binaries at the same implementation commit. All 113 Qt
+  tests pass. The core suite runs 1,507 tests: 1,505 pass and the same two real-preset shader tests
+  skip.
+- Native Windows review passes in light and dark themes at 980 by 760 and 700 by 650. Top, middle,
+  and bottom scroll positions have no horizontal clipping; keyboard traversal advances from
+  Port 1 and Wii Remote 1 to their Configure buttons; disabled controls remain legible; and the
+  Refresh split menu exposes Refresh, Sync, and Reset.
