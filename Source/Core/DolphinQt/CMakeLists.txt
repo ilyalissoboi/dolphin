@@ -151,8 +151,10 @@ add_executable(dolphin-emu
   Config/Graphics/EnhancementsWidget.h
   Config/Graphics/GeneralWidget.cpp
   Config/Graphics/GeneralWidget.h
+  Config/Graphics/GeneralWidget.ui
   Config/Graphics/GraphicsPane.cpp
   Config/Graphics/GraphicsPane.h
+  Config/Graphics/GraphicsPane.ui
   Config/Graphics/HacksWidget.cpp
   Config/Graphics/HacksWidget.h
   Config/Graphics/ShaderParametersDialog.cpp
