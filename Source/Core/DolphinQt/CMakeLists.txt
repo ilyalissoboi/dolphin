@@ -435,6 +435,7 @@ add_executable(dolphin-emu
   Settings/GeneralPane.ui
   Settings/InterfacePane.cpp
   Settings/InterfacePane.h
+  Settings/InterfacePane.ui
   Settings/OnScreenDisplayPane.cpp
   Settings/OnScreenDisplayPane.h
   Settings/PathPane.cpp
