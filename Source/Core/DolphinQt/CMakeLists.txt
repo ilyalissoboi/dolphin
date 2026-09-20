@@ -424,6 +424,7 @@ add_executable(dolphin-emu
   Settings.h
   Settings/AdvancedPane.cpp
   Settings/AdvancedPane.h
+  Settings/AdvancedPane.ui
   Settings/AudioPane.cpp
   Settings/AudioPane.h
   Settings/AudioPane.ui

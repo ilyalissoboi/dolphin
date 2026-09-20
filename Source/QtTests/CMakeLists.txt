@@ -1,4 +1,5 @@
 add_executable(qt-tests EXCLUDE_FROM_ALL
+  AdvancedPaneUiTest.cpp
   ApplicationThemeTest.cpp
   AudioPaneUiTest.cpp
   QtTestsMain.cpp
@@ -45,6 +46,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GeneralWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GraphicsPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/HacksWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AdvancedPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GeneralPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GameCubePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AudioPane.ui
