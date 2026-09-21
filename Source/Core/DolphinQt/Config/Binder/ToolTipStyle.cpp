@@ -1,7 +1,7 @@
 // Copyright 2026 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "DolphinQt/Config/ToolTipControls/ToolTipStyle.h"
+#include "DolphinQt/Config/Binder/ToolTipStyle.h"
 
 #include <QColor>
 #include <QPalette>

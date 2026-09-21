@@ -919,9 +919,9 @@ void SetDescription(QWidget* widget, QString title, QString description)
 {
   if (title.isEmpty())
   {
-    // Only ToolTipCheckBox and ToolTipRadioButton derived a title from their label. A generic
-    // property("text") read also matches QAbstractSpinBox and QLineEdit, where "text" is the
-    // current *value* - a spin box would get a balloon titled "50 ms".
+    // Only buttons derive a title from their label. A generic property("text") read also matches
+    // QAbstractSpinBox and QLineEdit, where "text" is the current *value* - a spin box would get a
+    // balloon titled "50 ms".
     if (const auto* const button = qobject_cast<const QAbstractButton*>(widget))
       title = button->text();
   }
@@ -934,7 +934,7 @@ void SetDescription(QWidget* widget, QString title, QString description)
   // Pass copies to the filter because the registry forward below still needs the strings.
   filter->SetText(title, description);
 
-  // Unbound widgets get a tooltip and no registry entry: ToolTipPushButton has no setting.
+  // Unbound widgets get a tooltip and no registry entry.
   if (const ConfigBinding* const binding = FindBinding(widget))
   {
     ConfigSettingRegistry::Instance().SetText(binding->GetLocation(), std::move(title),

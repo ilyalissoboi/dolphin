@@ -7,28 +7,8 @@
 
 #include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
 #include "DolphinQt/Config/SettingsHelp.h"
-#include "DolphinQt/Config/ToolTipControls/ToolTipWidget.h"
 
-namespace
-{
-class LegacyHelpButton final : public ToolTipWidget<QPushButton>
-{
-private:
-  QPoint GetToolTipPosition() const override { return rect().center(); }
-};
-}  // namespace
-
-TEST(SettingsHelpTest, LegacyTooltipControlsPublishPersistentHelpMetadata)
-{
-  LegacyHelpButton button;
-  button.SetTitle(QStringLiteral("Legacy title"));
-  button.SetDescription(QStringLiteral("Legacy description"));
-
-  EXPECT_EQ(SettingsHelp::Title(&button), QStringLiteral("Legacy title"));
-  EXPECT_EQ(SettingsHelp::Description(&button), QStringLiteral("Legacy description"));
-}
-
-TEST(SettingsHelpTest, BinderControlsPublishPersistentHelpMetadata)
+TEST(SettingsHelpTest, StockControlsPublishPersistentHelpMetadata)
 {
   QPushButton button(QStringLiteral("Button title"));
   ConfigWidget::SetDescription(&button, {}, QStringLiteral("Binder description"));

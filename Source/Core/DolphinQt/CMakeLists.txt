@@ -12,6 +12,9 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
 
+include("${CMAKE_SOURCE_DIR}/CMake/DolphinQtDeclarativeUi.cmake")
+dolphin_check_qt_form_layout_boundaries("${CMAKE_CURRENT_SOURCE_DIR}")
+
 if (Qt6_VERSION VERSION_GREATER_EQUAL 6.10.0)
   # GuiPrivate is needed to #include qplatformnativeinterface.h in MainWindow.cpp with Qt 6.10+.
   set(NEED_QT_GUI_PRIVATE_COMPONENT ON)
@@ -49,12 +52,12 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigSettingRegistry.cpp
   Config/Binder/ConfigSettingRegistry.h
   Config/SettingsHelp.h
+  Config/Binder/BalloonTip.cpp
+  Config/Binder/BalloonTip.h
   Config/Binder/BalloonTipFilter.cpp
   Config/Binder/BalloonTipFilter.h
-  Config/ToolTipControls/BalloonTip.cpp
-  Config/ToolTipControls/BalloonTip.h
-  Config/ToolTipControls/ToolTipStyle.cpp
-  Config/ToolTipControls/ToolTipStyle.h
+  Config/Binder/ToolTipStyle.cpp
+  Config/Binder/ToolTipStyle.h
   # ModalMessageBox lives here so qt-tests can link ConfigWidgetBinder (which calls it for user path
   # validation) without pulling in the full dolphin-emu sources.
   QtUtils/ModalMessageBox.cpp
@@ -112,23 +115,6 @@ add_executable(dolphin-emu
   Config/CommonControllersWidget.cpp
   Config/CommonControllersWidget.h
   Config/CommonControllersWidget.ui
-  Config/ConfigControls/ConfigBool.cpp
-  Config/ConfigControls/ConfigBool.h
-  Config/ConfigControls/ConfigChoice.cpp
-  Config/ConfigControls/ConfigChoice.h
-  Config/ConfigControls/ConfigControl.h
-  Config/ConfigControls/ConfigInteger.cpp
-  Config/ConfigControls/ConfigInteger.h
-  Config/ConfigControls/ConfigRadio.cpp
-  Config/ConfigControls/ConfigRadio.h
-  Config/ConfigControls/ConfigFloatSlider.cpp
-  Config/ConfigControls/ConfigFloatSlider.h
-  Config/ConfigControls/ConfigSlider.cpp
-  Config/ConfigControls/ConfigSlider.h
-  Config/ConfigControls/ConfigText.cpp
-  Config/ConfigControls/ConfigText.h
-  Config/ConfigControls/ConfigUserPath.cpp
-  Config/ConfigControls/ConfigUserPath.h
   Config/ControllerInterface/ControllerInterfaceWindow.cpp
   Config/ControllerInterface/ControllerInterfaceWindow.h
   Config/ControllerInterface/ControllerInterfaceWindow.ui
@@ -278,19 +264,6 @@ add_executable(dolphin-emu
   Config/SettingsWindow.cpp
   Config/SettingsWindow.h
   Config/SettingsWindow.ui
-  Config/ToolTipControls/ToolTipCheckBox.cpp
-  Config/ToolTipControls/ToolTipCheckBox.h
-  Config/ToolTipControls/ToolTipComboBox.cpp
-  Config/ToolTipControls/ToolTipComboBox.h
-  Config/ToolTipControls/ToolTipPushButton.cpp
-  Config/ToolTipControls/ToolTipPushButton.h
-  Config/ToolTipControls/ToolTipRadioButton.cpp
-  Config/ToolTipControls/ToolTipRadioButton.h
-  Config/ToolTipControls/ToolTipSlider.cpp
-  Config/ToolTipControls/ToolTipSlider.h
-  Config/ToolTipControls/ToolTipSpinBox.cpp
-  Config/ToolTipControls/ToolTipSpinBox.h
-  Config/ToolTipControls/ToolTipWidget.h
   Config/VerifyWidget.cpp
   Config/VerifyWidget.h
   Config/WiimoteControllersWidget.cpp

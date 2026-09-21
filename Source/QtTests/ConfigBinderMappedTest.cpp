@@ -68,7 +68,7 @@ TEST_F(ConfigBinderMappedTest, MappedComboPairsDesignerItemsWithValuesByIndex)
 
 TEST_F(ConfigBinderMappedTest, MappedComboSelectsNothingWhenNoValueMatches)
 {
-  // ConfigChoiceMap sets index -1 rather than snapping to the first option.
+  // An unknown mapped value leaves the combo unselected rather than snapping to the first option.
   QComboBox box;
   box.addItems({QStringLiteral("Off"), QStringLiteral("Side-by-Side"), QStringLiteral("Anaglyph")});
   Config::SetBase(TEST_MODE, static_cast<Mode>(77));

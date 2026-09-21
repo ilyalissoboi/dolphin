@@ -1,7 +1,7 @@
 // Copyright 2020 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "DolphinQt/Config/ToolTipControls/BalloonTip.h"
+#include "DolphinQt/Config/Binder/BalloonTip.h"
 
 #include <memory>
 
@@ -25,16 +25,15 @@
 #include <QToolTip>
 #endif
 
-#include "DolphinQt/Config/ToolTipControls/ToolTipStyle.h"
+#include "DolphinQt/Config/Binder/ToolTipStyle.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 
 namespace
 {
 std::unique_ptr<BalloonTip> s_the_balloon_tip = nullptr;
-// Remember the parent ToolTipWidget so cursor-related events can see whether the cursor is inside
-// the parent's bounding box or not. Use this variable instead of BalloonTip's parent() member
-// because the ToolTipWidget isn't responsible for deleting the BalloonTip and so doesn't set its
-// parent member.
+// Remember the watched widget so cursor-related events can see whether the cursor is inside its
+// bounding box. Use this variable instead of BalloonTip's parent() member because the watched
+// widget isn't responsible for deleting the BalloonTip and so isn't its QObject parent.
 QWidget* s_parent = nullptr;
 }  // namespace
 

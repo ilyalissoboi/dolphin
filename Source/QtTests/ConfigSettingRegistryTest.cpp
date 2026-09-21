@@ -91,7 +91,7 @@ TEST_F(ConfigSettingRegistryTest, SetDescriptionFillsInTheTitleAndDescription)
 
 TEST_F(ConfigSettingRegistryTest, SetDescriptionOnAnUnboundWidgetRecordsNothing)
 {
-  QCheckBox box;  // a plain tooltip, no config setting: ToolTipPushButton's case
+  QCheckBox box;  // Help metadata without a config setting must not create a registry entry.
   ConfigWidget::SetDescription(&box, QStringLiteral("Title"), QStringLiteral("Body"));
 
   EXPECT_TRUE(ConfigWidget::ConfigSettingRegistry::Instance().Entries().empty());

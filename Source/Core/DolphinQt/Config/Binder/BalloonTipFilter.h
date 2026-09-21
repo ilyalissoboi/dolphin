@@ -16,11 +16,10 @@ class QWidget;
 
 namespace ConfigWidget
 {
-// The balloon-tooltip behaviour of ToolTipWidget<Derived>, as an event filter rather than four
-// virtual overrides, so it can attach to a widget built by uic. Attached as a child of the widget
-// it watches, so it lives exactly as long as that widget.
+// Implements balloon-tooltip behaviour as an event filter, so it can attach to stock widgets built
+// by uic. Attached as a child of the widget it watches, it lives exactly as long as that widget.
 //
-// Deliberately independent of ConfigBinding: ToolTipPushButton has a balloon and no config setting.
+// Deliberately independent of ConfigBinding: unbound controls can also publish settings help.
 class BalloonTipFilter final : public QObject
 {
   Q_OBJECT

@@ -9,8 +9,8 @@
 #include <QTimerEvent>
 #include <QWidget>
 
+#include "DolphinQt/Config/Binder/BalloonTip.h"
 #include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
-#include "DolphinQt/Config/ToolTipControls/BalloonTip.h"
 
 namespace ConfigWidget
 {

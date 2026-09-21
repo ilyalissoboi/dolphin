@@ -15,9 +15,9 @@
 #include <QTimer>
 #include <gtest/gtest.h>
 
+#include "DolphinQt/Config/Binder/BalloonTip.h"
 #include "DolphinQt/Config/Binder/BalloonTipFilter.h"
 #include "DolphinQt/Config/Binder/ConfigWidgetBinder.h"
-#include "DolphinQt/Config/ToolTipControls/BalloonTip.h"
 
 // Two of the filter's branches are deliberately untested, because both consult the real mouse
 // cursor and the offscreen platform gives a test no way to put it over a widget: the Enter branch's
@@ -175,7 +175,7 @@ TEST_F(BalloonTipFilterTest, SetDescriptionTwiceUpdatesRatherThanStacksFilters)
 
 TEST_F(BalloonTipFilterTest, AnEmptyTitleFallsBackToTheWidgetsOwnText)
 {
-  // ToolTipCheckBox and ToolTipRadioButton called SetTitle(label) in their constructors.
+  // Checkboxes and radio buttons use their labels as the default help title.
   QCheckBox box{QStringLiteral("Enable Progressive Scan")};
   ConfigWidget::SetDescription(&box, QString{}, QStringLiteral("Body"));
 

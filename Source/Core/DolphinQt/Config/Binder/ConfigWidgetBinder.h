@@ -111,14 +111,13 @@ void SetPathWarningHandlerForTesting(PathWarningHandler handler);
 // The binding attached to `widget`, or nullptr if it has none.
 ConfigBinding* FindBinding(QWidget* widget);
 
-// Replaces ConfigSliderLabel, ConfigIntegerLabel and ConfigFloatLabel, which exist only to copy
-// their control's font so the label goes bold beside an overridden setting. `control` must already
-// be bound.
+// Copies a bound control's font so the label goes bold beside an overridden setting. `control`
+// must already be bound.
 void MirrorFont(QLabel* label, QWidget* control);
 
 // Balloon tooltip text. For a QAbstractButton an empty `title` falls back to the button's own
-// label, which is what ToolTipCheckBox and ToolTipRadioButton did in their constructors. Any other
-// widget keeps the empty title: for a spin box or a line edit, `text` is the current value.
+// label, matching the historic checkbox and radio-button behavior. Any other widget keeps the
+// empty title: for a spin box or a line edit, `text` is the current value.
 void SetDescription(QWidget* widget, QString title, QString description);
 QString ToolTipTitle(const QWidget* widget);
 QString ToolTipDescription(const QWidget* widget);
@@ -219,8 +218,8 @@ private:
 
     const T value = this->Read();
     const auto it = std::find(m_values.begin(), m_values.end(), value);
-    // -1 when nothing matches, as ConfigChoiceMap does: better an empty combo than a wrong
-    // selection that the user then saves by touching something else.
+    // -1 when nothing matches: better an empty combo than a wrong selection that the user then
+    // saves by touching something else.
     const int index = it == m_values.end() ?
                           -1 :
                           static_cast<int>(std::distance(m_values.begin(), it)) + (layered ? 1 : 0);

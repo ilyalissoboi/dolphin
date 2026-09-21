@@ -38,7 +38,7 @@
 #include "Core/System.h"
 
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
-#include "DolphinQt/Config/ToolTipControls/ToolTipStyle.h"
+#include "DolphinQt/Config/Binder/ToolTipStyle.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 
 #include "InputCommon/ControllerInterface/ControllerInterface.h"

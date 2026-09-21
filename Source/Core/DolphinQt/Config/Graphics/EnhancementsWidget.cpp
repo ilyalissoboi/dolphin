@@ -83,7 +83,7 @@ constexpr int FILTERING_LINEAR = std::to_underlying(TextureFilteringMode::Linear
 void EnhancementsWidget::MigrateRemovedStereoModes()
 {
   // Anaglyph and Passive are no longer offered (see the stereo combo below), but their enumerators
-  // still parse out of an existing GFX.ini. ConfigChoiceMap has no entry for them, so it would
+  // still parse out of an existing GFX.ini. The mapped combo has no entry for them, so it would
   // setCurrentIndex(-1) and leave the combo blank -- the user could not tell which mode they were
   // in, and VideoConfig::VerifyValidity() is meanwhile rendering them as Off. Rewrite the stored
   // value once so the control always shows a real mode.
@@ -204,7 +204,7 @@ void EnhancementsWidget::BindSettings()
   ConfigWidget::Bind(m_ui->hdrCheckBox, Config::GFX_ENHANCE_HDR_OUTPUT, m_game_layer);
 
   // Anaglyph and Passive were implemented by the old post-processing shader, which no longer
-  // exists; selecting them renders a second layer for no visible effect. ConfigChoiceMap stores
+  // exists; selecting them renders a second layer for no visible effect. The mapped binding stores
   // explicit values, so the remaining entries keep their StereoMode meanings. Stored Anaglyph /
   // Passive values are rewritten to Off by MigrateRemovedStereoModes() before we get here.
   constexpr std::array stereo_modes{StereoMode::Off, StereoMode::SideBySide,
@@ -597,7 +597,7 @@ void EnhancementsWidget::AddDescriptions()
                                tr(TR_POSTPROCESSING_DESCRIPTION));
 
   // Its own description rather than none: the row's, on Browse… above, is about choosing a preset
-  // and says nothing about editing one. Same ToolTipPushButton + SetDescription pattern for the
+  // and says nothing about editing one. The same unbound-button help pattern is used for the
   // same reason -- the field it belongs to is read-only, so the buttons carry the row's help.
   // When librashader did not load, the button is disabled (UpdateParametersButtonState) and this is
   // where the user finds out why: Qt still delivers hover events to a disabled widget, so the
