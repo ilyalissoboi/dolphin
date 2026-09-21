@@ -34,16 +34,16 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   Ui::AudioPane ui;
   ui.setupUi(&pane);
 
-  ASSERT_EQ(ui.rootLayout->count(), 2);
+  ASSERT_EQ(ui.rootLayout->count(), 3);
   EXPECT_EQ(ui.rootLayout->itemAt(0)->layout(), ui.mainColumnLayout);
   EXPECT_EQ(ui.rootLayout->itemAt(1)->widget(), ui.volumeGroup);
+  EXPECT_NE(ui.rootLayout->itemAt(2)->spacerItem(), nullptr);
 
-  ASSERT_EQ(ui.mainColumnLayout->count(), 5);
+  ASSERT_EQ(ui.mainColumnLayout->count(), 4);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(0)->widget(), ui.dspGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(1)->widget(), ui.backendGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(2)->widget(), ui.playbackGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(3)->widget(), ui.wiimoteRoutingGroup);
-  EXPECT_NE(ui.mainColumnLayout->itemAt(4)->spacerItem(), nullptr);
 
   EXPECT_EQ(ui.dspLayout->itemAtPosition(0, 0)->widget(), ui.dspEngineLabel);
   EXPECT_EQ(ui.dspLayout->itemAtPosition(0, 1)->widget(), ui.dspEngineComboBox);
@@ -85,7 +85,10 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_EQ(ui.wiimoteRoutingLayout->itemAtPosition(4, 0)->widget(), ui.wiimote4CheckBox);
   EXPECT_EQ(ui.wiimoteRoutingLayout->itemAtPosition(4, 1)->widget(), ui.wiimote4DeviceComboBox);
 
-  EXPECT_EQ(ui.volumeSlider->orientation(), Qt::Vertical);
+  ASSERT_EQ(ui.volumeLayout->count(), 2);
+  EXPECT_EQ(ui.volumeLayout->itemAt(0)->widget(), ui.volumeSlider);
+  EXPECT_EQ(ui.volumeLayout->itemAt(1)->widget(), ui.volumeValueLabel);
+  EXPECT_EQ(ui.volumeSlider->orientation(), Qt::Horizontal);
   EXPECT_EQ(ui.volumeSlider->minimum(), 0);
   EXPECT_EQ(ui.volumeSlider->maximum(), 100);
   EXPECT_EQ(ui.volumeValueLabel->alignment(), Qt::AlignCenter);

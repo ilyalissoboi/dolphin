@@ -59,6 +59,13 @@ TEST(ControllersUiTest, FormOwnsTheGameCubeControllerRows)
   EXPECT_EQ(ui.port2Label->buddy(), ui.port2ComboBox);
   EXPECT_EQ(ui.port3Label->buddy(), ui.port3ComboBox);
   EXPECT_EQ(ui.port4Label->buddy(), ui.port4ComboBox);
+  for (QComboBox* const combo :
+       {ui.port1ComboBox, ui.port2ComboBox, ui.port3ComboBox, ui.port4ComboBox})
+  {
+    EXPECT_EQ(combo->sizeAdjustPolicy(),
+              QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon);
+    EXPECT_EQ(combo->minimumContentsLength(), 12);
+  }
   EXPECT_FALSE(ui.port1ConfigureButton->autoDefault());
   EXPECT_FALSE(ui.port2ConfigureButton->autoDefault());
   EXPECT_FALSE(ui.port3ConfigureButton->autoDefault());
@@ -67,6 +74,13 @@ TEST(ControllersUiTest, FormOwnsTheGameCubeControllerRows)
   EXPECT_EQ(NextTabFocusWidget(ui.port1ComboBox), ui.port1ConfigureButton);
   EXPECT_EQ(NextTabFocusWidget(ui.port1ConfigureButton), ui.port2ComboBox);
   EXPECT_EQ(NextTabFocusWidget(ui.port4ComboBox), ui.port4ConfigureButton);
+
+  pane.resize(520, 280);
+  ui.rootLayout->setGeometry(pane.rect());
+  ui.gamecubeLayout->setGeometry(ui.gamecubeGroup->contentsRect());
+  EXPECT_LT(ui.port1Label->geometry().right(), ui.port1ComboBox->geometry().left());
+  EXPECT_LT(ui.port1ComboBox->geometry().right(), ui.port1ConfigureButton->geometry().left());
+  EXPECT_LE(ui.port1ConfigureButton->geometry().right(), ui.gamecubeGroup->contentsRect().right());
 }
 
 TEST(ControllersUiTest, FormOwnsTheWiiRemoteControllerRows)
@@ -89,6 +103,13 @@ TEST(ControllersUiTest, FormOwnsTheWiiRemoteControllerRows)
   EXPECT_EQ(ui.wiimote1ComboBox->itemText(0), QStringLiteral("None"));
   EXPECT_EQ(ui.wiimote1ComboBox->itemText(1), QStringLiteral("Emulated Wii Remote"));
   EXPECT_EQ(ui.wiimote1ComboBox->itemText(2), QStringLiteral("Real Wii Remote"));
+  for (QComboBox* const combo : {ui.bluetoothAdaptersComboBox, ui.wiimote1ComboBox,
+                                 ui.wiimote2ComboBox, ui.wiimote3ComboBox, ui.wiimote4ComboBox})
+  {
+    EXPECT_EQ(combo->sizeAdjustPolicy(),
+              QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon);
+    EXPECT_EQ(combo->minimumContentsLength(), 12);
+  }
 
   EXPECT_FALSE(ui.bluetoothAdaptersRefreshButton->autoDefault());
   EXPECT_FALSE(ui.passthroughSyncButton->autoDefault());

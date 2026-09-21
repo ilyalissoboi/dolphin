@@ -43,7 +43,14 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QComboBox" name="port1ComboBox"/>
+       <widget class="QComboBox" name="port1ComboBox">
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>12</number>
+        </property>
+       </widget>
       </item>
       <item row="0" column="2">
        <widget class="QPushButton" name="port1ConfigureButton">
@@ -66,7 +73,14 @@
        </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QComboBox" name="port2ComboBox"/>
+       <widget class="QComboBox" name="port2ComboBox">
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>12</number>
+        </property>
+       </widget>
       </item>
       <item row="1" column="2">
        <widget class="QPushButton" name="port2ConfigureButton">
@@ -89,7 +103,14 @@
        </widget>
       </item>
       <item row="2" column="1">
-       <widget class="QComboBox" name="port3ComboBox"/>
+       <widget class="QComboBox" name="port3ComboBox">
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>12</number>
+        </property>
+       </widget>
       </item>
       <item row="2" column="2">
        <widget class="QPushButton" name="port3ConfigureButton">
@@ -112,7 +133,14 @@
        </widget>
       </item>
       <item row="3" column="1">
-       <widget class="QComboBox" name="port4ComboBox"/>
+       <widget class="QComboBox" name="port4ComboBox">
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>12</number>
+        </property>
+       </widget>
       </item>
       <item row="3" column="2">
        <widget class="QPushButton" name="port4ConfigureButton">

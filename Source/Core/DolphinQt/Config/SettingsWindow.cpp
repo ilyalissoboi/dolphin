@@ -3,6 +3,7 @@
 
 #include "DolphinQt/Config/SettingsWindow.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <string_view>
@@ -19,6 +20,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
+#include <QScreen>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTabWidget>
@@ -89,7 +91,7 @@ void StackedSettingsWindow::OnDoneCreatingPanes()
 {
   // Make sure the first item is actually selected by default.
   ActivatePane(0);
-  m_ui->helpText->setVisible(m_has_help);
+  m_ui->helpFrame->setVisible(m_has_help);
   if (m_has_help)
   {
     InstallHelpEventFilters(m_ui->stackedPanes);
@@ -391,6 +393,12 @@ SettingsWindow::SettingsWindow(MainWindow* parent) : StackedSettingsWindow{paren
          "other expert options."));
 
   OnDoneCreatingPanes();
+  const int preferred_width = std::min(980, screen()->availableSize().width() * 9 / 10);
+  if (width() < preferred_width)
+  {
+    resize(preferred_width, height());
+    QtUtils::CenterOnParentWindow(this);
+  }
   connect(&Settings::Instance(), &Settings::ThemeChanged, this,
           &SettingsWindow::UpdateCategoryIcons);
 }

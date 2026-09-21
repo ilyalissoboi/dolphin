@@ -16,7 +16,7 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <layout class="QHBoxLayout" name="rootLayout">
+  <layout class="QVBoxLayout" name="rootLayout">
    <item>
     <layout class="QVBoxLayout" name="mainColumnLayout">
      <item>
@@ -265,19 +265,6 @@
        </layout>
       </widget>
      </item>
-     <item>
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>40</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
     </layout>
    </item>
    <item>
@@ -285,14 +272,14 @@
      <property name="title">
       <string>Volume</string>
      </property>
-     <layout class="QVBoxLayout" name="volumeLayout">
+     <layout class="QHBoxLayout" name="volumeLayout">
       <item>
        <widget class="QSlider" name="volumeSlider">
         <property name="maximum">
          <number>100</number>
         </property>
         <property name="orientation">
-         <enum>Qt::Orientation::Vertical</enum>
+         <enum>Qt::Orientation::Horizontal</enum>
         </property>
        </widget>
       </item>
@@ -308,6 +295,19 @@
       </item>
      </layout>
     </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Orientation::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
   </layout>
  </widget>
