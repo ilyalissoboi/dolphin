@@ -80,16 +80,25 @@ add_executable(dolphin-emu
   CheatsManager.h
   Achievements/AchievementBox.cpp
   Achievements/AchievementBox.h
+  Achievements/AchievementBox.ui
   Achievements/AchievementHeaderWidget.cpp
   Achievements/AchievementHeaderWidget.h
+  Achievements/AchievementHeaderWidget.ui
+  Achievements/AchievementLeaderboardCell.cpp
+  Achievements/AchievementLeaderboardCell.h
+  Achievements/AchievementLeaderboardCell.ui
   Achievements/AchievementLeaderboardWidget.cpp
   Achievements/AchievementLeaderboardWidget.h
+  Achievements/AchievementLeaderboardWidget.ui
   Achievements/AchievementProgressWidget.cpp
   Achievements/AchievementProgressWidget.h
+  Achievements/AchievementProgressWidget.ui
   Achievements/AchievementSettingsWidget.cpp
   Achievements/AchievementSettingsWidget.h
+  Achievements/AchievementSettingsWidget.ui
   Achievements/AchievementsWindow.cpp
   Achievements/AchievementsWindow.h
+  Achievements/AchievementsWindow.ui
   Config/ARCodeWidget.cpp
   Config/ARCodeWidget.h
   Config/CheatCodeEditor.cpp

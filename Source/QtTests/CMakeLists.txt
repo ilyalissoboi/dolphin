@@ -1,4 +1,5 @@
 add_executable(qt-tests EXCLUDE_FROM_ALL
+  AchievementsUiTest.cpp
   AdvancedPaneUiTest.cpp
   ApplicationThemeTest.cpp
   AudioPaneUiTest.cpp
@@ -42,6 +43,13 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/SetupWizardDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/GameListWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementBox.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementHeaderWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementLeaderboardCell.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementLeaderboardWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementProgressWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementSettingsWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllersPane.ui
@@ -78,7 +86,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core
