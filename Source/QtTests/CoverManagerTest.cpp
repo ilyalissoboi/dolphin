@@ -22,20 +22,20 @@ TEST(CoverManagerTest, UsesDolphinsAdjacentPerGameCoverConvention)
   EXPECT_TRUE(GameListCover::GetManagedCoverPath("").empty());
 }
 
-TEST(CoverManagerTest, NormalizesAndReplacesImagesAsPng)
+TEST(CoverManagerTest, WritesAndReplacesManagedCoversAsPng)
 {
   QTemporaryDir directory;
   ASSERT_TRUE(directory.isValid());
 
   const QString game_path = directory.filePath(QStringLiteral("Sample Game.iso"));
-  const QString source_path = directory.filePath(QStringLiteral("source.bmp"));
+  const QString source_path = directory.filePath(QStringLiteral("source.image"));
   const std::string game_path_string = game_path.toStdString();
   const QString cover_path =
       QString::fromStdString(GameListCover::GetManagedCoverPath(game_path_string));
 
   QImage first_image(3, 2, QImage::Format_ARGB32);
   first_image.fill(QColor(20, 80, 140, 255));
-  ASSERT_TRUE(first_image.save(source_path, "BMP"));
+  ASSERT_TRUE(first_image.save(source_path, "PNG"));
 
   EXPECT_TRUE(GameListCover::SaveManagedCover(game_path_string, source_path).Succeeded());
   EXPECT_TRUE(GameListCover::HasManagedCover(game_path_string));
@@ -48,7 +48,7 @@ TEST(CoverManagerTest, NormalizesAndReplacesImagesAsPng)
 
   QImage replacement_image(4, 5, QImage::Format_RGB32);
   replacement_image.fill(QColor(190, 40, 30));
-  ASSERT_TRUE(replacement_image.save(source_path, "BMP"));
+  ASSERT_TRUE(replacement_image.save(source_path, "PNG"));
 
   EXPECT_TRUE(GameListCover::SaveManagedCover(game_path_string, source_path).Succeeded());
   const QImage saved_replacement_image(cover_path);
