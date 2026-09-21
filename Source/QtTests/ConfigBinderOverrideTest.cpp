@@ -70,8 +70,34 @@ TEST_F(ConfigBinderOverrideTest, LayeredOverrideShowsBoldAndClearingRemovesIt)
   RightClick(&box);
   EXPECT_FALSE(layer.Exists(TEST_BOOL.GetLocation()));
   EXPECT_FALSE(box.font().bold());
-  EXPECT_FALSE(box.isChecked()) << "the widget falls back to the base value";
+  EXPECT_EQ(box.checkState(), Qt::PartiallyChecked);
+  EXPECT_FALSE(ConfigWidget::EffectiveChecked(&box)) << "the widget falls back to the base value";
   EXPECT_EQ(box.presses, 0) << "swallowed";
+}
+
+TEST_F(ConfigBinderOverrideTest, ShippedGameFallbackUsesItalicAlongsideLocalBold)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::Layer shipped_game{Config::LayerType::GlobalGame};
+  shipped_game.Set(TEST_BOOL, true);
+  ConfigWidget::Logic::SetFallbackLayer(&layer, &shipped_game);
+  QCheckBox box;
+  QLabel label{QStringLiteral("Setting:")};
+
+  ConfigWidget::Bind(&box, TEST_BOOL, &layer);
+  ConfigWidget::MirrorFont(&label, &box);
+
+  EXPECT_TRUE(box.font().italic());
+  EXPECT_TRUE(label.font().italic());
+  EXPECT_FALSE(box.font().bold());
+  EXPECT_TRUE(ConfigWidget::EffectiveChecked(&box));
+
+  box.setCheckState(Qt::Unchecked);
+  NotifyConfigChanged();
+  EXPECT_TRUE(box.font().italic());
+  EXPECT_TRUE(box.font().bold());
+
+  ConfigWidget::Logic::SetFallbackLayer(&layer, nullptr);
 }
 
 TEST_F(ConfigBinderOverrideTest, GlobalBindingIsBoldWhenANonBaseLayerIsActive)

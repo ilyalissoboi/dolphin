@@ -37,9 +37,6 @@ private:
   void AddDescriptions();
   void PopulateEditorTabs();
   void RefreshLocalEditor();
-  void LoadSettings();
-  void SetItalics();
-  void UpdateSliderLabels();
 
   QString m_gameini_local_path;
   std::unique_ptr<Ui::GameConfigWidget> m_ui;

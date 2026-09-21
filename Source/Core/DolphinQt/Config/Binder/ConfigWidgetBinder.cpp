@@ -33,6 +33,9 @@ namespace ConfigWidget
 {
 namespace
 {
+constexpr char INHERITED_CHECKED_PROPERTY[] = "dolphinInheritedChecked";
+constexpr char INHERIT_COMBO_PROPERTY[] = "dolphinHasInheritedItem";
+
 class CheckBoxBinding final : public ValueBinding<QCheckBox, bool>
 {
 public:
@@ -40,13 +43,33 @@ public:
                   bool reverse)
       : ValueBinding(box, setting, layer), m_reverse(reverse)
   {
-    connect(box, &QCheckBox::toggled, this, &CheckBoxBinding::OnToggled);
+    if (layer != nullptr)
+      box->setTristate(true);
+    ConnectCheckStateChanged(box, this, [this] { OnStateChanged(GetTypedWidget()->checkState()); });
     RefreshFromConfig();
   }
 
 private:
-  void LoadFromConfig() override { GetTypedWidget()->setChecked(Read() ^ m_reverse); }
-  void OnToggled(bool checked) { Save(checked ^ m_reverse); }
+  void LoadFromConfig() override
+  {
+    auto* const box = GetTypedWidget();
+    const bool checked = Read() ^ m_reverse;
+    box->setProperty(INHERITED_CHECKED_PROPERTY, checked);
+    if (GetLayer() != nullptr && !HasLocalValue())
+      box->setCheckState(Qt::PartiallyChecked);
+    else
+      box->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+  }
+
+  void OnStateChanged(Qt::CheckState state)
+  {
+    if (state == Qt::PartiallyChecked)
+    {
+      Clear();
+      return;
+    }
+    Save((state == Qt::Checked) ^ m_reverse);
+  }
 
   const bool m_reverse;
 };
@@ -57,28 +80,67 @@ public:
   ComboBoxBinding(QComboBox* box, const Config::Info<int>& setting, Config::Layer* layer)
       : ValueBinding(box, setting, layer)
   {
+    detail::PrepareLayeredCombo(box, layer);
     connect(box, &QComboBox::currentIndexChanged, this, &ComboBoxBinding::OnIndexChanged);
     RefreshFromConfig();
   }
 
 private:
-  void LoadFromConfig() override { GetTypedWidget()->setCurrentIndex(Read()); }
-  void OnIndexChanged(int index) { Save(index); }
+  void LoadFromConfig() override
+  {
+    auto* const box = GetTypedWidget();
+    if (GetLayer() != nullptr)
+    {
+      detail::SetInheritedComboText(box, ReadInherited() + 1);
+      box->setCurrentIndex(HasLocalValue() ? Read() + 1 : 0);
+      return;
+    }
+    box->setCurrentIndex(Read());
+  }
+
+  void OnIndexChanged(int index)
+  {
+    if (GetLayer() != nullptr)
+    {
+      if (index == 0)
+      {
+        Clear();
+        return;
+      }
+      --index;
+    }
+    Save(index);
+  }
 };
 
 class SpinBoxBinding final : public ValueBinding<QSpinBox, int>
 {
 public:
   SpinBoxBinding(QSpinBox* spin, const Config::Info<int>& setting, Config::Layer* layer)
-      : ValueBinding(spin, setting, layer)
+      : ValueBinding(spin, setting, layer), m_original_prefix(spin->prefix())
   {
     connect(spin, &QSpinBox::valueChanged, this, &SpinBoxBinding::OnValueChanged);
     RefreshFromConfig();
   }
 
 private:
-  void LoadFromConfig() override { GetTypedWidget()->setValue(Read()); }
-  void OnValueChanged(int value) { Save(value); }
+  void LoadFromConfig() override
+  {
+    auto* const spin = GetTypedWidget();
+    spin->setPrefix(GetLayer() != nullptr && !HasLocalValue() ?
+                        QObject::tr("Default: ") + m_original_prefix :
+                        m_original_prefix);
+    spin->setValue(Read());
+  }
+  void OnValueChanged(int value)
+  {
+    if (IsUpdating())
+      return;
+    GetTypedWidget()->setPrefix(m_original_prefix);
+    Save(value);
+  }
+
+  const QString m_original_prefix;
 };
 
 class SliderBinding final : public ValueBinding<QSlider, int>
@@ -151,14 +213,34 @@ public:
   ComboBoxU32Binding(QComboBox* box, const Config::Info<u32>& setting, Config::Layer* layer)
       : ValueBinding(box, setting, layer)
   {
+    detail::PrepareLayeredCombo(box, layer);
     connect(box, &QComboBox::currentIndexChanged, this, &ComboBoxU32Binding::OnIndexChanged);
     RefreshFromConfig();
   }
 
 private:
-  void LoadFromConfig() override { GetTypedWidget()->setCurrentIndex(static_cast<int>(Read())); }
+  void LoadFromConfig() override
+  {
+    auto* const box = GetTypedWidget();
+    if (GetLayer() != nullptr)
+    {
+      detail::SetInheritedComboText(box, static_cast<int>(ReadInherited()) + 1);
+      box->setCurrentIndex(HasLocalValue() ? static_cast<int>(Read()) + 1 : 0);
+      return;
+    }
+    box->setCurrentIndex(static_cast<int>(Read()));
+  }
   void OnIndexChanged(int index)
   {
+    if (GetLayer() != nullptr)
+    {
+      if (index == 0)
+      {
+        Clear();
+        return;
+      }
+      --index;
+    }
     if (index >= 0)
       Save(static_cast<u32>(index));
   }
@@ -171,6 +253,7 @@ public:
                       Config::Layer* layer)
       : ValueBinding(box, setting, layer)
   {
+    detail::PrepareLayeredCombo(box, layer);
     connect(box, &QComboBox::currentIndexChanged, this, &StringChoiceBinding::OnIndexChanged);
     RefreshFromConfig();
   }
@@ -181,11 +264,25 @@ private:
   void LoadFromConfig() override
   {
     auto* const box = GetTypedWidget();
+    if (GetLayer() != nullptr)
+    {
+      detail::SetInheritedComboText(box, box->findData(QString::fromStdString(ReadInherited())));
+      if (!HasLocalValue())
+      {
+        box->setCurrentIndex(0);
+        return;
+      }
+    }
     box->setCurrentIndex(box->findData(QString::fromStdString(Read())));
   }
 
   void OnIndexChanged(int index)
   {
+    if (GetLayer() != nullptr && index == 0)
+    {
+      Clear();
+      return;
+    }
     if (index >= 0)
       Save(GetTypedWidget()->itemData(index).toString().toStdString());
   }
@@ -430,7 +527,8 @@ void RecordSetting(const Config::Location& location, SettingKind kind, Config::L
 
   if (const auto* const box = qobject_cast<const QComboBox*>(widget))
   {
-    for (int i = 0; i < box->count(); ++i)
+    const int first_choice = box->property(INHERIT_COMBO_PROPERTY).toBool() ? 1 : 0;
+    for (int i = first_choice; i < box->count(); ++i)
       entry.choices.push_back(box->itemText(i));
   }
   else if (const auto* const spin = qobject_cast<const QSpinBox*>(widget))
@@ -451,6 +549,22 @@ void RecordSetting(const Config::Location& location, SettingKind kind, Config::L
 
 namespace detail
 {
+void PrepareLayeredCombo(QComboBox* box, Config::Layer* layer)
+{
+  if (layer == nullptr)
+    return;
+  box->insertItem(0, QString{});
+  box->setProperty(INHERIT_COMBO_PROPERTY, true);
+}
+
+void SetInheritedComboText(QComboBox* box, int inherited_item_index)
+{
+  const QString inherited_value = inherited_item_index > 0 && inherited_item_index < box->count() ?
+                                      box->itemText(inherited_item_index) :
+                                      QString{};
+  box->setItemText(0, QObject::tr("Use Global Setting [%1]").arg(inherited_value));
+}
+
 void RecordMappedCombo(const Config::Location& location, Config::Layer* layer,
                        const QComboBox* widget)
 {
@@ -619,6 +733,7 @@ ComplexBinding::ComplexBinding(QComboBox* box, const InfoVariant& setting1,
     : ConfigBinding(box, LocationOf(setting1), layer), m_setting1(setting1), m_setting2(setting2)
 {
   SetSecondaryLocation(LocationOf(setting2));
+  detail::PrepareLayeredCombo(box, layer);
   connect(box, &QComboBox::currentIndexChanged, this, &ComplexBinding::OnIndexChanged);
   RefreshFromConfig();
 }
@@ -647,6 +762,7 @@ void ComplexBinding::Reset()
   const QSignalBlocker blocker{box};
   box->clear();
   m_options.clear();
+  detail::PrepareLayeredCombo(box, GetLayer());
 }
 
 std::pair<Config::Location, Config::Location> ComplexBinding::GetLocations() const
@@ -656,41 +772,79 @@ std::pair<Config::Location, Config::Location> ComplexBinding::GetLocations() con
 
 void ComplexBinding::LoadFromConfig()
 {
-  // Deliberately NOT Logic::ReadValue. ConfigComplexChoice reads a per-game value with
-  // Layer::Get(), which yields the setting's *default* when the layer has no key, where every other
-  // control falls back to the global value. Reproduced as-is so this slice changes mechanism only;
-  // ConfigComplexBindingTest pins it.
+  const bool layered = GetLayer() != nullptr;
   const auto read = [this](const auto& setting) -> OptionVariant {
-    if (GetLayer() != nullptr)
+    if (GetLayer() != nullptr && GetLayer()->Exists(setting.GetLocation()))
       return static_cast<OptionVariant>(GetLayer()->Get(setting));
+    if (GetLayer() != nullptr)
+      return static_cast<OptionVariant>(Logic::ReadInheritedValue(setting, GetLayer()));
     return static_cast<OptionVariant>(Config::Get(setting));
+  };
+  const auto read_inherited = [this](const auto& setting) -> OptionVariant {
+    return static_cast<OptionVariant>(Logic::ReadInheritedValue(setting, GetLayer()));
   };
   const auto default_of = [](const auto& setting) -> OptionVariant {
     return OptionVariant(setting.GetDefaultValue());
   };
 
-  const auto matches = [&](const InfoVariant& info, const OptionVariant& option) {
+  const auto matches = [&](const InfoVariant& info, const OptionVariant& option,
+                           const auto& reader) {
     const OptionVariant wanted = std::holds_alternative<Config::DefaultState>(option) ?
                                      std::visit(default_of, info) :
                                      option;
-    return std::visit(read, info) == wanted;
+    return std::visit(reader, info) == wanted;
   };
 
   const auto it = std::ranges::find_if(m_options, [&](const auto& option) {
-    return matches(m_setting1, option.first) && matches(m_setting2, option.second);
+    return matches(m_setting1, option.first, read) && matches(m_setting2, option.second, read);
   });
 
-  const int index = it == m_options.end() ? m_default_index :
-                                            static_cast<int>(std::distance(m_options.begin(), it));
-
   auto* const box = static_cast<QComboBox*>(GetWidget());
+  if (layered)
+  {
+    const auto inherited_it = std::ranges::find_if(m_options, [&](const auto& option) {
+      return matches(m_setting1, option.first, read_inherited) &&
+             matches(m_setting2, option.second, read_inherited);
+    });
+    const int inherited_index =
+        inherited_it == m_options.end() ?
+            -1 :
+            static_cast<int>(std::distance(m_options.begin(), inherited_it)) + 1;
+    detail::SetInheritedComboText(box, inherited_index);
+
+    const auto [location1, location2] = GetLocations();
+    if (!GetLayer()->Exists(location1) && !GetLayer()->Exists(location2))
+    {
+      const QSignalBlocker blocker{box};
+      box->setCurrentIndex(0);
+      return;
+    }
+  }
+
+  const int index = it == m_options.end() ?
+                        (m_default_index < 0 ? -1 : m_default_index + (layered ? 1 : 0)) :
+                        static_cast<int>(std::distance(m_options.begin(), it)) + (layered ? 1 : 0);
   const QSignalBlocker blocker{box};
   box->setCurrentIndex(index);
 }
 
 void ComplexBinding::OnIndexChanged(int index)
 {
-  if (IsUpdating() || index < 0 || static_cast<size_t>(index) >= m_options.size())
+  if (IsUpdating())
+    return;
+
+  if (GetLayer() != nullptr)
+  {
+    if (index == 0)
+    {
+      ClearLocalValue();
+      RefreshFromConfig();
+      return;
+    }
+    --index;
+  }
+
+  if (index < 0 || static_cast<size_t>(index) >= m_options.size())
     return;
 
   const auto set = [this](const auto& setting, const auto& value) {
@@ -705,6 +859,7 @@ void ComplexBinding::OnIndexChanged(int index)
 
   std::visit(set, m_setting1, m_options[static_cast<size_t>(index)].first);
   std::visit(set, m_setting2, m_options[static_cast<size_t>(index)].second);
+  RefreshFromConfig();
 }
 
 ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant& setting1,
@@ -799,5 +954,17 @@ QString ToolTipDescription(const QWidget* widget)
   const auto* const filter =
       widget->findChild<const BalloonTipFilter*>(QString{}, Qt::FindDirectChildrenOnly);
   return filter == nullptr ? QString{} : filter->GetDescription();
+}
+
+bool EffectiveChecked(const QCheckBox* widget)
+{
+  if (widget->checkState() == Qt::PartiallyChecked)
+    return widget->property(INHERITED_CHECKED_PROPERTY).toBool();
+  return widget->isChecked();
+}
+
+bool IsInherited(const QWidget* widget)
+{
+  return widget->property("dolphinInheritedSetting").toBool();
 }
 }  // namespace ConfigWidget

@@ -3,6 +3,7 @@
 
 #include "DolphinQt/Config/Graphics/GeneralWidget.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -94,8 +95,12 @@ void GeneralWidget::ConnectWidgets()
 
 void GeneralWidget::ToggleCustomAspectRatio(int index)
 {
-  const bool is_custom_aspect_ratio = (index == static_cast<int>(AspectMode::Custom)) ||
-                                      (index == static_cast<int>(AspectMode::CustomStretch));
+  const AspectMode aspect_mode =
+      m_game_layer == nullptr ?
+          static_cast<AspectMode>(index) :
+          ConfigWidget::Logic::ReadValue(Config::GFX_ASPECT_RATIO, m_game_layer);
+  const bool is_custom_aspect_ratio =
+      aspect_mode == AspectMode::Custom || aspect_mode == AspectMode::CustomStretch;
   m_ui->customAspectRatioLabel->setHidden(!is_custom_aspect_ratio);
   m_ui->customAspectWidthSpinBox->setHidden(!is_custom_aspect_ratio);
   m_ui->customAspectHeightSpinBox->setHidden(!is_custom_aspect_ratio);
@@ -103,7 +108,10 @@ void GeneralWidget::ToggleCustomAspectRatio(int index)
 
 void GeneralWidget::BackendWarning()
 {
-  if (Config::GetActiveLayerForConfig(Config::MAIN_GFX_BACKEND) == Config::LayerType::Base)
+  const std::string configured_backend =
+      ConfigWidget::Logic::ReadValue(Config::MAIN_GFX_BACKEND, m_game_layer);
+  if (!ConfigWidget::IsInherited(m_ui->backendComboBox) &&
+      Config::GetActiveLayerForConfig(Config::MAIN_GFX_BACKEND) == Config::LayerType::Base)
   {
     const auto& backends = VideoBackendBase::GetAvailableBackends();
     if (backends.empty())
@@ -111,14 +119,17 @@ void GeneralWidget::BackendWarning()
       return;
     }
 
-    const int current_idx = m_ui->backendComboBox->currentIndex();
-    if (current_idx == -1)
+    const auto backend_it =
+        std::ranges::find_if(backends, [&configured_backend](const auto& backend) {
+          return backend->GetConfigName() == configured_backend;
+        });
+    if (backend_it == backends.end())
     {
       // Don't attempt to get the current backend if it doesn't match any available backends.
       return;
     }
 
-    auto warningMessage = backends[current_idx]->GetWarningMessage();
+    auto warningMessage = (*backend_it)->GetWarningMessage();
     if (warningMessage)
     {
       ModalMessageBox confirm_sw(this);
@@ -137,7 +148,7 @@ void GeneralWidget::BackendWarning()
   }
 
   m_previous_backend = m_ui->backendComboBox->currentIndex();
-  emit BackendChanged(m_ui->backendComboBox->currentData().toString());
+  emit BackendChanged(QString::fromStdString(configured_backend));
 }
 
 void GeneralWidget::OnEmulationStateChanged(bool running)
@@ -149,14 +160,10 @@ void GeneralWidget::OnEmulationStateChanged(bool running)
   const bool supports_adapters = !g_backend_info.Adapters.empty();
   m_ui->adapterComboBox->setEnabled(!running && supports_adapters);
 
-  const std::string current_backend = m_ui->backendComboBox->currentData().toString().toStdString();
-  if (Config::Get(Config::MAIN_GFX_BACKEND) != current_backend)
+  const std::string configured_backend =
+      ConfigWidget::Logic::ReadValue(Config::MAIN_GFX_BACKEND, m_game_layer);
+  if (Config::Get(Config::MAIN_GFX_BACKEND) != configured_backend)
   {
-    const QSignalBlocker blocker(m_ui->backendComboBox);
-    const std::string configured_backend =
-        ConfigWidget::Logic::ReadValue(Config::MAIN_GFX_BACKEND, m_game_layer);
-    m_ui->backendComboBox->setCurrentIndex(
-        m_ui->backendComboBox->findData(QString::fromStdString(configured_backend)));
     emit BackendChanged(QString::fromStdString(Config::Get(Config::MAIN_GFX_BACKEND)));
   }
 }

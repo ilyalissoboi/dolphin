@@ -204,7 +204,7 @@ TEST_F(ConfigBinderMappedTest, LayeredBindingWritesToTheLayerNotTheBase)
         {QStringLiteral("Off"), QStringLiteral("Side-by-Side"), QStringLiteral("Anaglyph")});
     Config::SetBase(TEST_MODE, Mode::Off);
     ConfigWidget::BindMapped(&box, TEST_MODE, std::span<const Mode>{MODE_VALUES}, &layer);
-    box.setCurrentIndex(1);
+    box.setCurrentIndex(2);
     EXPECT_TRUE(layer.Exists(TEST_MODE.GetLocation()));
     EXPECT_EQ(layer.Get(TEST_MODE), Mode::SideBySide);
     EXPECT_EQ(Config::GetBase(TEST_MODE), Mode::Off) << "base unchanged";
@@ -216,7 +216,7 @@ TEST_F(ConfigBinderMappedTest, LayeredBindingWritesToTheLayerNotTheBase)
     QComboBox box;
     Config::SetBase(TEST_STR, "Vulkan");
     ConfigWidget::BindStringChoice(&box, TEST_STR, std::span<const std::string>{options}, &layer);
-    box.setCurrentIndex(1);
+    box.setCurrentIndex(2);
     EXPECT_TRUE(layer.Exists(TEST_STR.GetLocation()));
     EXPECT_EQ(layer.Get(TEST_STR), "OpenGL");
     EXPECT_EQ(Config::GetBase(TEST_STR), "Vulkan") << "base unchanged";
@@ -246,6 +246,29 @@ TEST_F(ConfigBinderMappedTest, LayeredBindingWritesToTheLayerNotTheBase)
     EXPECT_EQ(layer.Get(TEST_U32), 300u);
     EXPECT_EQ(Config::GetBase(TEST_U32), 0u) << "base unchanged";
   }
+}
+
+TEST_F(ConfigBinderMappedTest, LayeredMappedChoicesNameAndClearTheInheritedValue)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::Layer shipped_game{Config::LayerType::GlobalGame};
+  shipped_game.Set(TEST_MODE, Mode::Anaglyph);
+  ConfigWidget::Logic::SetFallbackLayer(&layer, &shipped_game);
+
+  QComboBox box;
+  box.addItems({QStringLiteral("Off"), QStringLiteral("Side-by-Side"), QStringLiteral("Anaglyph")});
+  ConfigWidget::BindMapped(&box, TEST_MODE, std::span<const Mode>{MODE_VALUES}, &layer);
+
+  EXPECT_EQ(box.currentIndex(), 0);
+  EXPECT_EQ(box.currentText(), QStringLiteral("Use Global Setting [Anaglyph]"));
+
+  box.setCurrentIndex(2);
+  EXPECT_EQ(layer.Get(TEST_MODE), Mode::SideBySide);
+  box.setCurrentIndex(0);
+  EXPECT_FALSE(layer.Exists(TEST_MODE.GetLocation()));
+  EXPECT_EQ(box.currentText(), QStringLiteral("Use Global Setting [Anaglyph]"));
+
+  ConfigWidget::Logic::SetFallbackLayer(&layer, nullptr);
 }
 
 TEST_F(ConfigBinderMappedTest, NewBindingsRefreshWithoutWritingBack)

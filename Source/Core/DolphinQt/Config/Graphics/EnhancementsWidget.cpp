@@ -63,10 +63,10 @@ EnhancementsWidget::EnhancementsWidget(GraphicsPane* gfx_pane)
   connect(gfx_pane, &GraphicsPane::BackendChanged, this, &EnhancementsWidget::OnBackendChanged);
   connect(gfx_pane, &GraphicsPane::UseFastTextureSamplingChanged, this, [this] {
     m_ui->textureFilteringComboBox->setEnabled(
-        Get(m_game_layer, Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
+        ConfigWidget::Logic::ReadValue(Config::GFX_HACK_FAST_TEXTURE_SAMPLING, m_game_layer));
   });
-  connect(m_ui->arbitraryMipmapDetectionCheckBox, &QCheckBox::toggled, gfx_pane,
-          [gfx_pane] { emit gfx_pane->UpdateGPUTextureDecoding(); });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->arbitraryMipmapDetectionCheckBox, gfx_pane,
+                                         [gfx_pane] { emit gfx_pane->UpdateGPUTextureDecoding(); });
 }
 
 EnhancementsWidget::~EnhancementsWidget() = default;
@@ -88,26 +88,25 @@ void EnhancementsWidget::MigrateRemovedStereoModes()
   // in, and VideoConfig::VerifyValidity() is meanwhile rendering them as Off. Rewrite the stored
   // value once so the control always shows a real mode.
   //
-  // The value to test is the one the combo will display, and that is not always this pane's layer.
-  // ConfigChoice reads through ConfigControl::ReadValue, which falls back to Config::GetBase when
-  // the game INI has no key; Config::Get(const Layer*, ...) has no base fallback and hands back the
-  // default instead. Reading the game layer alone would therefore see Off and return early on a
-  // per-game pane whose combo is about to display an inherited Anaglyph -- exactly the blank combo
-  // this function exists to prevent. Mirror ReadValue's resolution order instead.
-  const bool has_game_value =
+  // Normalize whichever source the combo displays. A shipped game setting is changed only in this
+  // window's in-memory layer; its source INI remains untouched.
+  const bool has_local_value =
       m_game_layer != nullptr && m_game_layer->Exists(Config::GFX_STEREO_MODE.GetLocation());
-  const StereoMode mode = has_game_value          ? m_game_layer->Get(Config::GFX_STEREO_MODE) :
-                          m_game_layer != nullptr ? Config::GetBase(Config::GFX_STEREO_MODE) :
-                                                    Config::Get(Config::GFX_STEREO_MODE);
+  Config::Layer* const shipped_game_layer = ConfigWidget::Logic::GetFallbackLayer(m_game_layer);
+  const bool has_shipped_value = shipped_game_layer != nullptr &&
+                                 shipped_game_layer->Exists(Config::GFX_STEREO_MODE.GetLocation());
+  const StereoMode mode = ConfigWidget::Logic::ReadValue(Config::GFX_STEREO_MODE, m_game_layer);
   if (mode != StereoMode::Anaglyph && mode != StereoMode::Passive)
     return;
 
-  // Rewrite whichever layer the displayed value came from. A value inherited from base must not be
-  // written into the game layer: that would invent a per-game override the user never asked for,
-  // and the stale value is a base-layer one that every other pane reading it needs normalized too.
-  if (has_game_value)
+  if (has_local_value)
   {
     m_game_layer->Set(Config::GFX_STEREO_MODE, StereoMode::Off);
+    Config::OnConfigChanged();
+  }
+  else if (has_shipped_value)
+  {
+    shipped_game_layer->Set(Config::GFX_STEREO_MODE, StereoMode::Off);
     Config::OnConfigChanged();
   }
   else
@@ -134,8 +133,9 @@ void EnhancementsWidget::BindSettings()
 
   // If the current scale is greater than the max scale in the ini, add sufficient options so that
   // when the settings are saved we don't lose the user-modified value from the ini.
-  const int max_efb_scale = std::max(Get(m_game_layer, Config::GFX_EFB_SCALE),
-                                     Get(m_game_layer, Config::GFX_MAX_EFB_SCALE));
+  const int max_efb_scale =
+      std::max(ConfigWidget::Logic::ReadValue(Config::GFX_EFB_SCALE, m_game_layer),
+               ConfigWidget::Logic::ReadValue(Config::GFX_MAX_EFB_SCALE, m_game_layer));
   for (int scale = static_cast<int>(resolution_options.size()); scale <= max_efb_scale; scale++)
   {
     const QString scale_text = QString::number(scale);
@@ -186,7 +186,7 @@ void EnhancementsWidget::BindSettings()
   m_texture_filtering_binding->Add(tr("Force Linear and 16x Anisotropic"), ANISO_16X,
                                    FILTERING_LINEAR);
   m_ui->textureFilteringComboBox->setEnabled(
-      Get(m_game_layer, Config::GFX_HACK_FAST_TEXTURE_SAMPLING));
+      ConfigWidget::Logic::ReadValue(Config::GFX_HACK_FAST_TEXTURE_SAMPLING, m_game_layer));
 
   ConfigWidget::Bind(m_ui->postProcessingPresetLineEdit, Config::GFX_ENHANCE_POST_SHADER,
                      m_game_layer);
@@ -226,7 +226,8 @@ void EnhancementsWidget::BindSettings()
   ConfigWidget::Bind(m_ui->fullResolutionPerEyeCheckBox, Config::GFX_STEREO_PER_EYE_RESOLUTION_FULL,
                      m_game_layer);
 
-  auto current_stereo_mode = Get(m_game_layer, Config::GFX_STEREO_MODE);
+  const auto current_stereo_mode =
+      ConfigWidget::Logic::ReadValue(Config::GFX_STEREO_MODE, m_game_layer);
   if (current_stereo_mode != StereoMode::SideBySide &&
       current_stereo_mode != StereoMode::TopAndBottom)
   {
@@ -237,7 +238,8 @@ void EnhancementsWidget::BindSettings()
 void EnhancementsWidget::ConnectWidgets()
 {
   connect(m_ui->stereoModeComboBox, &QComboBox::currentIndexChanged, this, [this] {
-    auto current_stereo_mode = Get(m_game_layer, Config::GFX_STEREO_MODE);
+    const auto current_stereo_mode =
+        ConfigWidget::Logic::ReadValue(Config::GFX_STEREO_MODE, m_game_layer);
 
     if (current_stereo_mode == StereoMode::SideBySide ||
         current_stereo_mode == StereoMode::TopAndBottom)
@@ -432,7 +434,7 @@ void EnhancementsWidget::OnBackendChanged()
 
 void EnhancementsWidget::ShaderChanged()
 {
-  auto shader = Get(m_game_layer, Config::GFX_ENHANCE_POST_SHADER);
+  auto shader = ConfigWidget::Logic::ReadValue(Config::GFX_ENHANCE_POST_SHADER, m_game_layer);
 
   if (shader == "(off)" || shader == "")
   {
@@ -472,11 +474,13 @@ void EnhancementsWidget::UpdateAntialiasingOptions()
 
   // Backend info can't be populated in the local game settings window. Only enable local game AA
   // edits when the backend info is correct - global and local have the same backend.
-  const bool good_info =
-      m_game_layer == nullptr || !m_game_layer->Exists(Config::MAIN_GFX_BACKEND.GetLocation()) ||
-      Config::Get(Config::MAIN_GFX_BACKEND) == m_game_layer->Get(Config::MAIN_GFX_BACKEND);
+  const bool good_info = m_game_layer == nullptr ||
+                         Config::Get(Config::MAIN_GFX_BACKEND) ==
+                             ConfigWidget::Logic::ReadValue(Config::MAIN_GFX_BACKEND, m_game_layer);
+  const int fixed_option_count = m_game_layer == nullptr ? 1 : 2;
 
-  m_ui->antiAliasingComboBox->setEnabled(m_ui->antiAliasingComboBox->count() > 1 && good_info);
+  m_ui->antiAliasingComboBox->setEnabled(m_ui->antiAliasingComboBox->count() > fixed_option_count &&
+                                         good_info);
 }
 
 void EnhancementsWidget::AddDescriptions()

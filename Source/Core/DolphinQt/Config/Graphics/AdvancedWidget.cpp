@@ -33,8 +33,9 @@ AdvancedWidget::AdvancedWidget(GraphicsPane* gfx_pane)
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
     OnEmulationStateChanged(state != Core::State::Uninitialized);
   });
-  connect(m_ui->manualTextureSamplingCheckBox, &QCheckBox::toggled, gfx_pane,
-          [gfx_pane] { emit gfx_pane->UseFastTextureSamplingChanged(); });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->manualTextureSamplingCheckBox, gfx_pane, [gfx_pane] {
+    emit gfx_pane->UseFastTextureSamplingChanged();
+  });
 
   OnBackendChanged();
   OnEmulationStateChanged(!Core::IsUninitialized(Core::System::GetInstance()));
@@ -63,7 +64,8 @@ void AdvancedWidget::BindSettings()
                      m_game_layer);
   ConfigWidget::Bind(m_ui->enableGraphicsModsCheckBox, Config::GFX_MODS_ENABLE, m_game_layer);
 
-  m_ui->prefetchCustomTexturesCheckBox->setEnabled(m_ui->loadCustomTexturesCheckBox->isChecked());
+  m_ui->prefetchCustomTexturesCheckBox->setEnabled(
+      ConfigWidget::EffectiveChecked(m_ui->loadCustomTexturesCheckBox));
 
   if (local_edit)
   {
@@ -75,8 +77,10 @@ void AdvancedWidget::BindSettings()
   ConfigWidget::Bind(m_ui->dumpTexturesCheckBox, Config::GFX_DUMP_TEXTURES);
   ConfigWidget::Bind(m_ui->dumpBaseTexturesCheckBox, Config::GFX_DUMP_BASE_TEXTURES);
   ConfigWidget::Bind(m_ui->dumpMipTexturesCheckBox, Config::GFX_DUMP_MIP_TEXTURES);
-  m_ui->dumpMipTexturesCheckBox->setEnabled(m_ui->dumpTexturesCheckBox->isChecked());
-  m_ui->dumpBaseTexturesCheckBox->setEnabled(m_ui->dumpTexturesCheckBox->isChecked());
+  m_ui->dumpMipTexturesCheckBox->setEnabled(
+      ConfigWidget::EffectiveChecked(m_ui->dumpTexturesCheckBox));
+  m_ui->dumpBaseTexturesCheckBox->setEnabled(
+      ConfigWidget::EffectiveChecked(m_ui->dumpTexturesCheckBox));
 
   if (local_edit)
   {
@@ -93,7 +97,7 @@ void AdvancedWidget::BindSettings()
 #if defined(HAVE_FFMPEG)
   ConfigWidget::Bind(m_ui->losslessCodecCheckBox, Config::GFX_USE_LOSSLESS, m_game_layer);
   ConfigWidget::Bind(m_ui->bitrateSpinBox, Config::GFX_BITRATE_KBPS, m_game_layer);
-  m_ui->bitrateSpinBox->setEnabled(!m_ui->losslessCodecCheckBox->isChecked());
+  m_ui->bitrateSpinBox->setEnabled(!ConfigWidget::EffectiveChecked(m_ui->losslessCodecCheckBox));
 #else
   m_ui->losslessCodecCheckBox->hide();
   m_ui->bitrateLabel->hide();
@@ -111,7 +115,7 @@ void AdvancedWidget::BindSettings()
   ConfigWidget::MirrorFont(m_ui->cropTopLabel, m_ui->cropTopSpinBox);
   ConfigWidget::MirrorFont(m_ui->cropRightLabel, m_ui->cropRightSpinBox);
   ConfigWidget::MirrorFont(m_ui->cropBottomLabel, m_ui->cropBottomSpinBox);
-  m_ui->customCropGroup->setDisabled(!m_ui->customCropCheckBox->isChecked());
+  m_ui->customCropGroup->setDisabled(!ConfigWidget::EffectiveChecked(m_ui->customCropCheckBox));
 
   ConfigWidget::Bind(m_ui->progressiveScanCheckBox, Config::SYSCONF_PROGRESSIVE_SCAN, m_game_layer);
   ConfigWidget::Bind(m_ui->backendMultithreadingCheckBox, Config::GFX_BACKEND_MULTITHREADING,
@@ -135,19 +139,26 @@ void AdvancedWidget::BindSettings()
 
 void AdvancedWidget::ConnectWidgets()
 {
-  connect(m_ui->loadCustomTexturesCheckBox, &QCheckBox::toggled, this,
-          [this](bool checked) { m_ui->prefetchCustomTexturesCheckBox->setEnabled(checked); });
-  connect(m_ui->dumpTexturesCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
+  ConfigWidget::ConnectCheckStateChanged(m_ui->loadCustomTexturesCheckBox, this, [this] {
+    m_ui->prefetchCustomTexturesCheckBox->setEnabled(
+        ConfigWidget::EffectiveChecked(m_ui->loadCustomTexturesCheckBox));
+  });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->dumpTexturesCheckBox, this, [this] {
+    const bool checked = ConfigWidget::EffectiveChecked(m_ui->dumpTexturesCheckBox);
     m_ui->dumpMipTexturesCheckBox->setEnabled(checked);
     m_ui->dumpBaseTexturesCheckBox->setEnabled(checked);
   });
-  connect(m_ui->enableGraphicsModsCheckBox, &QCheckBox::toggled, this,
-          [](bool checked) { emit Settings::Instance().EnableGfxModsChanged(checked); });
-  connect(m_ui->customCropCheckBox, &QCheckBox::toggled, this,
-          [this](bool checked) { m_ui->customCropGroup->setDisabled(!checked); });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->enableGraphicsModsCheckBox, this, [this] {
+    emit Settings::Instance().EnableGfxModsChanged(
+        ConfigWidget::EffectiveChecked(m_ui->enableGraphicsModsCheckBox));
+  });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->customCropCheckBox, this, [this] {
+    m_ui->customCropGroup->setDisabled(!ConfigWidget::EffectiveChecked(m_ui->customCropCheckBox));
+  });
 #if defined(HAVE_FFMPEG)
-  connect(m_ui->losslessCodecCheckBox, &QCheckBox::toggled, this,
-          [this](bool checked) { m_ui->bitrateSpinBox->setEnabled(!checked); });
+  ConfigWidget::ConnectCheckStateChanged(m_ui->losslessCodecCheckBox, this, [this] {
+    m_ui->bitrateSpinBox->setEnabled(!ConfigWidget::EffectiveChecked(m_ui->losslessCodecCheckBox));
+  });
 #endif
 }
 

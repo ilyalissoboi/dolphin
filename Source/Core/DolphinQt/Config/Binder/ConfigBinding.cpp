@@ -26,6 +26,11 @@ ConfigBinding::ConfigBinding(QWidget* widget, Config::Location location, Config:
 
 ConfigBinding::~ConfigBinding() = default;
 
+bool ConfigBinding::HasLocalValue() const
+{
+  return m_layer != nullptr && m_layer->Exists(m_location);
+}
+
 QWidget* ConfigBinding::GetWidget() const
 {
   return qobject_cast<QWidget*>(parent());
@@ -53,6 +58,13 @@ void ConfigBinding::SetSecondaryLocation(Config::Location location)
   ApplyOverrideFont();
 }
 
+void ConfigBinding::ClearLocalValue()
+{
+  Logic::ClearLocal(m_location, m_layer);
+  if (m_secondary_location.has_value())
+    Logic::ClearLocal(*m_secondary_location, m_layer);
+}
+
 void ConfigBinding::ApplyOverrideFont()
 {
   QWidget* const widget = GetWidget();
@@ -62,9 +74,16 @@ void ConfigBinding::ApplyOverrideFont()
   const bool local =
       Logic::IsLocal(m_location, m_layer) ||
       (m_secondary_location.has_value() && Logic::IsLocal(*m_secondary_location, m_layer));
+  Config::Layer* const fallback = Logic::GetFallbackLayer(m_layer);
+  const bool shipped_game_default =
+      fallback != nullptr &&
+      (fallback->Exists(m_location) ||
+       (m_secondary_location.has_value() && fallback->Exists(*m_secondary_location)));
+  widget->setProperty("dolphinInheritedSetting", m_layer != nullptr && !local);
 
   QFont font = widget->font();
   font.setBold(local);
+  font.setItalic(shipped_game_default);
   widget->setFont(font);
 
   for (const QPointer<QWidget>& mirror : m_font_mirrors)
@@ -73,6 +92,7 @@ void ConfigBinding::ApplyOverrideFont()
       continue;
     QFont mirror_font = mirror->font();
     mirror_font.setBold(local);
+    mirror_font.setItalic(shipped_game_default);
     mirror->setFont(mirror_font);
   }
 }
@@ -92,9 +112,7 @@ bool ConfigBinding::eventFilter(QObject* watched, QEvent* event)
     // ran for one. Object event filters run before that, so the check has to be explicit here.
     if (widget != nullptr && widget->isEnabled())
     {
-      Logic::ClearLocal(m_location, m_layer);
-      if (m_secondary_location.has_value())
-        Logic::ClearLocal(*m_secondary_location, m_layer);
+      ClearLocalValue();
       // Logic::ClearLocal already calls Config::OnConfigChanged(), which reaches other bound
       // widgets through Settings. Refresh directly as well: qt-tests does not construct Settings.
       RefreshFromConfig();

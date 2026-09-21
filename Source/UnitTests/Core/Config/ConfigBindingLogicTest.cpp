@@ -51,6 +51,33 @@ TEST_F(ConfigBindingLogicTest, LayerReadFallsBackToBaseWhenKeyAbsent)
   EXPECT_EQ(ConfigWidget::Logic::ReadValue(TEST_INT, &layer), 11);
 }
 
+TEST_F(ConfigBindingLogicTest, LayerReadPrefersShippedGameFallbackBeforeBase)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::Layer shipped_game{Config::LayerType::GlobalGame};
+  Config::SetBase(TEST_INT, 11);
+  shipped_game.Set(TEST_INT, 23);
+  ConfigWidget::Logic::SetFallbackLayer(&layer, &shipped_game);
+
+  EXPECT_EQ(ConfigWidget::Logic::ReadValue(TEST_INT, &layer), 23);
+
+  ConfigWidget::Logic::SetFallbackLayer(&layer, nullptr);
+}
+
+TEST_F(ConfigBindingLogicTest, LocalValueWinsOverShippedGameFallback)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::Layer shipped_game{Config::LayerType::GlobalGame};
+  Config::SetBase(TEST_INT, 11);
+  shipped_game.Set(TEST_INT, 23);
+  layer.Set(TEST_INT, 37);
+  ConfigWidget::Logic::SetFallbackLayer(&layer, &shipped_game);
+
+  EXPECT_EQ(ConfigWidget::Logic::ReadValue(TEST_INT, &layer), 37);
+
+  ConfigWidget::Logic::SetFallbackLayer(&layer, nullptr);
+}
+
 TEST_F(ConfigBindingLogicTest, LayerReadPrefersLayerValueWhenKeyPresent)
 {
   Config::Layer layer{Config::LayerType::LocalGame};

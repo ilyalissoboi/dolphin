@@ -171,26 +171,26 @@ TEST_F(ConfigComplexBindingTest, RightClickClearsBothKeys)
   EXPECT_FALSE(layer.Exists(TEST_MODE.GetLocation()));
 }
 
-TEST_F(ConfigComplexBindingTest, PerGameReadFallsBackToTheSettingDefaultNotTheGlobalValue)
+TEST_F(ConfigComplexBindingTest, PerGameReadShowsTheInheritedGlobalRow)
 {
-  // Pins existing ConfigComplexChoice behaviour, which differs from every other per-game control:
-  // it reads m_layer->Get(), so an absent key yields the setting's default rather than the global
-  // value. Reproduced deliberately in this slice. If this test is ever changed, the change is the
-  // fix and belongs in its own commit.
   Config::Layer layer{Config::LayerType::LocalGame};
   Config::SetBase(TEST_ENABLED, true);
   Config::SetBase(TEST_MODE, 2);
   QComboBox box;
 
-  // Deliberately not BindThreeOptions: the globals' row must not be row 0, or "index 0" is also
-  // what an empty combo's first addItem selects and what a global fallback would pick.
   auto* const binding = ConfigWidget::BindComplex(&box, TEST_ENABLED, TEST_MODE, &layer);
   binding->Add(QStringLiteral("On, mode 2"), true, 2);
   binding->Add(QStringLiteral("Off"), false, 0);
 
-  EXPECT_EQ(box.currentIndex(), 1)
-      << "the layer has no key, so the read yields the settings' own "
-         "defaults (false/0) rather than the globals (true/2) at row 0";
+  EXPECT_EQ(box.currentIndex(), 0);
+  EXPECT_EQ(box.currentText(), QStringLiteral("Use Global Setting [On, mode 2]"));
+
+  box.setCurrentIndex(2);
+  EXPECT_FALSE(layer.Get(TEST_ENABLED));
+  EXPECT_EQ(layer.Get(TEST_MODE), 0);
+  box.setCurrentIndex(0);
+  EXPECT_FALSE(layer.Exists(TEST_ENABLED.GetLocation()));
+  EXPECT_FALSE(layer.Exists(TEST_MODE.GetLocation()));
 }
 
 TEST_F(ConfigComplexBindingTest, GetLocationsReturnsTheTwoLocationsInSetting1Setting2Order)

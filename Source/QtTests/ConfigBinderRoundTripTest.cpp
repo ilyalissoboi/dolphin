@@ -115,9 +115,47 @@ TEST_F(ConfigBinderRoundTripTest, RefreshingFromConfigDoesNotWriteBack)
 
   NotifyConfigChanged();
 
-  EXPECT_TRUE(box.isChecked()) << "shows the base value";
+  EXPECT_EQ(box.checkState(), Qt::PartiallyChecked) << "shows that the base value is inherited";
+  EXPECT_TRUE(ConfigWidget::EffectiveChecked(&box)) << "the inherited base value is true";
   EXPECT_FALSE(layer.Exists(TEST_BOOL.GetLocation()))
       << "a refresh must not create a per-game override";
+}
+
+TEST_F(ConfigBinderRoundTripTest, LayeredCheckBoxUsesPartialStateForInheritance)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::SetBase(TEST_BOOL, false);
+  QCheckBox box;
+
+  ConfigWidget::Bind(&box, TEST_BOOL, &layer);
+
+  EXPECT_TRUE(box.isTristate());
+  EXPECT_EQ(box.checkState(), Qt::PartiallyChecked);
+  EXPECT_FALSE(ConfigWidget::EffectiveChecked(&box));
+  EXPECT_TRUE(ConfigWidget::IsInherited(&box));
+
+  box.setCheckState(Qt::Checked);
+  EXPECT_TRUE(layer.Get(TEST_BOOL));
+  EXPECT_FALSE(ConfigWidget::IsInherited(&box));
+
+  box.setCheckState(Qt::PartiallyChecked);
+  EXPECT_FALSE(layer.Exists(TEST_BOOL.GetLocation()));
+  EXPECT_FALSE(ConfigWidget::EffectiveChecked(&box));
+}
+
+TEST_F(ConfigBinderRoundTripTest, ReverseLayeredCheckBoxReportsTheDisplayedInheritedValue)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  Config::SetBase(TEST_BOOL, true);
+  QCheckBox box;
+
+  ConfigWidget::Bind(&box, TEST_BOOL, &layer, true);
+
+  EXPECT_EQ(box.checkState(), Qt::PartiallyChecked);
+  EXPECT_FALSE(ConfigWidget::EffectiveChecked(&box));
+
+  box.setCheckState(Qt::Checked);
+  EXPECT_FALSE(layer.Get(TEST_BOOL)) << "checked display writes the reversed false config value";
 }
 
 TEST_F(ConfigBinderRoundTripTest, FindBindingReturnsTheAttachedBinding)
@@ -156,6 +194,27 @@ TEST_F(ConfigBinderRoundTripTest, ComboBoxRoundTripsTheCurrentIndex)
   EXPECT_EQ(Config::Get(TEST_INT), 1);
 }
 
+TEST_F(ConfigBinderRoundTripTest, LayeredComboBoxAddsAndClearsAnInheritedRow)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  QComboBox box;
+  box.addItems({QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c")});
+  Config::SetBase(TEST_INT, 2);
+
+  ConfigWidget::Bind(&box, TEST_INT, &layer);
+
+  EXPECT_EQ(box.count(), 4);
+  EXPECT_EQ(box.currentIndex(), 0);
+  EXPECT_EQ(box.currentText(), QStringLiteral("Use Global Setting [c]"));
+
+  box.setCurrentIndex(2);
+  EXPECT_EQ(layer.Get(TEST_INT), 1);
+
+  box.setCurrentIndex(0);
+  EXPECT_FALSE(layer.Exists(TEST_INT.GetLocation()));
+  EXPECT_EQ(box.currentText(), QStringLiteral("Use Global Setting [c]"));
+}
+
 TEST_F(ConfigBinderRoundTripTest, SpinBoxRoundTripsAndKeepsItsDesignerRange)
 {
   QSpinBox spin;
@@ -171,6 +230,22 @@ TEST_F(ConfigBinderRoundTripTest, SpinBoxRoundTripsAndKeepsItsDesignerRange)
   EXPECT_EQ(Config::Get(TEST_INT), 55);
 }
 
+TEST_F(ConfigBinderRoundTripTest, LayeredSpinBoxPrefixesTheInheritedValue)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  QSpinBox spin;
+  spin.setRange(0, 100);
+  Config::SetBase(TEST_INT, 42);
+
+  ConfigWidget::Bind(&spin, TEST_INT, &layer);
+
+  EXPECT_EQ(spin.value(), 42);
+  EXPECT_EQ(spin.prefix(), QStringLiteral("Default: "));
+  spin.setValue(55);
+  EXPECT_EQ(layer.Get(TEST_INT), 55);
+  EXPECT_TRUE(spin.prefix().isEmpty());
+}
+
 TEST_F(ConfigBinderRoundTripTest, SliderRoundTrips)
 {
   QSlider slider{Qt::Horizontal};
@@ -182,6 +257,22 @@ TEST_F(ConfigBinderRoundTripTest, SliderRoundTrips)
 
   slider.setValue(70);
   EXPECT_EQ(Config::Get(TEST_INT), 70);
+}
+
+TEST_F(ConfigBinderRoundTripTest, LayeredSliderShowsInheritedValueAndEditingCreatesOverride)
+{
+  Config::Layer layer{Config::LayerType::LocalGame};
+  QSlider slider{Qt::Horizontal};
+  slider.setRange(0, 100);
+  Config::SetBase(TEST_INT, 30);
+
+  ConfigWidget::Bind(&slider, TEST_INT, &layer);
+
+  EXPECT_EQ(slider.value(), 30);
+  EXPECT_TRUE(ConfigWidget::IsInherited(&slider));
+  slider.setValue(70);
+  EXPECT_EQ(layer.Get(TEST_INT), 70);
+  EXPECT_FALSE(ConfigWidget::IsInherited(&slider));
 }
 
 TEST_F(ConfigBinderRoundTripTest, RadioButtonChecksOnlyWhenItsValueIsSelected)

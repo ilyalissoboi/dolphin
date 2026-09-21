@@ -11,6 +11,7 @@
 #include <variant>
 #include <vector>
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QPoint>
 #include <QString>
@@ -22,7 +23,6 @@
 #include "DolphinQt/Config/Binder/ConfigBinding.h"
 #include "DolphinQt/Config/Binder/ConfigSliderMapping.h"
 
-class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QRadioButton;
@@ -122,6 +122,20 @@ void MirrorFont(QLabel* label, QWidget* control);
 void SetDescription(QWidget* widget, QString title, QString description);
 QString ToolTipTitle(const QWidget* widget);
 QString ToolTipDescription(const QWidget* widget);
+// Returns the effective checked value for a layered tri-state checkbox. QCheckBox::isChecked()
+// treats PartiallyChecked as true, while the inherited value may be false.
+bool EffectiveChecked(const QCheckBox* widget);
+bool IsInherited(const QWidget* widget);
+
+template <typename Receiver, typename Slot>
+void ConnectCheckStateChanged(QCheckBox* widget, Receiver* receiver, Slot&& slot)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+  QObject::connect(widget, &QCheckBox::checkStateChanged, receiver, std::forward<Slot>(slot));
+#else
+  QObject::connect(widget, &QCheckBox::stateChanged, receiver, std::forward<Slot>(slot));
+#endif
+}
 
 // The balloon's arrow tip, in the widget's own coordinates.
 QPoint ToolTipAnchor(const QWidget* widget);
@@ -163,6 +177,9 @@ ComplexBinding* BindComplex(QComboBox* widget, const ComplexBinding::InfoVariant
 
 namespace detail
 {
+void PrepareLayeredCombo(QComboBox* box, Config::Layer* layer);
+void SetInheritedComboText(QComboBox* box, int inherited_item_index);
+
 // value <-> combo-index mapping, shared by both BindMapped overloads. No Q_OBJECT: it is a
 // template.
 template <typename T>
@@ -173,6 +190,7 @@ public:
                      Config::Layer* layer)
       : ValueBinding<QComboBox, T>(box, setting, layer), m_values(std::move(values))
   {
+    PrepareLayeredCombo(box, layer);
     QObject::connect(box, &QComboBox::currentIndexChanged, this,
                      &MappedComboBinding::OnIndexChanged);
     this->RefreshFromConfig();
@@ -181,20 +199,47 @@ public:
 private:
   void LoadFromConfig() override
   {
+    auto* const box = this->GetTypedWidget();
+    const bool layered = this->GetLayer() != nullptr;
+    const T inherited = layered ? this->ReadInherited() : this->Read();
+    const auto inherited_it = std::find(m_values.begin(), m_values.end(), inherited);
+    const int inherited_index =
+        inherited_it == m_values.end() ?
+            -1 :
+            static_cast<int>(std::distance(m_values.begin(), inherited_it)) + (layered ? 1 : 0);
+    if (layered)
+    {
+      SetInheritedComboText(box, inherited_index);
+      if (!this->HasLocalValue())
+      {
+        box->setCurrentIndex(0);
+        return;
+      }
+    }
+
     const T value = this->Read();
     const auto it = std::find(m_values.begin(), m_values.end(), value);
     // -1 when nothing matches, as ConfigChoiceMap does: better an empty combo than a wrong
     // selection that the user then saves by touching something else.
-    const int index =
-        it == m_values.end() ? -1 : static_cast<int>(std::distance(m_values.begin(), it));
-    this->GetTypedWidget()->setCurrentIndex(index);
+    const int index = it == m_values.end() ?
+                          -1 :
+                          static_cast<int>(std::distance(m_values.begin(), it)) + (layered ? 1 : 0);
+    box->setCurrentIndex(index);
   }
 
   void OnIndexChanged(int index)
   {
-    if (index < 0 || static_cast<size_t>(index) >= m_values.size())
+    const bool layered = this->GetLayer() != nullptr;
+    if (layered && index == 0)
+    {
+      this->Clear();
       return;
-    this->Save(m_values[static_cast<size_t>(index)]);
+    }
+
+    const int value_index = index - (layered ? 1 : 0);
+    if (value_index < 0 || static_cast<size_t>(value_index) >= m_values.size())
+      return;
+    this->Save(m_values[static_cast<size_t>(value_index)]);
   }
 
   const std::vector<T> m_values;

@@ -44,6 +44,7 @@ public:
     return m_secondary_location;
   }
   Config::Layer* GetLayer() const { return m_layer; }
+  bool HasLocalValue() const;
 
   // `follower`'s font is set alongside this binding's whenever the override state is re-applied.
   // Used by MirrorFont so a label goes bold beside the control it names.
@@ -59,6 +60,7 @@ protected:
 
   // Re-reads config into the widget and re-applies the overridden-value font.
   void RefreshFromConfig();
+  void ClearLocalValue();
 
   // A second location that also counts for the bold font and is also cleared on right-click.
   // Only ComplexBinding uses it; two is the most any control drives.
@@ -96,12 +98,22 @@ protected:
   Widget* GetTypedWidget() const { return static_cast<Widget*>(GetWidget()); }
 
   T Read() const { return Logic::ReadValue(m_setting, GetLayer()); }
+  T ReadInherited() const { return Logic::ReadInheritedValue(m_setting, GetLayer()); }
 
   void Save(const T& value)
   {
     if (IsUpdating())
       return;
     Logic::WriteValue(m_setting, GetLocation(), GetLayer(), value);
+    RefreshFromConfig();
+  }
+
+  void Clear()
+  {
+    if (IsUpdating())
+      return;
+    ClearLocalValue();
+    RefreshFromConfig();
   }
 
 private:

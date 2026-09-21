@@ -4,21 +4,16 @@
 #include "DolphinQt/Config/GameConfigWidget.h"
 
 #include <array>
-#include <cmath>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 
 #include <QCheckBox>
 #include <QComboBox>
-#include <QFont>
 #include <QLabel>
-#include <QSignalBlocker>
 #include <QSlider>
 #include <QStyle>
 #include <QTabWidget>
-#include <QTimer>
 
 #include "Common/CommonPaths.h"
 #include "Common/Config/Config.h"
@@ -65,6 +60,7 @@ GameConfigWidget::GameConfigWidget(const UICommon::GameFile& game)
       ConfigLoaders::GenerateLocalGameConfigLoader(m_game_id, m_game.GetRevision()));
   m_global_layer = std::make_unique<Config::Layer>(
       ConfigLoaders::GenerateGlobalGameConfigLoader(m_game_id, m_game.GetRevision()));
+  ConfigWidget::Logic::SetFallbackLayer(m_layer.get(), m_global_layer.get());
 
   m_ui->setupUi(this);
   m_ui->helpIconLabel->setPixmap(
@@ -75,20 +71,12 @@ GameConfigWidget::GameConfigWidget(const UICommon::GameFile& game)
   ConnectWidgets();
   AddDescriptions();
   PopulateEditorTabs();
-  LoadSettings();
-
-  connect(&Settings::Instance(), &Settings::ConfigChanged, this, &GameConfigWidget::LoadSettings);
-
-  // Some platform styles replace widget fonts while polishing the page. Apply the game-default
-  // marker after that polish and then let every binding re-apply its local-override state.
-  QTimer::singleShot(100, this, [this] {
-    SetItalics();
-    Config::OnConfigChanged();
-  });
 }
 
 GameConfigWidget::~GameConfigWidget()
 {
+  ConfigWidget::Logic::SetFallbackLayer(m_layer.get(), nullptr);
+
   // Destructor saves the layer to file.
   m_layer.reset();
 
@@ -161,10 +149,6 @@ void GameConfigWidget::ConnectWidgets()
 
     m_prev_tab_index = index;
   });
-
-  connect(m_ui->depthSlider, &QSlider::valueChanged, this, &GameConfigWidget::UpdateSliderLabels);
-  connect(m_ui->convergenceSlider, &QSlider::valueChanged, this,
-          &GameConfigWidget::UpdateSliderLabels);
 }
 
 void GameConfigWidget::AddDescriptions()
@@ -196,10 +180,9 @@ void GameConfigWidget::AddDescriptions()
       tr("Use a single depth buffer for both eyes. Needed for a few games."));
 
   const QString help_msg = tr(
-      "Italics mark default game settings, bold marks user settings.\nRight-click to remove user "
-      "settings.\nGraphics tabs don't display the value of a default game setting.\nAnti-Aliasing "
-      "settings are disabled when the global graphics backend doesn't "
-      "match the game setting.");
+      "Inherited values use the global setting. Italics mark default game settings, and bold marks "
+      "user settings.\nRight-click to remove user settings.\nAnti-Aliasing settings are disabled "
+      "when the global graphics backend doesn't match the game setting.");
   m_ui->helpFrame->setToolTip(help_msg);
 }
 
@@ -240,88 +223,4 @@ void GameConfigWidget::RefreshLocalEditor()
     m_ui->userConfigTabWidget->insertTab(i, edit, QString::fromStdString(m_game_id + ".ini"));
     return;
   }
-}
-
-void GameConfigWidget::LoadSettings()
-{
-  const auto update_bool = [this](QCheckBox* box, const Config::Info<bool>& setting,
-                                  bool reverse = false) {
-    const Config::Location& location = setting.GetLocation();
-    if (m_layer->Exists(location) || !m_global_layer->Exists(location))
-      return;
-
-    const std::optional<bool> value = m_global_layer->Get<bool>(location);
-    if (!value.has_value())
-      return;
-
-    const QSignalBlocker blocker{box};
-    box->setChecked(*value ^ reverse);
-  };
-
-  update_bool(m_ui->enableDualCoreCheckBox, Config::MAIN_CPU_THREAD);
-  update_bool(m_ui->enableMmuCheckBox, Config::MAIN_MMU);
-  update_bool(m_ui->enableFprfCheckBox, Config::MAIN_FPRF);
-  update_bool(m_ui->syncGpuCheckBox, Config::MAIN_SYNC_GPU);
-  update_bool(m_ui->emulateDiscSpeedCheckBox, Config::MAIN_FAST_DISC_SPEED, true);
-  update_bool(m_ui->dspHleCheckBox, Config::MAIN_DSP_HLE);
-  update_bool(m_ui->monoscopicShadowsCheckBox, Config::GFX_STEREO_EFB_MONO_DEPTH);
-
-  const auto update_float = [this](QSlider* slider, const Config::Info<float>& setting,
-                                   float minimum, float step) {
-    const Config::Location& location = setting.GetLocation();
-    if (m_layer->Exists(location) || !m_global_layer->Exists(location))
-      return;
-
-    const std::optional<float> value = m_global_layer->Get<float>(location);
-    if (!value.has_value())
-      return;
-
-    const QSignalBlocker blocker{slider};
-    slider->setValue(std::lround((*value - minimum) / step));
-  };
-
-  update_float(m_ui->depthSlider, Config::GFX_STEREO_DEPTH_PERCENTAGE, 100.0f, 1.0f);
-  update_float(m_ui->convergenceSlider, Config::GFX_STEREO_CONVERGENCE, 0.0f, 0.01f);
-  UpdateSliderLabels();
-}
-
-void GameConfigWidget::SetItalics()
-{
-  const auto mark = [this](QWidget* control, const Config::Location& location,
-                           QLabel* label = nullptr) {
-    if (!m_global_layer->Exists(location))
-      return;
-
-    QFont control_font = control->font();
-    control_font.setItalic(true);
-    control->setFont(control_font);
-
-    if (label != nullptr)
-    {
-      QFont label_font = label->font();
-      label_font.setItalic(true);
-      label->setFont(label_font);
-    }
-  };
-
-  mark(m_ui->enableDualCoreCheckBox, Config::MAIN_CPU_THREAD.GetLocation());
-  mark(m_ui->enableMmuCheckBox, Config::MAIN_MMU.GetLocation());
-  mark(m_ui->enableFprfCheckBox, Config::MAIN_FPRF.GetLocation());
-  mark(m_ui->syncGpuCheckBox, Config::MAIN_SYNC_GPU.GetLocation());
-  mark(m_ui->emulateDiscSpeedCheckBox, Config::MAIN_FAST_DISC_SPEED.GetLocation());
-  mark(m_ui->dspHleCheckBox, Config::MAIN_DSP_HLE.GetLocation());
-  mark(m_ui->deterministicDualCoreComboBox, Config::MAIN_GPU_DETERMINISM_MODE.GetLocation(),
-       m_ui->deterministicDualCoreLabel);
-  mark(m_ui->depthSlider, Config::GFX_STEREO_DEPTH_PERCENTAGE.GetLocation(), m_ui->depthLabel);
-  mark(m_ui->convergenceSlider, Config::GFX_STEREO_CONVERGENCE.GetLocation(),
-       m_ui->convergenceLabel);
-  mark(m_ui->monoscopicShadowsCheckBox, Config::GFX_STEREO_EFB_MONO_DEPTH.GetLocation());
-}
-
-void GameConfigWidget::UpdateSliderLabels()
-{
-  const float depth = 100.0f + static_cast<float>(m_ui->depthSlider->value());
-  const float convergence = static_cast<float>(m_ui->convergenceSlider->value()) * 0.01f;
-  m_ui->depthValueLabel->setText(QString::asprintf("%.0f%%", static_cast<double>(depth)));
-  m_ui->convergenceValueLabel->setText(QString::asprintf("%.2f", static_cast<double>(convergence)));
 }

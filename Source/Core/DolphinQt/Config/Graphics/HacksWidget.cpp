@@ -78,14 +78,14 @@ void HacksWidget::OnBackendChanged(const QString& backend_name)
 
 void HacksWidget::ConnectWidgets()
 {
-  connect(m_ui->storeEfbCopiesCheckBox, &QCheckBox::toggled, this,
-          &HacksWidget::UpdateDeferEFBCopiesEnabled);
-  connect(m_ui->storeXfbCopiesCheckBox, &QCheckBox::toggled, this,
-          &HacksWidget::UpdateDeferEFBCopiesEnabled);
-  connect(m_ui->immediateXfbCheckBox, &QCheckBox::toggled, this,
-          &HacksWidget::UpdateSkipPresentingDuplicateFramesEnabled);
-  connect(m_ui->viSkipCheckBox, &QCheckBox::toggled, this,
-          &HacksWidget::UpdateSkipPresentingDuplicateFramesEnabled);
+  ConfigWidget::ConnectCheckStateChanged(m_ui->storeEfbCopiesCheckBox, this,
+                                         &HacksWidget::UpdateDeferEFBCopiesEnabled);
+  ConfigWidget::ConnectCheckStateChanged(m_ui->storeXfbCopiesCheckBox, this,
+                                         &HacksWidget::UpdateDeferEFBCopiesEnabled);
+  ConfigWidget::ConnectCheckStateChanged(m_ui->immediateXfbCheckBox, this,
+                                         &HacksWidget::UpdateSkipPresentingDuplicateFramesEnabled);
+  ConfigWidget::ConnectCheckStateChanged(m_ui->viSkipCheckBox, this,
+                                         &HacksWidget::UpdateSkipPresentingDuplicateFramesEnabled);
 }
 
 void HacksWidget::AddDescriptions()
@@ -194,7 +194,7 @@ void HacksWidget::UpdateGPUTextureDecodingEnabled(const QString& backend_name)
 
   const bool gpu_texture_decoding_supported = g_backend_info.bSupportsGPUTextureDecoding;
   const bool arbitrary_mipmap_detection_enabled =
-      Get(m_game_layer, Config::GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION);
+      ConfigWidget::Logic::ReadValue(Config::GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION, m_game_layer);
   const bool gpu_texture_decoding_enabled =
       gpu_texture_decoding_supported && !arbitrary_mipmap_detection_enabled;
   m_ui->gpuTextureDecodingCheckBox->setEnabled(gpu_texture_decoding_enabled);
@@ -256,8 +256,8 @@ void HacksWidget::UpdateDeferEFBCopiesEnabled()
 {
   // We disable the checkbox for defer EFB copies when both EFB and XFB copies to texture are
   // enabled.
-  const bool can_defer =
-      m_ui->storeEfbCopiesCheckBox->isChecked() && m_ui->storeXfbCopiesCheckBox->isChecked();
+  const bool can_defer = ConfigWidget::EffectiveChecked(m_ui->storeEfbCopiesCheckBox) &&
+                         ConfigWidget::EffectiveChecked(m_ui->storeXfbCopiesCheckBox);
   m_ui->deferEfbCopiesCheckBox->setEnabled(!can_defer);
 }
 
@@ -265,6 +265,7 @@ void HacksWidget::UpdateSkipPresentingDuplicateFramesEnabled()
 {
   // If Immediate XFB is on, there's no point to skipping duplicate XFB copies as immediate presents
   // when the XFB is created, therefore all XFB copies will be unique.
-  m_ui->skipDuplicateXfbsCheckBox->setDisabled(m_ui->immediateXfbCheckBox->isChecked() ||
-                                               m_ui->viSkipCheckBox->isChecked());
+  m_ui->skipDuplicateXfbsCheckBox->setDisabled(
+      ConfigWidget::EffectiveChecked(m_ui->immediateXfbCheckBox) ||
+      ConfigWidget::EffectiveChecked(m_ui->viSkipCheckBox));
 }
