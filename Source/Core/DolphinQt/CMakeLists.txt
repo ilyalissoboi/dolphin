@@ -301,6 +301,7 @@ add_executable(dolphin-emu
   ConvertDialog.ui
   Debugger/AssembleInstructionDialog.cpp
   Debugger/AssembleInstructionDialog.h
+  Debugger/AssembleInstructionDialog.ui
   Debugger/AssemblerWidget.cpp
   Debugger/AssemblerWidget.h
   Debugger/AssemblyEditor.cpp
@@ -311,14 +312,17 @@ add_executable(dolphin-emu
   Debugger/BranchWatchTableModel.h
   Debugger/BreakpointDialog.cpp
   Debugger/BreakpointDialog.h
+  Debugger/BreakpointDialog.ui
   Debugger/BreakpointWidget.cpp
   Debugger/BreakpointWidget.h
+  Debugger/BreakpointWidget.ui
   Debugger/CodeViewWidget.cpp
   Debugger/CodeViewWidget.h
   Debugger/CodeWidget.cpp
   Debugger/CodeWidget.h
   Debugger/EditSymbolDialog.cpp
   Debugger/EditSymbolDialog.h
+  Debugger/EditSymbolDialog.ui
   Debugger/GekkoSyntaxHighlight.cpp
   Debugger/GekkoSyntaxHighlight.h
   Debugger/JitBlockTableModel.cpp
@@ -327,20 +331,24 @@ add_executable(dolphin-emu
   Debugger/JITWidget.h
   Debugger/MemoryViewWidget.cpp
   Debugger/MemoryViewWidget.h
+  Debugger/MemoryViewWidget.ui
   Debugger/MemoryWidget.cpp
   Debugger/MemoryWidget.h
   Debugger/NetworkWidget.cpp
   Debugger/NetworkWidget.h
   Debugger/PatchInstructionDialog.cpp
   Debugger/PatchInstructionDialog.h
+  Debugger/PatchInstructionDialog.ui
   Debugger/RegisterColumn.cpp
   Debugger/RegisterColumn.h
   Debugger/RegisterWidget.cpp
   Debugger/RegisterWidget.h
+  Debugger/RegisterWidget.ui
   Debugger/ThreadWidget.cpp
   Debugger/ThreadWidget.h
   Debugger/WatchWidget.cpp
   Debugger/WatchWidget.h
+  Debugger/WatchWidget.ui
   DiscordHandler.cpp
   DiscordHandler.h
   DiscordJoinRequestDialog.cpp
