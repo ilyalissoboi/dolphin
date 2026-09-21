@@ -18,9 +18,13 @@
 #include <QApplication>
 #include <QObject>
 #include <QPushButton>
+#include <QSettings>
+#include <QTimer>
 #include <QWidget>
 
+#include "Common/CommonPaths.h"
 #include "Common/Config/Config.h"
+#include "Common/FileUtil.h"
 #include "Common/MsgHandler.h"
 #include "Common/ScopeGuard.h"
 #include "Common/StringUtil.h"
@@ -41,6 +45,8 @@
 #endif
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Settings.h"
+#include "DolphinQt/SetupWizardDialog.h"
+#include "DolphinQt/SetupWizardPolicy.h"
 #include "DolphinQt/Translation.h"
 #include "DolphinQt/Updater.h"
 
@@ -192,10 +198,20 @@ int main(int argc, char* argv[])
 #endif
 
   UICommon::SetUserDirectory(static_cast<const char*>(options.get("user")));
+  const bool dolphin_config_existed = File::Exists(File::GetUserPath(F_DOLPHINCONFIG_IDX));
   UICommon::CreateDirectories();
   UICommon::Init();
   Resources::Init();
   Settings::Instance().SetBatchModeEnabled(options.is_set("batch"));
+
+  QSettings& qt_settings = Settings::GetQSettings();
+  if (!dolphin_config_existed)
+  {
+    qt_settings.setValue(QString::fromLatin1(SetupWizard::INCOMPLETE_SETTING), true);
+    qt_settings.sync();
+  }
+  const bool setup_incomplete =
+      qt_settings.value(QString::fromLatin1(SetupWizard::INCOMPLETE_SETTING), false).toBool();
 
   // Hook up alerts from core
   Common::RegisterMsgAlertHandler(QtMsgAlertHandler);
@@ -270,42 +286,65 @@ int main(int argc, char* argv[])
   }
   else
   {
-    DolphinAnalytics::Instance().ReportDolphinStart("qt");
-
     Settings::Instance().InitDefaultPalette();
     Settings::Instance().ApplyStyle();
 
-    MainWindow win{Core::System::GetInstance(), std::move(boot),
-                   static_cast<const char*>(options.get("movie"))};
+    bool open_controller_settings = false;
+    bool start_application = true;
+    if (SetupWizard::ShouldRun(dolphin_config_existed, setup_incomplete,
+                               Settings::Instance().IsBatchModeEnabled()))
+    {
+      SetupWizardDialog setup_wizard;
+      start_application = setup_wizard.exec() == QDialog::Accepted;
+      open_controller_settings = start_application && setup_wizard.ShouldOpenControllerSettings();
+    }
+
+    if (!start_application)
+    {
+      retval = 0;
+    }
+    else
+    {
+      DolphinAnalytics::Instance().ReportDolphinStart("qt");
+
+      MainWindow win{Core::System::GetInstance(), std::move(boot),
+                     static_cast<const char*>(options.get("movie"))};
+
+      if (open_controller_settings)
+      {
+        QTimer::singleShot(0, &win, &MainWindow::ShowControllersWindow);
+      }
 
 #if defined(USE_ANALYTICS) && USE_ANALYTICS
-    if (!Config::Get(Config::MAIN_ANALYTICS_PERMISSION_ASKED))
-    {
-      // To ensure that the analytics prompt appears aligned with the center of the main window,
-      // the dialog is only shown after the application is ready, as only then it is guaranteed that
-      // the main window has been placed in its final position.
-      auto* const connection_context = new QObject(&win);
-      QObject::connect(qApp, &QGuiApplication::applicationStateChanged, connection_context,
-                       [connection_context, &win](const Qt::ApplicationState state) {
-                         if (state != Qt::ApplicationState::ApplicationActive)
-                           return;
+      if (!Settings::Instance().IsBatchModeEnabled() &&
+          !Config::Get(Config::MAIN_ANALYTICS_PERMISSION_ASKED))
+      {
+        // To ensure that the analytics prompt appears aligned with the center of the main window,
+        // the dialog is only shown after the application is ready, as only then it is guaranteed
+        // that the main window has been placed in its final position.
+        auto* const connection_context = new QObject(&win);
+        QObject::connect(qApp, &QGuiApplication::applicationStateChanged, connection_context,
+                         [connection_context, &win](const Qt::ApplicationState state) {
+                           if (state != Qt::ApplicationState::ApplicationActive)
+                             return;
 
-                         // Severe the connection after the first run.
-                         delete connection_context;
+                           // Sever the connection after the first run.
+                           delete connection_context;
 
-                         ShowAnalyticsPrompt(&win);
-                       });
-    }
+                           ShowAnalyticsPrompt(&win);
+                         });
+      }
 #endif
 
-    if (!Settings::Instance().IsBatchModeEnabled())
-    {
-      auto* updater = new Updater(&win, Config::Get(Config::MAIN_AUTOUPDATE_UPDATE_TRACK),
-                                  Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
-      updater->start();
-    }
+      if (!Settings::Instance().IsBatchModeEnabled())
+      {
+        auto* updater = new Updater(&win, Config::Get(Config::MAIN_AUTOUPDATE_UPDATE_TRACK),
+                                    Config::Get(Config::MAIN_AUTOUPDATE_HASH_OVERRIDE));
+        updater->start();
+      }
 
-    retval = app.exec();
+      retval = app.exec();
+    }
   }
 
   Core::Shutdown(Core::System::GetInstance());

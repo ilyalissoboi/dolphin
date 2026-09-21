@@ -97,6 +97,7 @@ public:
   bool eventFilter(QObject* object, QEvent* event) override;
   QMenu* createPopupMenu() override;
 
+  void ShowControllersWindow();
   void ShowTriforceWindow();
 
 signals:
@@ -175,7 +176,6 @@ private:
   void ShowSettingsWindow();
   void ShowGeneralWindow();
   void ShowAudioWindow();
-  void ShowControllersWindow();
   void ShowGraphicsWindow();
   void ShowFreeLookWindow();
   void ShowAboutDialog();

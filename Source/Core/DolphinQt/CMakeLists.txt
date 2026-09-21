@@ -354,6 +354,10 @@ add_executable(dolphin-emu
   MainWindow.cpp
   MainWindow.h
   MainWindow.ui
+  SetupWizardDialog.cpp
+  SetupWizardDialog.h
+  SetupWizardDialog.ui
+  SetupWizardPolicy.h
   MenuBar.cpp
   MenuBar.h
   NetPlay/ChunkedProgressDialog.cpp
@@ -441,6 +445,8 @@ add_executable(dolphin-emu
   Settings/InterfacePane.cpp
   Settings/InterfacePane.h
   Settings/InterfacePane.ui
+  Settings/InterfaceSettingsUtils.cpp
+  Settings/InterfaceSettingsUtils.h
   Settings/OnScreenDisplayPane.cpp
   Settings/OnScreenDisplayPane.h
   Settings/OnScreenDisplayPane.ui

@@ -30,12 +30,15 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   PathPaneUiTest.cpp
   SettingsHelpTest.cpp
   SettingsWindowUiTest.cpp
+  SetupWizardPolicyTest.cpp
+  SetupWizardUiTest.cpp
   TriforcePaneUiTest.cpp
   WiiPaneUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/NonAutodismissibleMenu.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/SetupWizardDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/GameListWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
