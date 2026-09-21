@@ -5,22 +5,12 @@
 
 #include <cmath>
 
-#include <QHBoxLayout>
 #include <QLabel>
+
+#include "ui_EmulationStatusWidget.h"
 
 namespace
 {
-QLabel* CreateStatusLabel(QWidget* parent, const char* object_name)
-{
-  auto* const label = new QLabel(parent);
-  label->setObjectName(QLatin1String{object_name});
-  label->setAlignment(Qt::AlignCenter);
-  label->setContentsMargins(10, 0, 10, 0);
-  label->setFixedHeight(20);
-  label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-  return label;
-}
-
 void SetMetric(QLabel* label, const QString& text, bool available)
 {
   label->setText(text);
@@ -28,28 +18,22 @@ void SetMetric(QLabel* label, const QString& text, bool available)
 }
 }  // namespace
 
-EmulationStatusWidget::EmulationStatusWidget(QWidget* parent) : QWidget(parent)
+EmulationStatusWidget::EmulationStatusWidget(QWidget* parent)
+    : QWidget(parent), m_ui(std::make_unique<Ui::EmulationStatusWidget>())
 {
-  auto* const layout = new QHBoxLayout(this);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
+  m_ui->setupUi(this);
+  m_renderer = m_ui->statusRenderer;
+  m_resolution = m_ui->statusResolution;
+  m_fps = m_ui->statusFps;
+  m_vps = m_ui->statusVps;
+  m_speed = m_ui->statusSpeed;
+  m_volume = m_ui->statusVolume;
 
-  m_renderer = CreateStatusLabel(this, "statusRenderer");
-  m_resolution = CreateStatusLabel(this, "statusResolution");
-  m_fps = CreateStatusLabel(this, "statusFps");
-  m_vps = CreateStatusLabel(this, "statusVps");
-  m_speed = CreateStatusLabel(this, "statusSpeed");
-  m_volume = CreateStatusLabel(this, "statusVolume");
-
-  layout->addWidget(m_renderer);
-  layout->addWidget(m_resolution);
-  layout->addWidget(m_fps);
-  layout->addWidget(m_vps);
-  layout->addWidget(m_speed);
-  layout->addWidget(m_volume);
-
-  hide();
+  for (QLabel* label : {m_renderer, m_resolution, m_fps, m_vps, m_speed, m_volume})
+    label->setContentsMargins(10, 0, 10, 0);
 }
+
+EmulationStatusWidget::~EmulationStatusWidget() = default;
 
 void EmulationStatusWidget::SetStatus(const EmulationStatus& status)
 {

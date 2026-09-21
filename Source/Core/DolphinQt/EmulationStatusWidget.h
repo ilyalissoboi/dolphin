@@ -3,10 +3,17 @@
 
 #pragma once
 
+#include <memory>
+
 #include <QString>
 #include <QWidget>
 
 #include "Common/CommonTypes.h"
+
+namespace Ui
+{
+class EmulationStatusWidget;
+}
 
 class QLabel;
 
@@ -29,10 +36,12 @@ class EmulationStatusWidget final : public QWidget
 
 public:
   explicit EmulationStatusWidget(QWidget* parent = nullptr);
+  ~EmulationStatusWidget() override;
 
   void SetStatus(const EmulationStatus& status);
 
 private:
+  std::unique_ptr<Ui::EmulationStatusWidget> m_ui;
   QLabel* m_renderer;
   QLabel* m_resolution;
   QLabel* m_fps;

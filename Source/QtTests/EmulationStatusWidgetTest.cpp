@@ -21,6 +21,7 @@ TEST(EmulationStatusWidgetTest, IdleStatusHidesTheWidget)
   widget.SetStatus({});
 
   EXPECT_TRUE(widget.isHidden());
+  EXPECT_EQ(Label(widget, "statusRenderer")->contentsMargins(), QMargins(10, 0, 10, 0));
 }
 
 TEST(EmulationStatusWidgetTest, RunningStatusFormatsEveryAvailableMetric)

@@ -75,10 +75,13 @@ add_executable(dolphin-emu
   AboutDialog.ui
   CheatSearchFactoryWidget.cpp
   CheatSearchFactoryWidget.h
+  CheatSearchFactoryWidget.ui
   CheatSearchWidget.cpp
   CheatSearchWidget.h
+  CheatSearchWidget.ui
   CheatsManager.cpp
   CheatsManager.h
+  CheatsManager.ui
   Achievements/AchievementBox.cpp
   Achievements/AchievementBox.h
   Achievements/AchievementBox.ui
@@ -281,6 +284,7 @@ add_executable(dolphin-emu
   Config/WiimoteControllersWidget.ui
   ConvertDialog.cpp
   ConvertDialog.h
+  ConvertDialog.ui
   Debugger/AssembleInstructionDialog.cpp
   Debugger/AssembleInstructionDialog.h
   Debugger/AssemblerWidget.cpp
@@ -358,6 +362,7 @@ add_executable(dolphin-emu
   GCMemcardCreateNewDialog.ui
   GCMemcardManager.cpp
   GCMemcardManager.h
+  GCMemcardManager.ui
   Host.cpp
   Host.h
   HotkeyScheduler.cpp
@@ -366,6 +371,7 @@ add_executable(dolphin-emu
   InfinityBase/InfinityBaseWindow.h
   EmulationStatusWidget.cpp
   EmulationStatusWidget.h
+  EmulationStatusWidget.ui
   Main.cpp
   MainWindow.cpp
   MainWindow.h
@@ -447,10 +453,12 @@ add_executable(dolphin-emu
   RenderWidget.h
   ResourcePackManager.cpp
   ResourcePackManager.h
+  ResourcePackManager.ui
   Resources.cpp
   Resources.h
   RiivolutionBootWidget.cpp
   RiivolutionBootWidget.h
+  RiivolutionBootWidget.ui
   Settings.cpp
   Settings.h
   Settings/AdvancedPane.cpp
@@ -516,6 +524,7 @@ add_executable(dolphin-emu
   Translation.h
   Updater.cpp
   Updater.h
+  UpdateAvailableDialog.ui
   WiiUpdate.cpp
   WiiUpdate.h
 )

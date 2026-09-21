@@ -32,6 +32,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   NetPlayUiTest.cpp
   OnScreenDisplayPaneUiTest.cpp
   PathPaneUiTest.cpp
+  RootSurfacesUiTest.cpp
   RootUtilityDialogsUiTest.cpp
   SettingsHelpTest.cpp
   SettingsWindowUiTest.cpp
@@ -44,6 +45,16 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/CoverManager.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/ClickBlurLabel.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/NonAutodismissibleMenu.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/PartiallyClosableTabWidget.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/CheatSearchFactoryWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/CheatSearchWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/CheatsManager.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/ConvertDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GCMemcardManager.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/ResourcePackManager.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/RiivolutionBootWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/UpdateAvailableDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/SetupWizardDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/GameListWidget.ui
