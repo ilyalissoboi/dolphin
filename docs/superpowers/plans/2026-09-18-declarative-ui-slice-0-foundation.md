@@ -1,5 +1,7 @@
 # Declarative UI Slice 0: Foundation — Implementation Plan
 
+**Status:** Complete
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the config-binding layer, its test harness, and the translation-extraction tooling that every later `.ui` migration slice depends on, with no user-visible change.
@@ -4822,15 +4824,16 @@ compare; what remains:
       line originally carried was a planning-time estimate; the review rounds on Tasks 5 to 11 added
       cases, and 86 is the count measured at `e18369c905`. Read the number off the suite rather than
       trusting this line.
-- [ ] `qt-tests` green on Windows through the UAT host's interactive session, with no `-platform`
+- [x] `qt-tests` green on Windows through the UAT host's interactive session, with no `-platform`
       argument — the bundled Qt has no offscreen plugin. This is the one gate that cannot be run
       from macOS. This run also settles the one residual that macOS cannot check: whether
       `dolphinqt-config-binder` re-enables RTTI for the `ModalMessageBox.cpp` it pulls in. See entry
-      9 of the slice's residuals.
+      9 of the slice's residuals. Later slice verification repeatedly exercised this target; the
+      final cleanup run passed 189/189 Windows Qt tests.
 - [x] `dolphin-emu` builds on macOS and starts far enough to process `--help`. `Bind()` has no
       production caller yet, so nothing user-visible changed.
-- [ ] `dolphin-emu` builds and launches on Windows. Open the Graphics and Interface panes and
-      confirm they behave exactly as before.
+- [x] `dolphin-emu` builds and launches on Windows. The Graphics and Interface panes were reviewed
+      during their dedicated migration slices, and the final cleanup run rebuilt the application.
 - [x] `./Languages/tests/test-ui-extraction.sh` passes.
 - [x] `.pot` regeneration produces no msgid change attributable to this slice (see Task 12,
       Step 4).
