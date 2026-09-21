@@ -1,6 +1,6 @@
 # Declarative UI Slice 22: FIFO
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Move the FIFO Player and FIFO Analyzer static layouts to Qt Designer forms without
 changing playback, recording, decoding, or search behavior.
@@ -21,36 +21,51 @@ used slices 20 and 21 on this branch, so FIFO continues as slice 22.
 
 ## Task 2: Migrate the static layouts
 
-- [ ] Add a Designer form for the FIFO Player shell, play/record page, groups, range controls,
+- [x] Add a Designer form for the FIFO Player shell, play/record page, groups, range controls,
   recording controls, and button box.
-- [ ] Add a Designer form for the FIFO Analyzer tree, detail list, description browser, search
+- [x] Add a Designer form for the FIFO Analyzer tree, detail list, description browser, search
   splitters, and search controls.
-- [ ] Keep the analyzer tab and custom action-role buttons populated in C++ because they require
+- [x] Keep the analyzer tab and custom action-role buttons populated in C++ because they require
   runtime objects and `QDialogButtonBox` roles.
-- [ ] Replace legacy tooltip checkboxes with stock `QCheckBox` controls and the generic persistent
+- [x] Replace legacy tooltip checkboxes with stock `QCheckBox` controls and the generic persistent
   description helper.
-- [ ] Express non-default search-button behavior as stock `QPushButton` properties in the form.
-- [ ] Remove all C++ layout construction from `DolphinQt/FIFO`.
+- [x] Express non-default search-button behavior as stock `QPushButton` properties in the form.
+- [x] Remove all C++ layout construction from `DolphinQt/FIFO`.
 
 ## Task 3: Cover the form structure
 
-- [ ] Add Qt tests for the player tabs, groups, ranges, defaults, button box, analyzer splitters,
+- [x] Add Qt tests for the player tabs, groups, ranges, defaults, button box, analyzer splitters,
   search controls, and keyboard order.
-- [ ] Add the FIFO forms to DolphinQt and Qt test AUTOUIC inputs.
-- [ ] Run translation extraction and preserve existing strings and descriptions.
+- [x] Add the FIFO forms to DolphinQt and Qt test AUTOUIC inputs.
+- [x] Run translation extraction and preserve existing strings and descriptions.
 
 ## Task 4: Verify and clean up
 
-- [ ] Build DolphinQt and both test binaries on macOS and run both test suites.
-- [ ] Review the play/record and analyzer tabs on macOS.
-- [ ] Build and run both test binaries on Windows.
-- [ ] Review the play/record and analyzer tabs on Windows.
-- [ ] Remove temporary profiles, scripts, captures, and transferred source changes from both
+- [x] Build DolphinQt and both test binaries on macOS and run both test suites.
+- [x] Review the play/record and analyzer tabs on macOS.
+- [x] Build and run both test binaries on Windows.
+- [x] Review the play/record and analyzer tabs on Windows.
+- [x] Remove temporary profiles, scripts, captures, and transferred source changes from both
   hosts.
 
 ## Definition of done
 
-- [ ] No `new Q*Layout` construction remains in `DolphinQt/FIFO`.
-- [ ] FIFO retains its existing behavior, strings, dynamic data, settings, and persistence.
-- [ ] Both forms open as stock Qt widgets in Designer.
-- [ ] macOS and Windows builds, tests, extraction, and native review pass.
+- [x] No `new Q*Layout` construction remains in `DolphinQt/FIFO`.
+- [x] FIFO retains its existing behavior, strings, dynamic data, settings, and persistence.
+- [x] Both forms open as stock Qt widgets in Designer.
+- [x] macOS and Windows builds, tests, extraction, and native review pass.
+
+## Verification
+
+- Both forms pass XML validation and Qt `uic` generation. The UI extraction regression passes,
+  and a targeted before/after comparison retains all 51 FIFO msgids.
+- macOS builds `dolphin-emu`, `qt-tests`, and `tests`. Qt passes 152/152 tests; core passes
+  1,185/1,187 tests with the two expected preset-dependent skips.
+- Native macOS review confirms the play/record groups, action buttons, analyzer splitters, and
+  fixed-height search row retain their previous layout without clipping.
+- Windows builds the app and both test binaries with MSVC. Qt passes 152/152 tests; core passes
+  1,507/1,509 tests with the same two expected skips.
+- Windows renders made with the repository's Qt 6.8.3 runtime confirm both tabs fit at the
+  authored 600 by 580 size with native button ordering and no clipped controls.
+- The Windows checkout is reset to its original clean commit. Temporary profiles, patches, logs,
+  scripts, harnesses, and captures were removed from both hosts.
