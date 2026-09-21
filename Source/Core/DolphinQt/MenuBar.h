@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include <QMenuBar>
+#include <QObject>
 #include <QPointer>
 
 #include "Common/CommonTypes.h"
@@ -16,7 +16,10 @@
 #include "Common/HookableEvent.h"
 #endif  // RC_CLIENT_SUPPORTS_RAINTEGRATION
 
+class QAction;
+class QActionGroup;
 class QMenu;
+class QMenuBar;
 class ParallelProgressDialog;
 
 namespace Core
@@ -34,17 +37,22 @@ namespace UICommon
 class GameFile;
 }
 
+namespace Ui
+{
+class MainWindow;
+}
+
 using RSOPairEntry = std::pair<u32, std::string>;
 using RSOVector = std::vector<RSOPairEntry>;
 
-class MenuBar final : public QMenuBar
+class MenuBar final : public QObject
 {
   Q_OBJECT
 
 public:
   static MenuBar* GetMenuBar() { return s_menu_bar; }
 
-  explicit MenuBar(QWidget* parent = nullptr);
+  explicit MenuBar(Ui::MainWindow& ui, QObject* parent = nullptr);
 
   void UpdateToolsMenu(Core::State state);
 #ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
@@ -54,6 +62,7 @@ public:
   QMenu* GetListColumnsMenu() const { return m_cols_menu; }
 
   void InstallUpdateManually();
+  void SetPreferredViewChecked(bool list);
 
 signals:
   // File
@@ -144,15 +153,15 @@ private:
   void AddFileMenu();
 
   void AddEmulationMenu();
-  void AddStateLoadMenu(QMenu* emu_menu);
-  void AddStateSaveMenu(QMenu* emu_menu);
-  void AddStateSlotMenu(QMenu* emu_menu);
+  void AddStateLoadMenu();
+  void AddStateSaveMenu();
+  void AddStateSlotMenu();
 
   void AddViewMenu();
-  void AddGameListTypeSection(QMenu* view_menu);
-  void AddListColumnsMenu(QMenu* view_menu);
-  void AddShowPlatformsMenu(QMenu* view_menu);
-  void AddShowRegionsMenu(QMenu* view_menu);
+  void AddGameListTypeSection();
+  void AddListColumnsMenu();
+  void AddShowPlatformsMenu();
+  void AddShowRegionsMenu();
 
   void AddOptionsMenu();
   void AddToolsMenu();
@@ -205,6 +214,9 @@ private:
   QString GetSignatureSelector() const;
 
   static QPointer<MenuBar> s_menu_bar;
+
+  Ui::MainWindow& m_ui;
+  QMenuBar* m_menu_bar;
 
   // File
   QAction* m_open_action;
@@ -277,6 +289,8 @@ private:
   QAction* m_show_network;
   QAction* m_show_jit;
   QAction* m_show_assembler;
+  QAction* m_list_view_action;
+  QAction* m_grid_view_action;
   QMenu* m_cols_menu;
 
   // JIT
