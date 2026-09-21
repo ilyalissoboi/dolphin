@@ -74,6 +74,8 @@ private:
   void ShowHeaderContextMenu(const QPoint& pos);
   void ShowContextMenu(const QPoint&);
   void OpenContainingFolder();
+  void SetCoverImage();
+  void RemoveCoverImage();
   void OpenProperties();
   void OpenWiiSaveFolder();
   void OpenGCSaveFolder();

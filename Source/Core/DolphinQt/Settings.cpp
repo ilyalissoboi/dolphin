@@ -331,6 +331,11 @@ void Settings::RefreshGameList()
   emit GameListRefreshRequested();
 }
 
+void Settings::RefreshMetadata()
+{
+  emit MetadataRefreshRequested();
+}
+
 void Settings::NotifyRefreshGameListStarted()
 {
   emit GameListRefreshStarted();

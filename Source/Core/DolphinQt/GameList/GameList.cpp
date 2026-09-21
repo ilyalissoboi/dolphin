@@ -65,6 +65,7 @@
 
 #include "DolphinQt/Config/PropertiesDialog.h"
 #include "DolphinQt/ConvertDialog.h"
+#include "DolphinQt/GameList/CoverManager.h"
 #include "DolphinQt/GameList/GridProxyModel.h"
 #include "DolphinQt/GameList/ListProxyModel.h"
 #include "DolphinQt/MenuBar.h"
@@ -575,6 +576,13 @@ void GameList::ShowContextMenu(const QPoint&)
       menu->addSeparator();
     }
 
+    menu->addAction(tr("Set Cover Image..."), this, &GameList::SetCoverImage);
+    QAction* remove_cover =
+        menu->addAction(tr("Remove Custom Cover"), this, &GameList::RemoveCoverImage);
+    remove_cover->setEnabled(GameListCover::HasManagedCover(game->GetFilePath()));
+
+    menu->addSeparator();
+
     menu->addAction(tr("Open &Containing Folder"), this, &GameList::OpenContainingFolder);
     menu->addAction(tr("Delete File..."), this, &GameList::DeleteFile);
 #ifdef _WIN32
@@ -628,6 +636,72 @@ void GameList::ShowContextMenu(const QPoint&)
   }
 
   menu->exec(QCursor::pos());
+}
+
+void GameList::SetCoverImage()
+{
+  const auto game = GetSelectedGame();
+  if (!game)
+    return;
+
+  const QString source_path = DolphinFileDialog::getOpenFileName(
+      this, tr("Select Cover Image"), QString(),
+      tr("Cover Images (*.png *.jpg *.jpeg *.webp);;All Files (*)"));
+  if (source_path.isEmpty())
+    return;
+
+  if (GameListCover::HasManagedCover(game->GetFilePath()) &&
+      ModalMessageBox::question(
+          this, tr("Replace Cover Image"), tr("This game already has a custom cover. Replace it?"),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+  {
+    return;
+  }
+
+  const GameListCover::Result result =
+      GameListCover::SaveManagedCover(game->GetFilePath(), source_path);
+  if (!result.Succeeded())
+  {
+    const QString cover_path =
+        QString::fromStdString(GameListCover::GetManagedCoverPath(game->GetFilePath()));
+    const QString message =
+        result.error == GameListCover::Error::InvalidImage ?
+            tr("The selected file is not a valid cover image.") :
+            tr("Dolphin could not save the cover image to:\n%1").arg(cover_path);
+    ModalMessageBox::critical(this, tr("Cover Image Error"), message, QMessageBox::Ok,
+                              QMessageBox::NoButton, Qt::WindowModal, result.detail);
+    return;
+  }
+
+  Settings::Instance().RefreshMetadata();
+}
+
+void GameList::RemoveCoverImage()
+{
+  const auto game = GetSelectedGame();
+  if (!game || !GameListCover::HasManagedCover(game->GetFilePath()))
+    return;
+
+  if (ModalMessageBox::question(
+          this, tr("Remove Custom Cover"), tr("Remove the custom cover for this game?"),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+  {
+    return;
+  }
+
+  const GameListCover::Result result = GameListCover::RemoveManagedCover(game->GetFilePath());
+  if (!result.Succeeded())
+  {
+    const QString cover_path =
+        QString::fromStdString(GameListCover::GetManagedCoverPath(game->GetFilePath()));
+    ModalMessageBox::critical(this, tr("Cover Image Error"),
+                              tr("Dolphin could not remove the custom cover:\n%1").arg(cover_path),
+                              QMessageBox::Ok, QMessageBox::NoButton, Qt::WindowModal,
+                              result.detail);
+    return;
+  }
+
+  Settings::Instance().RefreshMetadata();
 }
 
 void GameList::OpenProperties()

@@ -135,7 +135,7 @@ void InterfacePane::ConnectLayout()
   connect(m_ui->useBuiltinTitleDatabaseCheckBox, &QCheckBox::toggled, &Settings::Instance(),
           &Settings::GameListRefreshRequested);
   connect(m_ui->useCoversCheckBox, &QCheckBox::toggled, &Settings::Instance(),
-          &Settings::MetadataRefreshRequested);
+          &Settings::RefreshMetadata);
   connect(m_ui->showDebuggingUiCheckBox, &QCheckBox::toggled, &Settings::Instance(),
           &Settings::SetDebugModeEnabled);
   connect(m_ui->themeComboBox, &QComboBox::currentIndexChanged, &Settings::Instance(),

@@ -14,6 +14,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigComplexBindingTest.cpp
   ConfigSettingRegistryTest.cpp
   ControllersUiTest.cpp
+  CoverManagerTest.cpp
   EmulationStatusWidgetTest.cpp
   GameConfigUiTest.cpp
   GameListUiTest.cpp
@@ -36,6 +37,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   WiiPaneUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/CoverManager.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/NonAutodismissibleMenu.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/SetupWizardDialog.ui

@@ -330,6 +330,8 @@ add_executable(dolphin-emu
   GameList/GameList.cpp
   GameList/GameList.h
   GameList/GameListWidget.ui
+  GameList/CoverManager.cpp
+  GameList/CoverManager.h
   GameList/GameListModel.cpp
   GameList/GameListModel.h
   GameList/GameTracker.cpp

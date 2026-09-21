@@ -93,6 +93,7 @@ public:
   QString GetDefaultGame() const;
   void SetDefaultGame(const QString& path);
   void RefreshGameList();
+  void RefreshMetadata();
   void NotifyRefreshGameListStarted();
   void NotifyRefreshGameListComplete();
   void NotifyMetadataRefreshComplete();
