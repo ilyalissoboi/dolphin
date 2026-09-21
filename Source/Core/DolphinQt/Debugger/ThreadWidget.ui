@@ -29,7 +29,7 @@
         <property name="title">
          <string>Thread context</string>
         </property>
-        <layout class="QGridLayout" name="contextLayout">
+        <layout class="QGridLayout" name="contextLayout" columnstretch="1,1">
          <property name="spacing">
           <number>1</number>
          </property>
@@ -46,7 +46,7 @@
          <item row="0" column="1">
           <widget class="QLineEdit" name="currentContextEdit">
            <property name="text">
-            <string>00000000</string>
+            <string notr="true">00000000</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -69,7 +69,7 @@
          <item row="1" column="1">
           <widget class="QLineEdit" name="currentThreadEdit">
            <property name="text">
-            <string>00000000</string>
+            <string notr="true">00000000</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -92,7 +92,7 @@
          <item row="2" column="1">
           <widget class="QLineEdit" name="defaultThreadEdit">
            <property name="text">
-            <string>00000000</string>
+            <string notr="true">00000000</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -110,7 +110,7 @@
         <property name="title">
          <string>Active thread queue</string>
         </property>
-        <layout class="QGridLayout" name="queueLayout">
+        <layout class="QGridLayout" name="queueLayout" columnstretch="1,1">
          <property name="spacing">
           <number>1</number>
          </property>
@@ -127,7 +127,7 @@
          <item row="0" column="1">
           <widget class="QLineEdit" name="queueHeadEdit">
            <property name="text">
-            <string>00000000</string>
+            <string notr="true">00000000</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -150,7 +150,7 @@
          <item row="1" column="1">
           <widget class="QLineEdit" name="queueTailEdit">
            <property name="text">
-            <string>00000000</string>
+            <string notr="true">00000000</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

@@ -6,6 +6,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -206,6 +207,10 @@ TEST(DebuggerUiTest, ThreadFormOwnsStateAndTableSections)
   EXPECT_EQ(ui.mainLayout->count(), 5);
   EXPECT_EQ(ui.stateLayout->contentsMargins(), QMargins(2, 2, 2, 2));
   EXPECT_EQ(ui.stateLayout->spacing(), 1);
+  EXPECT_EQ(ui.contextLayout->columnStretch(0), 1);
+  EXPECT_EQ(ui.contextLayout->columnStretch(1), 1);
+  EXPECT_EQ(ui.queueLayout->columnStretch(0), 1);
+  EXPECT_EQ(ui.queueLayout->columnStretch(1), 1);
   EXPECT_EQ(ui.currentContextLabel->buddy(), ui.currentContextEdit);
   EXPECT_TRUE(ui.currentContextEdit->isReadOnly());
   EXPECT_EQ(ui.threadTable->selectionBehavior(), QAbstractItemView::SelectRows);

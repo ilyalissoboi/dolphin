@@ -300,7 +300,7 @@
            <item>
             <widget class="QRadioButton" name="physicalAddressRadio">
              <property name="text">
-              <string extracomment="One of the options shown below &quot;Address Space&quot;. &quot;Physical&quot; is the address space that reflects how devices (for example RAM) are physically wired up.">Physical</string>
+              <string extracomment="One of the options shown below &quot;Address Space&quot;. &quot;Physical&quot; is the address space that reflects how devices (e.g. RAM) is physically wired up.">Physical</string>
              </property>
             </widget>
            </item>
@@ -335,21 +335,21 @@
            <item>
             <widget class="QRadioButton" name="readWriteRadio">
              <property name="text">
-              <string extracomment="This radio button represents a memory breakpoint triggered by either a read or a write operation.">Read and write</string>
+              <string extracomment="This string is used for a radio button that represents the type of memory breakpoint that gets triggered when a read operation or write operation occurs. The string is not a command to read and write something or to allow reading and writing.">Read and write</string>
              </property>
             </widget>
            </item>
            <item>
             <widget class="QRadioButton" name="readOnlyRadio">
              <property name="text">
-              <string extracomment="This radio button represents a memory breakpoint triggered by a read operation.">Read only</string>
+              <string extracomment="This string is used for a radio button that represents the type of memory breakpoint that gets triggered when a read operation occurs. The string does not mean &quot;read-only&quot; in the sense that something cannot be written to.">Read only</string>
              </property>
             </widget>
            </item>
            <item>
             <widget class="QRadioButton" name="writeOnlyRadio">
              <property name="text">
-              <string extracomment="This radio button represents a memory breakpoint triggered by a write operation.">Write only</string>
+              <string extracomment="This string is used for a radio button that represents the type of memory breakpoint that gets triggered when a write operation occurs. The string does not mean &quot;write-only&quot; in the sense that something cannot be read from.">Write only</string>
              </property>
             </widget>
            </item>
@@ -446,7 +446,7 @@
            <item>
             <widget class="QLineEdit" name="labelsFilterEdit">
              <property name="placeholderText">
-              <string extracomment="Filter is a verb. Typing into this text box filters the label list so only labels containing the text are shown.">Filter Label List</string>
+              <string extracomment="Filter is a verb. Typing into this text box will filter the label list so that only labels containing the typed text are shown.">Filter Label List</string>
              </property>
             </widget>
            </item>
