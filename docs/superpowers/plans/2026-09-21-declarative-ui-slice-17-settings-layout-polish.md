@@ -2,14 +2,14 @@
 
 **Status:** Complete
 
-**Goal:** Make the shared settings shell and its widest pages fit predictably, align the help panel
-with the PCSX2 settings layout, and use a horizontal volume control.
+**Goal:** Make the shared settings shell and its widest pages fit predictably, keep the padded help
+panel aligned with the active page, and use a prominent horizontal volume control.
 
 ## Task 1: Rework the shared settings shell
 
 - [x] Keep the navigation and active page in the top row.
-- [x] Move the help panel below both columns so it spans the full window width.
-- [x] Give the help panel balanced left and right gutters, and place the footer below it.
+- [x] Keep the navigation sidebar full height and place the help panel below the active page.
+- [x] Give the help panel balanced left and right gutters, with the footer below it.
 - [x] Update the shell form test for the new grid structure, spans, and margins.
 
 ## Task 2: Fit controller settings at the default width
@@ -21,32 +21,37 @@ with the PCSX2 settings layout, and use a horizontal volume control.
 
 ## Task 3: Make volume consistent with other sliders
 
-- [x] Place the Volume group in the main Audio column.
+- [x] Place the Volume group at the top of the main Audio column.
 - [x] Change the volume slider to horizontal and keep its value label aligned beside it.
-- [x] Update the Audio form test for the revised structure and narrow layout.
+- [x] Update the Audio form test for the revised structure, focus order, and narrow layout.
 
 ## Task 4: Verify and clean up
 
 - [x] Build the app and both test binaries on macOS and run both test suites.
 - [x] Run the UI extraction regression test.
-- [x] Review Controllers, Audio, and the full-width help panel in light and dark themes.
+- [x] Review Controllers, Audio, and the content-column help panel in light and dark themes.
 - [x] Build and run the app and both test binaries on Windows and review the revised layouts.
 - [x] Remove validation scratch and leave both checkouts clean.
 
 ## Definition of done
 
 - [x] Controllers are fully visible at the default settings width.
-- [x] Volume uses the same horizontal interaction pattern as other sliders.
-- [x] The help panel spans the complete settings window with balanced edge padding.
+- [x] Volume is the first Audio control and uses the same horizontal interaction pattern as other
+  sliders.
+- [x] The help panel remains aligned with the active page and has balanced edge padding.
 - [x] macOS and Windows builds, tests, and visual review pass.
 
 ## Verification
 
-- Implementation: `96005327810f627f371fd9867f20f6c55cead8fc`
+- Initial implementation: `96005327810f627f371fd9867f20f6c55cead8fc`
+- Follow-up implementation: `21ba25ee0e596a62b5709e5347890b14becc8739`
 - macOS: DolphinQt and both test targets built; 130 Qt tests passed; 1,185 core tests
   passed and 2 preset-dependent tests skipped; UI extraction passed.
 - Windows: DolphinQt and both test targets built; 130 Qt tests passed; 1,507 core tests
   passed and 2 preset-dependent tests skipped.
-- Native light and dark renders on both platforms confirmed the controller rows fit the preferred
-  width, Volume is horizontal, and the help panel spans the full window with edge gutters.
+- Follow-up validation rebuilt DolphinQt on macOS and Windows, passed all 130 Qt tests on each
+  platform, and passed UI extraction.
+- Native macOS and Windows renders confirmed Volume is first, the padded help panel stays in the
+  content column, and the navigation sidebar remains full height. Windows light and dark renders
+  both passed.
 - Temporary users, bundles, scripts, captures, and the Windows-only render hook were removed.
