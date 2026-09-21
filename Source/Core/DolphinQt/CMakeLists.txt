@@ -304,10 +304,12 @@ add_executable(dolphin-emu
   Debugger/AssembleInstructionDialog.ui
   Debugger/AssemblerWidget.cpp
   Debugger/AssemblerWidget.h
+  Debugger/AssemblerWidget.ui
   Debugger/AssemblyEditor.cpp
   Debugger/AssemblyEditor.h
   Debugger/BranchWatchDialog.cpp
   Debugger/BranchWatchDialog.h
+  Debugger/BranchWatchDialog.ui
   Debugger/BranchWatchTableModel.cpp
   Debugger/BranchWatchTableModel.h
   Debugger/BreakpointDialog.cpp
@@ -320,6 +322,7 @@ add_executable(dolphin-emu
   Debugger/CodeViewWidget.h
   Debugger/CodeWidget.cpp
   Debugger/CodeWidget.h
+  Debugger/CodeWidget.ui
   Debugger/EditSymbolDialog.cpp
   Debugger/EditSymbolDialog.h
   Debugger/EditSymbolDialog.ui
@@ -329,13 +332,16 @@ add_executable(dolphin-emu
   Debugger/JitBlockTableModel.h
   Debugger/JITWidget.cpp
   Debugger/JITWidget.h
+  Debugger/JITWidget.ui
   Debugger/MemoryViewWidget.cpp
   Debugger/MemoryViewWidget.h
   Debugger/MemoryViewWidget.ui
   Debugger/MemoryWidget.cpp
   Debugger/MemoryWidget.h
+  Debugger/MemoryWidget.ui
   Debugger/NetworkWidget.cpp
   Debugger/NetworkWidget.h
+  Debugger/NetworkWidget.ui
   Debugger/PatchInstructionDialog.cpp
   Debugger/PatchInstructionDialog.h
   Debugger/PatchInstructionDialog.ui
@@ -346,6 +352,7 @@ add_executable(dolphin-emu
   Debugger/RegisterWidget.ui
   Debugger/ThreadWidget.cpp
   Debugger/ThreadWidget.h
+  Debugger/ThreadWidget.ui
   Debugger/WatchWidget.cpp
   Debugger/WatchWidget.h
   Debugger/WatchWidget.ui

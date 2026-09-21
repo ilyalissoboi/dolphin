@@ -122,12 +122,19 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/TASInputWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/WiiTASInputWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/AssembleInstructionDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/AssemblerWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/BranchWatchDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/BreakpointDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/BreakpointWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/CodeWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/EditSymbolDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/JITWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/MemoryViewWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/MemoryWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/NetworkWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/PatchInstructionDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/RegisterWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/ThreadWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Debugger/WatchWidget.ui
   # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
   # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is
