@@ -73,9 +73,9 @@ TEST(InterfacePaneUiTest, FormOwnsTheInterfaceSettingsStructure)
   EXPECT_EQ(ui.cursorVisibilityLayout->itemAt(2)->widget(), ui.cursorAlwaysRadioButton);
 
   pane.resize(520, 760);
-  ui.rootLayout->setGeometry(pane.rect());
-  ui.userInterfaceLayout->setGeometry(ui.userInterfaceGroup->contentsRect());
-  ui.selectionLayout->setGeometry(ui.userInterfaceGroup->contentsRect());
+  ui.rootLayout->activate();
+  ui.userInterfaceLayout->activate();
+  ui.selectionLayout->activate();
   EXPECT_LT(ui.languageLabel->geometry().right(), ui.languageComboBox->geometry().left());
   EXPECT_LE(ui.languageComboBox->geometry().right(), ui.userInterfaceGroup->contentsRect().right());
   EXPECT_LE(ui.useCoversCheckBox->geometry().right(),
