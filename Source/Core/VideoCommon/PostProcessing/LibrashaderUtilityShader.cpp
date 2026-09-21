@@ -5,14 +5,26 @@
 
 namespace VideoCommon
 {
-std::string GenerateLibrashaderFullscreenVertexShader(bool flip_y)
+std::string GenerateLibrashaderFullscreenVertexShader(bool flip_y, bool emit_texcoord)
 {
-  const std::string flip = flip_y ? "  gl_Position.y = -gl_Position.y;\n" : "";
-  return "VARYING_LOCATION(0) out float2 v_tex0;\n"
-         "void main() {\n"
-         "  v_tex0 = float2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));\n"
-         "  gl_Position = float4(v_tex0 * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);\n" +
-         flip + "}\n";
+  std::string source;
+  if (emit_texcoord)
+    source += "VARYING_LOCATION(0) out float2 v_tex0;\n";
+  source += "void main() {\n";
+  if (emit_texcoord)
+    source += "  v_tex0 = float2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));\n";
+  else
+    source += "  float2 texcoord = float2(float((gl_VertexID << 1) & 2), "
+              "float(gl_VertexID & 2));\n";
+  source += emit_texcoord ?
+                "  gl_Position = float4(v_tex0 * float2(2.0, -2.0) + "
+                "float2(-1.0, 1.0), 0.0, 1.0);\n" :
+                "  gl_Position = float4(texcoord * float2(2.0, -2.0) + "
+                "float2(-1.0, 1.0), 0.0, 1.0);\n";
+  if (flip_y)
+    source += "  gl_Position.y = -gl_Position.y;\n";
+  source += "}\n";
+  return source;
 }
 
 std::string GenerateLibrashaderPassthroughPixelShader()

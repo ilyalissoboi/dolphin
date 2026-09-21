@@ -293,9 +293,12 @@ TEST(SlangCompile, LibrashaderUtilityShadersCompileOnAllBackends)
         GenerateLibrashaderSourceNormalizationPixelShader(bilinear_plan));
     expect_compiles(
         "box normalization",
-        GenerateLibrashaderFullscreenVertexShader(SlangNeedsClipYFlip(backend.api_type)),
+        GenerateLibrashaderFullscreenVertexShader(SlangNeedsClipYFlip(backend.api_type), false),
         GenerateLibrashaderSourceNormalizationPixelShader(box_plan));
   }
+
+  const std::string box_vertex = GenerateLibrashaderFullscreenVertexShader(false, false);
+  EXPECT_EQ(box_vertex.find("v_tex0"), std::string::npos);
 }
 
 // The canonical RetroArch "stock" passthrough shader: dual uniform blocks (push_constant Push

@@ -247,13 +247,12 @@ void LibrashaderPostProcessing::BuildDownscalePipeline(const SlangSourceDownscal
     return;
   }
 
-  // Fullscreen triangle. On the Y-down-clip-space backends the flip is what makes v_tex0 align
-  // with gl_FragCoord's top-left origin, so the bilinear path (v_tex0) and the box path (texelFetch
-  // on gl_FragCoord) share one orientation and both preserve the source's orientation into the
-  // native texture. On D3D and Metal clip space already agrees with gl_FragCoord, so adding it
-  // there inverts the native source instead.
-  const std::string vertex_source =
-      GenerateLibrashaderFullscreenVertexShader(SlangNeedsClipYFlip(g_backend_info.api_type));
+  // Fullscreen triangle. On the Y-down-clip-space backends the flip makes the bilinear path's
+  // v_tex0 align with gl_FragCoord's top-left origin. The box shader reads gl_FragCoord directly
+  // and has no texture-coordinate input, so do not export v_tex0 for it: a D3D12 driver can reject
+  // that otherwise-unused stage output while creating the pipeline state.
+  const std::string vertex_source = GenerateLibrashaderFullscreenVertexShader(
+      SlangNeedsClipYFlip(g_backend_info.api_type), !plan.box_filter);
   const std::string pixel_source = GenerateLibrashaderSourceNormalizationPixelShader(plan);
 
   m_downscale_vertex = g_gfx->CreateShaderFromSource(ShaderStage::Vertex, vertex_source, nullptr,

@@ -9,7 +9,7 @@
 
 namespace VideoCommon
 {
-std::string GenerateLibrashaderFullscreenVertexShader(bool flip_y);
+std::string GenerateLibrashaderFullscreenVertexShader(bool flip_y, bool emit_texcoord = true);
 std::string GenerateLibrashaderPassthroughPixelShader();
 std::string
 GenerateLibrashaderSourceNormalizationPixelShader(const SlangSourceDownscalePlan& plan);
