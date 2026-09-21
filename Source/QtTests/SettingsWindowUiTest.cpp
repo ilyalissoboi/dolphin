@@ -29,25 +29,31 @@ TEST(SettingsWindowUiTest, FormOwnsTheSharedSettingsShell)
   ASSERT_EQ(ui.rootLayout->count(), 4);
   EXPECT_EQ(ui.rootLayout->itemAtPosition(0, 0)->widget(), ui.navigationFrame);
   EXPECT_EQ(ui.rootLayout->itemAtPosition(0, 1)->widget(), ui.contentWidget);
-  EXPECT_EQ(ui.rootLayout->itemAtPosition(1, 0)->widget(), ui.helpFrame);
-  EXPECT_EQ(ui.rootLayout->itemAtPosition(2, 0)->widget(), ui.footerFrame);
+  EXPECT_EQ(ui.rootLayout->itemAtPosition(1, 1)->widget(), ui.helpFrame);
+  EXPECT_EQ(ui.rootLayout->itemAtPosition(2, 1)->widget(), ui.footerFrame);
 
   int row = 0;
   int column = 0;
   int row_span = 0;
   int column_span = 0;
+  ui.rootLayout->getItemPosition(ui.rootLayout->indexOf(ui.navigationFrame), &row, &column,
+                                 &row_span, &column_span);
+  EXPECT_EQ(row, 0);
+  EXPECT_EQ(column, 0);
+  EXPECT_EQ(row_span, 3);
+  EXPECT_EQ(column_span, 1);
   ui.rootLayout->getItemPosition(ui.rootLayout->indexOf(ui.helpFrame), &row, &column, &row_span,
                                  &column_span);
   EXPECT_EQ(row, 1);
-  EXPECT_EQ(column, 0);
+  EXPECT_EQ(column, 1);
   EXPECT_EQ(row_span, 1);
-  EXPECT_EQ(column_span, 2);
+  EXPECT_EQ(column_span, 1);
   ui.rootLayout->getItemPosition(ui.rootLayout->indexOf(ui.footerFrame), &row, &column, &row_span,
                                  &column_span);
   EXPECT_EQ(row, 2);
-  EXPECT_EQ(column, 0);
+  EXPECT_EQ(column, 1);
   EXPECT_EQ(row_span, 1);
-  EXPECT_EQ(column_span, 2);
+  EXPECT_EQ(column_span, 1);
 
   EXPECT_EQ(ui.navigationFrame->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
   EXPECT_EQ(ui.navigationFrame->frameShape(), QFrame::NoFrame);

@@ -35,8 +35,8 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   ui.setupUi(&pane);
 
   ASSERT_EQ(ui.rootLayout->count(), 3);
-  EXPECT_EQ(ui.rootLayout->itemAt(0)->layout(), ui.mainColumnLayout);
-  EXPECT_EQ(ui.rootLayout->itemAt(1)->widget(), ui.volumeGroup);
+  EXPECT_EQ(ui.rootLayout->itemAt(0)->widget(), ui.volumeGroup);
+  EXPECT_EQ(ui.rootLayout->itemAt(1)->layout(), ui.mainColumnLayout);
   EXPECT_NE(ui.rootLayout->itemAt(2)->spacerItem(), nullptr);
 
   ASSERT_EQ(ui.mainColumnLayout->count(), 4);
@@ -101,6 +101,7 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_LE(ui.wiimoteRoutingGroup->geometry().right(), pane.rect().right());
   EXPECT_LE(ui.volumeGroup->geometry().right(), pane.rect().right());
 
+  EXPECT_EQ(NextTabFocusWidget(ui.volumeSlider), ui.dspEngineComboBox);
   EXPECT_EQ(NextTabFocusWidget(ui.dspEngineComboBox), ui.backendComboBox);
   EXPECT_EQ(NextTabFocusWidget(ui.backendComboBox), ui.wasapiDeviceComboBox);
   EXPECT_EQ(NextTabFocusWidget(ui.wasapiDeviceComboBox), ui.latencySlider);
