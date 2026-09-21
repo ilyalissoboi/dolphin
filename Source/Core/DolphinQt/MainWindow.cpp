@@ -12,14 +12,18 @@
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QIcon>
+#include <QMenuBar>
 #include <QMimeData>
 #include <QStackedWidget>
+#include <QStatusBar>
 #include <QStyleHints>
 #include <QTimer>
+#include <QToolBar>
 #include <QWindow>
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <future>
 #include <optional>
 #include <utility>
@@ -139,6 +143,12 @@
 #include "VideoCommon/PerformanceMetrics.h"
 #include "VideoCommon/VideoBackendBase.h"
 
+namespace
+{
+constexpr int DEFAULT_GRID_COLUMNS = 7;
+constexpr int DEFAULT_GRID_ROWS = 3;
+}  // namespace
+
 #ifdef HAVE_XRANDR
 #include "UICommon/X11Utils.h"
 // This #define within X11/X.h conflicts with our WiimoteSource enum.
@@ -238,7 +248,10 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
 
   QSettings& settings = Settings::GetQSettings();
   restoreState(settings.value(QStringLiteral("mainwindow/state")).toByteArray());
-  restoreGeometry(settings.value(QStringLiteral("mainwindow/geometry")).toByteArray());
+  const QString geometry_key = QStringLiteral("mainwindow/geometry");
+  if (!settings.contains(geometry_key) ||
+      !restoreGeometry(settings.value(geometry_key).toByteArray()))
+    resize(sizeHint());
   if (!Settings::Instance().IsBatchModeEnabled())
   {
     show();
@@ -1882,7 +1895,22 @@ void MainWindow::dropEvent(QDropEvent* event)
 
 QSize MainWindow::sizeHint() const
 {
-  return QSize(800, 600);
+  if (!m_game_list)
+    return QSize(800, 600);
+
+  QSize size = m_game_list->GetSizeForGrid(DEFAULT_GRID_COLUMNS, DEFAULT_GRID_ROWS);
+
+  if (!m_ui->toolbar->isHidden())
+  {
+    size.setWidth(std::max(size.width(), m_ui->toolbar->sizeHint().width()));
+    size.rheight() += m_ui->toolbar->sizeHint().height();
+  }
+  if (!m_ui->menubar->isNativeMenuBar() && !m_ui->menubar->isHidden())
+    size.rheight() += m_ui->menubar->sizeHint().height();
+  if (!m_ui->statusBar->isHidden())
+    size.rheight() += m_ui->statusBar->sizeHint().height();
+
+  return size;
 }
 
 void MainWindow::OnBootGameCubeIPL(DiscIO::Region region)

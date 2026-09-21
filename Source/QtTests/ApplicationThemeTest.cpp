@@ -11,6 +11,11 @@ namespace
 {
 using ApplicationTheme::Type;
 
+TEST(ApplicationTheme, NewProfilesDefaultToDark)
+{
+  EXPECT_EQ(ApplicationTheme::DEFAULT_TYPE, Type::Dark);
+}
+
 TEST(ApplicationTheme, LegacyStyleValuesMapToPaletteThemes)
 {
   EXPECT_EQ(ApplicationTheme::Canonicalize(Type::LegacyLight), Type::Light);

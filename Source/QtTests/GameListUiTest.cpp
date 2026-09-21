@@ -12,7 +12,23 @@
 
 #include <gtest/gtest.h>
 
+#include "Core/Config/UISettings.h"
+
+#include "DolphinQt/GameList/GridProxyModel.h"
+#include "DolphinQt/Settings.h"
+
 #include "ui_GameListWidget.h"
+
+TEST(GameListUiTest, NewProfilesDefaultToGridWithCoverDownloads)
+{
+  EXPECT_FALSE(Settings::DEFAULT_PREFERRED_VIEW_IS_LIST);
+  EXPECT_TRUE(Config::MAIN_USE_GAME_COVERS.GetDefaultValue());
+}
+
+TEST(GameListUiTest, DefaultViewportFitsSevenColumnsByThreeRows)
+{
+  EXPECT_EQ(GameListGrid::CalculateViewportSize(QSize(166, 242), 16, 7, 3, 15), QSize(1305, 790));
+}
 
 TEST(GameListUiTest, FormOwnsThePermanentLibraryControlsAndViewStack)
 {

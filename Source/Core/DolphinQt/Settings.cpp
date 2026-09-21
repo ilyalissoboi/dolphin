@@ -271,9 +271,15 @@ Settings::StyleType Settings::GetStyleType() const
     }
   }
 
-  // if the style type is unset or invalid, try the old enabled flag instead
-  const bool enabled = GetQSettings().value(QStringLiteral("userstyle/enabled"), false).toBool();
-  return enabled ? StyleType::User : StyleType::System;
+  // If the style type is unset or invalid, try the old enabled flag before using the current
+  // default. This keeps preferences written by older Dolphin builds meaningful.
+  if (GetQSettings().contains(QStringLiteral("userstyle/enabled")))
+  {
+    return GetQSettings().value(QStringLiteral("userstyle/enabled")).toBool() ? StyleType::User :
+                                                                                StyleType::System;
+  }
+
+  return ApplicationTheme::DEFAULT_TYPE;
 }
 
 void Settings::SetStyleType(StyleType type)
@@ -402,7 +408,9 @@ void Settings::SetDefaultGame(const QString& path)
 
 bool Settings::GetPreferredView() const
 {
-  return GetQSettings().value(QStringLiteral("PreferredView"), true).toBool();
+  return GetQSettings()
+      .value(QStringLiteral("PreferredView"), DEFAULT_PREFERRED_VIEW_IS_LIST)
+      .toBool();
 }
 
 void Settings::SetPreferredView(bool list)

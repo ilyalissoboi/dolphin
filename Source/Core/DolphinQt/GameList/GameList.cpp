@@ -38,10 +38,12 @@
 #include <QListView>
 #include <QMap>
 #include <QMenu>
+#include <QPixmap>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSortFilterProxyModel>
+#include <QStandardItemModel>
 #include <QStyle>
 #include <QTableView>
 #include <QToolButton>
@@ -340,6 +342,36 @@ GameList::~GameList()
   Settings::GetQSettings().setValue(QStringLiteral("tableheader/state"),
                                     m_list->horizontalHeader()->saveState());
   Settings::GetQSettings().setValue(QStringLiteral("gridview/scale"), m_model.GetScale());
+}
+
+QSize GameList::GetSizeForGrid(int columns, int rows) const
+{
+  Q_ASSERT(columns > 0);
+  Q_ASSERT(rows > 0);
+
+  QStandardItemModel sample_model(1, 1);
+  const QModelIndex sample_index = sample_model.index(0, 0);
+  sample_model.setData(sample_index, tr("Game"), Qt::DisplayRole);
+
+  QPixmap cover(GameListGrid::COVER_SIZE * m_model.GetScale());
+  cover.fill(Qt::transparent);
+  sample_model.setData(sample_index, cover, Qt::DecorationRole);
+
+  QListView sample_view;
+  sample_view.setModel(&sample_model);
+  sample_view.setViewMode(QListView::IconMode);
+  sample_view.setResizeMode(QListView::Adjust);
+  sample_view.setWordWrap(true);
+  sample_view.setFont(m_grid->font());
+  const QSize item_size = sample_view.sizeHintForIndex(sample_index);
+  const int spacing = m_grid->spacing();
+  const int scroll_bar_width =
+      m_grid->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_grid);
+
+  QSize size =
+      GameListGrid::CalculateViewportSize(item_size, spacing, columns, rows, scroll_bar_width);
+  size.rheight() += m_ui->controlBar->height();
+  return size;
 }
 
 void GameList::UpdateColumnVisibility()

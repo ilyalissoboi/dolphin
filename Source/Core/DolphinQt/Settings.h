@@ -40,6 +40,8 @@ class Settings final : public QObject
   Q_OBJECT
 
 public:
+  static constexpr bool DEFAULT_PREFERRED_VIEW_IS_LIST = false;
+
   Settings(const Settings&) = delete;
   Settings& operator=(const Settings&) = delete;
   Settings(Settings&&) = delete;

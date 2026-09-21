@@ -246,7 +246,7 @@ private:
   QStackedWidget* m_stack;
   ToolBar* m_tool_bar;
   MenuBar* m_menu_bar;
-  GameList* m_game_list;
+  GameList* m_game_list = nullptr;
   EmulationStatusWidget* m_emulation_status;
   RenderWidget* m_render_widget = nullptr;
   int m_total_games = 0;

@@ -16,8 +16,6 @@
 
 #include "UICommon/GameFile.h"
 
-const QSize COVER_SIZE(160, 224);
-
 GridProxyModel::GridProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
 {
   setDynamicSortFilter(true);
@@ -39,7 +37,7 @@ QVariant GridProxyModel::data(const QModelIndex& i, int role) const
     const auto& game = *model->GetGameFile(source_index.row());
     const auto& buffer = game.GetCoverImage().buffer;
 
-    QPixmap pixmap(COVER_SIZE * model->GetScale() * QPixmap().devicePixelRatio());
+    QPixmap pixmap(GameListGrid::COVER_SIZE * model->GetScale() * QPixmap().devicePixelRatio());
 
     const bool show_cover = !buffer.empty() && (game.HasCustomCoverImage() ||
                                                 Config::Get(Config::MAIN_USE_GAME_COVERS));
@@ -71,7 +69,7 @@ QVariant GridProxyModel::data(const QModelIndex& i, int role) const
       pixmap = QPixmap::fromImage(QImage::fromData(
           reinterpret_cast<const unsigned char*>(&buffer[0]), static_cast<int>(buffer.size())));
 
-      return pixmap.scaled(COVER_SIZE * model->GetScale() * pixmap.devicePixelRatio(),
+      return pixmap.scaled(GameListGrid::COVER_SIZE * model->GetScale() * pixmap.devicePixelRatio(),
                            Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
   }

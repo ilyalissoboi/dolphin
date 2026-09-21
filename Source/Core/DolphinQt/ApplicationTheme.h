@@ -26,6 +26,8 @@ enum class Type : int
   MaxValue = 6,
 };
 
+inline constexpr Type DEFAULT_TYPE = Type::Dark;
+
 struct Definition
 {
   Type type;

@@ -55,6 +55,8 @@ public:
 
   void PurgeCache();
 
+  QSize GetSizeForGrid(int columns, int rows) const;
+
   const GameListModel& GetGameListModel() const { return m_model; }
 
 signals:
