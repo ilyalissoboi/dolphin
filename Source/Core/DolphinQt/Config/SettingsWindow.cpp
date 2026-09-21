@@ -3,7 +3,9 @@
 
 #include "DolphinQt/Config/SettingsWindow.h"
 
+#include <array>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include <QApplication>
@@ -14,13 +16,14 @@
 #include <QIcon>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPainter>
 #include <QPalette>
+#include <QPixmap>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTabWidget>
 #include <QTextBrowser>
 
-#include "DiscIO/Enums.h"
 #include "DolphinQt/Config/ControllersPane.h"
 #include "DolphinQt/Config/Graphics/GraphicsPane.h"
 #include "DolphinQt/Config/SettingsHelp.h"
@@ -283,34 +286,49 @@ bool StackedSettingsWindow::eventFilter(QObject* watched, QEvent* event)
 
 namespace
 {
-QIcon GetSettingsCategoryIcon(SettingsWindowPaneIndex index, QWidget* parent)
+constexpr int SETTINGS_CATEGORY_ICON_SIZE = 32;
+
+constexpr std::array<std::string_view, 11> SETTINGS_CATEGORY_ICON_NAMES = {
+    "Settings_General",   "Settings_Graphics",        "Settings_Controllers",
+    "Settings_Interface", "Settings_OnScreenDisplay", "Settings_Audio",
+    "Settings_Paths",     "Settings_GameCube",        "Settings_Wii",
+    "Settings_Triforce",  "Settings_Advanced",
+};
+static_assert(std::to_underlying(SettingsWindowPaneIndex::Advanced) + 1 ==
+              static_cast<int>(SETTINGS_CATEGORY_ICON_NAMES.size()));
+
+void AddTintedIconMode(QIcon* icon, const QIcon& source, const QColor& color, QIcon::Mode mode)
 {
-  switch (index)
+  for (const int scale : {1, 2, 4})
   {
-  case SettingsWindowPaneIndex::General:
-    return Resources::GetThemeIcon("config");
-  case SettingsWindowPaneIndex::Graphics:
-    return Resources::GetThemeIcon("graphics");
-  case SettingsWindowPaneIndex::Controllers:
-    return Resources::GetThemeIcon("classic");
-  case SettingsWindowPaneIndex::Interface:
-    return Resources::GetAppIcon();
-  case SettingsWindowPaneIndex::OnScreenDisplay:
-    return Resources::GetThemeIcon("screenshot");
-  case SettingsWindowPaneIndex::Audio:
-    return parent->style()->standardIcon(QStyle::SP_MediaVolume);
-  case SettingsWindowPaneIndex::Paths:
-    return Resources::GetThemeIcon("open");
-  case SettingsWindowPaneIndex::GameCube:
-    return Resources::GetPlatform(DiscIO::Platform::GameCubeDisc);
-  case SettingsWindowPaneIndex::Wii:
-    return Resources::GetPlatform(DiscIO::Platform::WiiDisc);
-  case SettingsWindowPaneIndex::Triforce:
-    return Resources::GetPlatform(DiscIO::Platform::Triforce);
-  case SettingsWindowPaneIndex::Advanced:
-    return parent->style()->standardIcon(QStyle::SP_MessageBoxWarning);
+    QPixmap pixmap =
+        source.pixmap(QSize{SETTINGS_CATEGORY_ICON_SIZE, SETTINGS_CATEGORY_ICON_SIZE}, scale);
+    if (pixmap.isNull())
+      continue;
+
+    QPainter painter{&pixmap};
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    painter.end();
+    icon->addPixmap(pixmap, mode);
   }
-  return {};
+}
+
+QIcon GetSettingsCategoryIcon(SettingsWindowPaneIndex index, const QPalette& palette)
+{
+  const int icon_index = std::to_underlying(index);
+  if (icon_index < 0 || icon_index >= static_cast<int>(SETTINGS_CATEGORY_ICON_NAMES.size()))
+    return {};
+
+  const QIcon source = Resources::GetResourceIcon(SETTINGS_CATEGORY_ICON_NAMES[icon_index]);
+  QIcon icon;
+  AddTintedIconMode(&icon, source, palette.color(QPalette::Active, QPalette::Text), QIcon::Normal);
+  AddTintedIconMode(&icon, source, palette.color(QPalette::Active, QPalette::Text), QIcon::Active);
+  AddTintedIconMode(&icon, source, palette.color(QPalette::Disabled, QPalette::Text),
+                    QIcon::Disabled);
+  AddTintedIconMode(&icon, source, palette.color(QPalette::Active, QPalette::HighlightedText),
+                    QIcon::Selected);
+  return icon;
 }
 }  // namespace
 
@@ -321,53 +339,54 @@ SettingsWindow::SettingsWindow(MainWindow* parent) : StackedSettingsWindow{paren
   // If you change the order, don't forget to update the SettingsWindowPaneIndex enum.
   AddWrappedPane(
       new GeneralPane, tr("General"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::General, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::General, palette()),
       tr("<strong>General Settings</strong><hr>Configure startup behavior, emulation speed, "
          "automatic updates, and usage statistics."));
   AddPane(new GraphicsPane{parent, nullptr}, tr("Graphics"),
-          GetSettingsCategoryIcon(SettingsWindowPaneIndex::Graphics, this),
+          GetSettingsCategoryIcon(SettingsWindowPaneIndex::Graphics, palette()),
           tr("<strong>Graphics Settings</strong><hr>Choose the rendering backend and configure "
              "display, enhancements, graphics hacks, and advanced graphics options."));
   AddWrappedPane(
       new ControllersPane, tr("Controllers"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Controllers, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Controllers, palette()),
       tr("<strong>Controller Settings</strong><hr>Configure GameCube controllers, Wii Remotes, "
          "adapters, and input sources."));
   AddWrappedPane(
       new InterfacePane, tr("Interface"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Interface, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Interface, palette()),
       tr("<strong>Interface Settings</strong><hr>Control Dolphin's appearance, language, prompts, "
          "hotkeys, and window behavior."));
   AddWrappedPane(
       new OnScreenDisplayPane, tr("On-Screen Display"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::OnScreenDisplay, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::OnScreenDisplay, palette()),
       tr("<strong>On-Screen Display Settings</strong><hr>Choose which performance, input, and "
          "system messages Dolphin shows over games."));
   AddWrappedPane(
-      new AudioPane, tr("Audio"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Audio, this),
+      new AudioPane, tr("Audio"),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Audio, palette()),
       tr("<strong>Audio Settings</strong><hr>Configure the DSP engine, audio backend, volume, "
          "latency, and Wii Remote audio."));
   AddWrappedPane(
-      new PathPane, tr("Paths"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Paths, this),
+      new PathPane, tr("Paths"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Paths, palette()),
       tr("<strong>Path Settings</strong><hr>Choose the folders Dolphin scans and uses for games, "
          "saves, screenshots, and other data."));
   AddWrappedPane(
       new GameCubePane{parent}, tr("GameCube"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::GameCube, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::GameCube, palette()),
       tr("<strong>GameCube Settings</strong><hr>Configure GameCube system language, memory cards, "
          "devices, and broadband adapter behavior."));
   AddWrappedPane(
-      new WiiPane, tr("Wii"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Wii, this),
+      new WiiPane, tr("Wii"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Wii, palette()),
       tr("<strong>Wii Settings</strong><hr>Configure Wii system language, storage, input devices, "
          "and network services."));
   AddWrappedPane(
       new TriforcePane, tr("Triforce"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Triforce, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Triforce, palette()),
       tr("<strong>Triforce Settings</strong><hr>Configure Triforce controllers and IP address "
          "redirections."));
   AddWrappedPane(
       new AdvancedPane, tr("Advanced"),
-      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Advanced, this),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::Advanced, palette()),
       tr("<strong>Advanced Settings</strong><hr>Configure CPU, timing, custom clock, memory, and "
          "other expert options."));
 
@@ -391,6 +410,7 @@ void SettingsWindow::UpdateCategoryIcons()
   for (int index = std::to_underlying(SettingsWindowPaneIndex::General);
        index <= std::to_underlying(SettingsWindowPaneIndex::Advanced); ++index)
   {
-    SetPaneIcon(index, GetSettingsCategoryIcon(static_cast<SettingsWindowPaneIndex>(index), this));
+    SetPaneIcon(index,
+                GetSettingsCategoryIcon(static_cast<SettingsWindowPaneIndex>(index), palette()));
   }
 }
