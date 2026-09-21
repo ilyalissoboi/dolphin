@@ -514,8 +514,10 @@ add_executable(dolphin-emu
   SkylanderPortal/SkylanderPortalWindow.h
   TAS/GCTASInputWindow.cpp
   TAS/GCTASInputWindow.h
+  TAS/GCTASInputWindow.ui
   TAS/GBATASInputWindow.cpp
   TAS/GBATASInputWindow.h
+  TAS/GBATASInputWindow.ui
   TAS/IRWidget.cpp
   TAS/IRWidget.h
   TAS/StickWidget.cpp
@@ -526,12 +528,14 @@ add_executable(dolphin-emu
   TAS/TASControlState.h
   TAS/TASInputWindow.cpp
   TAS/TASInputWindow.h
+  TAS/TASInputWindow.ui
   TAS/TASSlider.cpp
   TAS/TASSlider.h
   TAS/TASSpinBox.cpp
   TAS/TASSpinBox.h
   TAS/WiiTASInputWindow.cpp
   TAS/WiiTASInputWindow.h
+  TAS/WiiTASInputWindow.ui
   ToolBar.cpp
   ToolBar.h
   Translation.cpp

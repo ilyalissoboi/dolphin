@@ -39,6 +39,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   SettingsWindowUiTest.cpp
   SetupWizardPolicyTest.cpp
   SetupWizardUiTest.cpp
+  TasUiTest.cpp
   TriforcePaneUiTest.cpp
   WiiPaneUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
@@ -115,6 +116,10 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/PathPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/TriforcePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/WiiPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/GCTASInputWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/GBATASInputWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/TASInputWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS/WiiTASInputWindow.ui
   # ToolTipStyle reads Config::MAIN_USE_HIGH_CONTRAST_TOOLTIPS, which pulls in MainSettings.cpp and
   # with it the Host_* callbacks. StubHost.cpp includes Core/Host.h, so every stub signature is
   # compiler-checked against the declaration.
@@ -130,7 +135,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/TAS"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core
