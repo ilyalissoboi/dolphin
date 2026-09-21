@@ -1,6 +1,6 @@
 # Declarative UI Slice 21: NetPlay
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Move the NetPlay setup, browser, room, mapping, selection, digest, and transfer dialogs
 to Qt Designer forms without changing networking behavior.
@@ -39,14 +39,29 @@ this branch, so NetPlay continues as slice 21.
 
 - [x] Build DolphinQt and both test binaries on macOS and run both test suites.
 - [x] Review the NetPlay setup, browser, and room surfaces on macOS.
-- [ ] Build and run both test binaries on Windows.
-- [ ] Review the NetPlay setup, browser, and room surfaces on Windows.
-- [ ] Remove temporary profiles, scripts, captures, and transferred source changes from both
+- [x] Build and run both test binaries on Windows.
+- [x] Review the NetPlay setup, browser, and room surfaces on Windows.
+- [x] Remove temporary profiles, scripts, captures, and transferred source changes from both
   hosts.
 
 ## Definition of done
 
 - [x] No `new Q*Layout` construction remains in `DolphinQt/NetPlay`.
-- [ ] NetPlay retains its existing behavior, strings, dynamic population, and feature flags.
+- [x] NetPlay retains its existing behavior, strings, dynamic population, and feature flags.
 - [x] Every new form opens as stock or explicitly promoted Qt widgets in Designer.
-- [ ] macOS and Windows builds, tests, extraction, and native review pass.
+- [x] macOS and Windows builds, tests, extraction, and native review pass.
+
+## Verification
+
+- All seven forms pass XML validation and Qt `uic` generation. UI translation extraction passes.
+- macOS builds `dolphin-emu`, `qt-tests`, and `tests`. Qt passes 150/150 tests; core passes
+  1,185/1,187 tests with the two expected preset-dependent skips.
+- Native macOS review covers the connection and hosting tabs, session browser, room controls,
+  player table, chat pane, and room menus.
+- Windows builds `dolphin-emu`, `qt-tests`, and `tests` with MSVC. Qt passes 150/150 tests; core
+  passes 1,507/1,509 tests with the same two expected skips.
+- Native Windows review covers the setup, browser, and room forms with the repository's Qt 6.8.3
+  runtime. It exposed an expanding room menu bar; the form now fixes its vertical size policy and
+  the Qt test asserts that constraint. The corrected room recapture is compact and unclipped.
+- The Windows checkout is reset to its original clean commit. Temporary scheduled tasks,
+  processes, patches, scripts, harnesses, profiles, and captures were removed from both hosts.
