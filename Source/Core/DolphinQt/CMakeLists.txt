@@ -131,12 +131,15 @@ add_executable(dolphin-emu
   Config/ConfigControls/ConfigUserPath.h
   Config/ControllerInterface/ControllerInterfaceWindow.cpp
   Config/ControllerInterface/ControllerInterfaceWindow.h
+  Config/ControllerInterface/ControllerInterfaceWindow.ui
   Config/SDLHints/SDLHintsWindow.cpp
   Config/SDLHints/SDLHintsWindow.h
   Config/ControllerInterface/DualShockUDPClientEditServerDialog.cpp
   Config/ControllerInterface/DualShockUDPClientEditServerDialog.h
+  Config/ControllerInterface/DualShockUDPClientEditServerDialog.ui
   Config/ControllerInterface/DualShockUDPClientWidget.cpp
   Config/ControllerInterface/DualShockUDPClientWidget.h
+  Config/ControllerInterface/DualShockUDPClientWidget.ui
   Config/ControllerInterface/DualShockUDPSettings.cpp
   Config/ControllerInterface/DualShockUDPSettings.h
   Config/ControllerInterface/ServerStringValidator.cpp
@@ -198,16 +201,19 @@ add_executable(dolphin-emu
   Config/Mapping/FreeLookGeneral.h
   Config/Mapping/FreeLookRotation.cpp
   Config/Mapping/FreeLookRotation.h
+  Config/Mapping/FreeLookRotation.ui
   Config/Mapping/GBAPadEmu.cpp
   Config/Mapping/GBAPadEmu.h
   Config/Mapping/GCKeyboardEmu.cpp
   Config/Mapping/GCKeyboardEmu.h
+  Config/Mapping/GCKeyboardEmu.ui
   Config/Mapping/GCMicrophone.cpp
   Config/Mapping/GCMicrophone.h
   Config/Mapping/GCPadEmu.cpp
   Config/Mapping/GCPadEmu.h
   Config/Mapping/GCPadWiiUConfigDialog.cpp
   Config/Mapping/GCPadWiiUConfigDialog.h
+  Config/Mapping/GCPadWiiUConfigDialog.ui
   Config/Mapping/Hotkey3D.cpp
   Config/Mapping/Hotkey3D.h
   Config/Mapping/HotkeyControllerProfile.cpp
@@ -231,6 +237,7 @@ add_executable(dolphin-emu
   Config/Mapping/HotkeyWii.cpp
   Config/Mapping/HotkeyWii.h
   Config/Mapping/IOWindow.cpp
+  Config/Mapping/IOWindow.ui
   Config/Mapping/MappingButton.cpp
   Config/Mapping/MappingButton.h
   Config/Mapping/MappingCommon.cpp
@@ -243,18 +250,25 @@ add_executable(dolphin-emu
   Config/Mapping/MappingWidget.h
   Config/Mapping/MappingWindow.cpp
   Config/Mapping/MappingWindow.h
+  Config/Mapping/MappingGridPage.ui
+  Config/Mapping/MappingHorizontalPage.ui
+  Config/Mapping/MappingWindow.ui
   Config/Mapping/WiimoteEmuExtension.cpp
   Config/Mapping/WiimoteEmuExtension.h
+  Config/Mapping/WiimoteEmuExtension.ui
   Config/Mapping/WiimoteEmuExtensionMotionInput.cpp
   Config/Mapping/WiimoteEmuExtensionMotionInput.h
+  Config/Mapping/WiimoteEmuExtensionMotionInput.ui
   Config/Mapping/WiimoteEmuExtensionMotionSimulation.cpp
   Config/Mapping/WiimoteEmuExtensionMotionSimulation.h
+  Config/Mapping/WiimoteEmuExtensionMotionSimulation.ui
   Config/Mapping/WiimoteEmuGeneral.cpp
   Config/Mapping/WiimoteEmuGeneral.h
   Config/Mapping/WiimoteEmuMotionControl.cpp
   Config/Mapping/WiimoteEmuMotionControl.h
   Config/Mapping/WiimoteEmuMotionControlIMU.cpp
   Config/Mapping/WiimoteEmuMotionControlIMU.h
+  Config/Mapping/WiimoteEmuMotionControlIMU.ui
   Config/NewPatchDialog.cpp
   Config/NewPatchDialog.h
   Config/PatchesWidget.cpp

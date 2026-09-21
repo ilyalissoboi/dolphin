@@ -29,6 +29,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   GeneralPaneUiTest.cpp
   InterfacePaneUiTest.cpp
   MainWindowUiTest.cpp
+  MappingUiTest.cpp
   NetPlayUiTest.cpp
   OnScreenDisplayPaneUiTest.cpp
   PathPaneUiTest.cpp
@@ -86,11 +87,25 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/GameConfigWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/GamecubeControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/WiimoteControllersWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface/ControllerInterfaceWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface/DualShockUDPClientEditServerDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface/DualShockUDPClientWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/AdvancedWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/EnhancementsWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GeneralWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/GraphicsPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/HacksWidget.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/FreeLookRotation.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/GCKeyboardEmu.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/GCPadWiiUConfigDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/IOWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/MappingGridPage.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/MappingHorizontalPage.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/MappingWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/WiimoteEmuExtension.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/WiimoteEmuExtensionMotionInput.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/WiimoteEmuExtensionMotionSimulation.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping/WiimoteEmuMotionControlIMU.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AdvancedPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GeneralPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GameCubePane.ui
@@ -115,7 +130,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllerInterface;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Mapping;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core
