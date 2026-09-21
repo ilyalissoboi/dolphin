@@ -72,6 +72,7 @@ PRIVATE
 add_executable(dolphin-emu
   AboutDialog.cpp
   AboutDialog.h
+  AboutDialog.ui
   CheatSearchFactoryWidget.cpp
   CheatSearchFactoryWidget.h
   CheatSearchWidget.cpp
@@ -326,6 +327,7 @@ add_executable(dolphin-emu
   DiscordHandler.h
   DiscordJoinRequestDialog.cpp
   DiscordJoinRequestDialog.h
+  DiscordJoinRequestDialog.ui
   EmulatedUSB/WiiSpeakWindow.cpp
   EmulatedUSB/WiiSpeakWindow.h
   EmulatedUSB/LogitechMicWindow.cpp
@@ -353,6 +355,7 @@ add_executable(dolphin-emu
   GameList/ListProxyModel.h
   GCMemcardCreateNewDialog.cpp
   GCMemcardCreateNewDialog.h
+  GCMemcardCreateNewDialog.ui
   GCMemcardManager.cpp
   GCMemcardManager.h
   Host.cpp
@@ -398,8 +401,10 @@ add_executable(dolphin-emu
   NetPlay/PadMappingDialog.ui
   NANDRepairDialog.cpp
   NANDRepairDialog.h
+  NANDRepairDialog.ui
   NKitWarningDialog.cpp
   NKitWarningDialog.h
+  NKitWarningDialog.ui
   QtUtils/AnalyticsPrompt.cpp
   QtUtils/AnalyticsPrompt.h
   QtUtils/AspectRatioWidget.cpp

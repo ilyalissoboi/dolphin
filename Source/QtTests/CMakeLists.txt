@@ -32,6 +32,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   NetPlayUiTest.cpp
   OnScreenDisplayPaneUiTest.cpp
   PathPaneUiTest.cpp
+  RootUtilityDialogsUiTest.cpp
   SettingsHelpTest.cpp
   SettingsWindowUiTest.cpp
   SetupWizardPolicyTest.cpp
@@ -62,6 +63,11 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/PadMappingDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO/FIFOAnalyzer.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO/FIFOPlayerWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/AboutDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/DiscordJoinRequestDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GCMemcardCreateNewDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NANDRepairDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NKitWarningDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllersPane.ui
