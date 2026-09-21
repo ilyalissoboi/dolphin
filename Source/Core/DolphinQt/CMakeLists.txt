@@ -332,8 +332,10 @@ add_executable(dolphin-emu
   EmulatedUSB/LogitechMicWindow.h
   FIFO/FIFOAnalyzer.cpp
   FIFO/FIFOAnalyzer.h
+  FIFO/FIFOAnalyzer.ui
   FIFO/FIFOPlayerWindow.cpp
   FIFO/FIFOPlayerWindow.h
+  FIFO/FIFOPlayerWindow.ui
   GameCount.cpp
   GameCount.h
   GameList/GameList.cpp

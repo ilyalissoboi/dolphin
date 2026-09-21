@@ -17,6 +17,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ControllersUiTest.cpp
   CoverManagerTest.cpp
   EmulationStatusWidgetTest.cpp
+  FifoUiTest.cpp
   GameConfigUiTest.cpp
   GameListUiTest.cpp
   GraphicsAdvancedUiTest.cpp
@@ -59,6 +60,8 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/NetPlayDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/NetPlaySetupDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/PadMappingDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO/FIFOAnalyzer.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO/FIFOPlayerWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllersPane.ui
@@ -95,7 +98,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/FIFO;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core
