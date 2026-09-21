@@ -20,25 +20,25 @@ this branch, so NetPlay continues as slice 21.
 
 ## Task 2: Migrate the static layouts
 
-- [ ] Add Designer forms for the setup dialog, session browser, room dialog, game selector,
+- [x] Add Designer forms for the setup dialog, session browser, room dialog, game selector,
   controller mapping, digest progress, and chunked-transfer progress.
-- [ ] Promote the existing `NonDefaultQPushButton` and `ClickBlurLabel` controls where their
-  behavior is part of the existing UI.
-- [ ] Keep dynamic progress rows and table contents in C++ while placing their containers in the
+- [x] Promote `ClickBlurLabel` and express the existing non-default button behavior as stock
+  `QPushButton` properties in the forms.
+- [x] Keep dynamic progress rows and table contents in C++ while placing their containers in the
   forms.
-- [ ] Remove all C++ layout construction from `DolphinQt/NetPlay`.
+- [x] Remove all C++ layout construction from `DolphinQt/NetPlay`.
 
 ## Task 3: Cover the form structure
 
-- [ ] Add Qt tests for each dialog shell, the setup tabs, filter controls, room menus and panes,
+- [x] Add Qt tests for each dialog shell, the setup tabs, filter controls, room menus and panes,
   mapping rows, dynamic progress containers, and keyboard order.
-- [ ] Add the NetPlay forms to the Qt test AUTOUIC search path.
-- [ ] Run translation extraction and preserve existing strings and translator comments.
+- [x] Add the NetPlay forms to the Qt test AUTOUIC search path.
+- [x] Run translation extraction and preserve existing strings and translator comments.
 
 ## Task 4: Verify and clean up
 
-- [ ] Build DolphinQt and both test binaries on macOS and run both test suites.
-- [ ] Review the NetPlay setup, browser, and room surfaces on macOS.
+- [x] Build DolphinQt and both test binaries on macOS and run both test suites.
+- [x] Review the NetPlay setup, browser, and room surfaces on macOS.
 - [ ] Build and run both test binaries on Windows.
 - [ ] Review the NetPlay setup, browser, and room surfaces on Windows.
 - [ ] Remove temporary profiles, scripts, captures, and transferred source changes from both
@@ -46,7 +46,7 @@ this branch, so NetPlay continues as slice 21.
 
 ## Definition of done
 
-- [ ] No `new Q*Layout` construction remains in `DolphinQt/NetPlay`.
+- [x] No `new Q*Layout` construction remains in `DolphinQt/NetPlay`.
 - [ ] NetPlay retains its existing behavior, strings, dynamic population, and feature flags.
-- [ ] Every new form opens as stock or explicitly promoted Qt widgets in Designer.
+- [x] Every new form opens as stock or explicitly promoted Qt widgets in Designer.
 - [ ] macOS and Windows builds, tests, extraction, and native review pass.

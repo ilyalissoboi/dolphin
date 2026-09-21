@@ -28,6 +28,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   GeneralPaneUiTest.cpp
   InterfacePaneUiTest.cpp
   MainWindowUiTest.cpp
+  NetPlayUiTest.cpp
   OnScreenDisplayPaneUiTest.cpp
   PathPaneUiTest.cpp
   SettingsHelpTest.cpp
@@ -39,6 +40,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/CoverManager.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/ClickBlurLabel.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/NonAutodismissibleMenu.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/MainWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/SetupWizardDialog.ui
@@ -50,6 +52,13 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementProgressWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementSettingsWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements/AchievementsWindow.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/ChunkedProgressDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/GameDigestDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/GameListDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/NetPlayBrowser.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/NetPlayDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/NetPlaySetupDialog.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/PadMappingDialog.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllersPane.ui
@@ -86,7 +95,7 @@ set_target_properties(qt-tests PROPERTIES AUTOMOC ON)
 set_target_properties(qt-tests PROPERTIES AUTOUIC ON)
 set_target_properties(qt-tests PROPERTIES
   AUTOUIC_SEARCH_PATHS
-    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
+    "${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Achievements;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics;${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings"
 )
 target_include_directories(qt-tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/Core

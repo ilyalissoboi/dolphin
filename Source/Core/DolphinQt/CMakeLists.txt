@@ -373,20 +373,27 @@ add_executable(dolphin-emu
   MenuBar.h
   NetPlay/ChunkedProgressDialog.cpp
   NetPlay/ChunkedProgressDialog.h
+  NetPlay/ChunkedProgressDialog.ui
   NetPlay/GameDigestDialog.cpp
   NetPlay/GameDigestDialog.h
+  NetPlay/GameDigestDialog.ui
   NetPlay/GameListDialog.cpp
   NetPlay/GameListDialog.h
+  NetPlay/GameListDialog.ui
   NetPlay/ClickBlurLabel.cpp
   NetPlay/ClickBlurLabel.h
   NetPlay/NetPlayBrowser.cpp
   NetPlay/NetPlayBrowser.h
+  NetPlay/NetPlayBrowser.ui
   NetPlay/NetPlayDialog.cpp
   NetPlay/NetPlayDialog.h
+  NetPlay/NetPlayDialog.ui
   NetPlay/NetPlaySetupDialog.cpp
   NetPlay/NetPlaySetupDialog.h
+  NetPlay/NetPlaySetupDialog.ui
   NetPlay/PadMappingDialog.cpp
   NetPlay/PadMappingDialog.h
+  NetPlay/PadMappingDialog.ui
   NANDRepairDialog.cpp
   NANDRepairDialog.h
   NKitWarningDialog.cpp
