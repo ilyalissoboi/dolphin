@@ -15,6 +15,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigSettingRegistryTest.cpp
   ControllersUiTest.cpp
   EmulationStatusWidgetTest.cpp
+  GameConfigUiTest.cpp
   GameListUiTest.cpp
   GraphicsAdvancedUiTest.cpp
   GraphicsEnhancementsUiTest.cpp
@@ -39,6 +40,8 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/SettingsWindow.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/CommonControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/ControllersPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/GameConfigEdit.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/GameConfigWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/GamecubeControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/WiimoteControllersWidget.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Config/Graphics/AdvancedWidget.ui
