@@ -18,7 +18,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,15 +60,6 @@ fun ShaderParametersScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         },
-        floatingActionButton = {
-            if (state is ShaderParametersUiState.Loaded && state.canResetAll) {
-                ExtendedFloatingActionButton(
-                    onClick = onResetAllClicked,
-                    icon = { Icon(Icons.Filled.RestartAlt, contentDescription = null) },
-                    text = { Text(stringResource(R.string.shader_parameters_reset_all)) },
-                )
-            }
-        },
     ) { padding ->
         when (state) {
             ShaderParametersUiState.Loading -> CenteredBox(padding) { CircularProgressIndicator() }
@@ -82,10 +72,12 @@ fun ShaderParametersScreen(
             is ShaderParametersUiState.Loaded -> ParameterList(
                 padding = padding,
                 rows = state.rows,
+                canResetAll = state.canResetAll,
                 openedFromGameSettings = openedFromGameSettings,
                 onSliderPositionChanged = onSliderPositionChanged,
                 onValueEntered = onValueEntered,
                 onResetClicked = onResetClicked,
+                onResetAllClicked = onResetAllClicked,
             )
         }
     }
@@ -95,33 +87,48 @@ fun ShaderParametersScreen(
 private fun ParameterList(
     padding: PaddingValues,
     rows: List<ShaderParameterRow>,
+    canResetAll: Boolean,
     openedFromGameSettings: Boolean,
     onSliderPositionChanged: (Int, Int) -> Unit,
     onValueEntered: (Int, Float) -> Unit,
     onResetClicked: (Int) -> Unit,
+    onResetAllClicked: () -> Unit,
 ) {
     // The index of the row whose value is being typed, if any.
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        // Room at the bottom so the Reset All button never covers the last row.
-        contentPadding = PaddingValues(
-            top = padding.calculateTopPadding(),
-            bottom = padding.calculateBottomPadding() + 88.dp,
-        ),
+        contentPadding = padding,
     ) {
-        if (openedFromGameSettings) {
-            // Above the parameters rather than in a tooltip: everything else on the page that led
-            // here is per-game, so this is where global values are least expected.
-            item {
+        // Reset All heads the list rather than floating over it: a floating button sits on the
+        // right-hand column, which is exactly where every row keeps its value and Reset controls.
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+            ) {
+                // Above the parameters rather than in a tooltip: everything else on the page that
+                // led here is per-game, so this is where global values are least expected.
                 Text(
-                    text = stringResource(R.string.shader_parameters_global_note),
+                    text = if (openedFromGameSettings) {
+                        stringResource(R.string.shader_parameters_global_note)
+                    } else {
+                        ""
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = onResetAllClicked, enabled = canResetAll) {
+                    Icon(Icons.Filled.RestartAlt, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.shader_parameters_reset_all),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
+            HorizontalDivider()
         }
         items(rows, key = { it.index }) { row ->
             ParameterRow(

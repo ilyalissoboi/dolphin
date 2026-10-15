@@ -104,4 +104,29 @@ then passing, and the full `tests` / `qt-tests` suites still pass.
 | `dolphin-emu` (Windows) | builds with the dialog on the shared editor |
 | `./gradlew :app:testDebugUnitTest` | `ShaderParameterInputTest` 5/5; existing 33 JVM tests pass |
 | `./gradlew :app:assembleDebug` (NDK 30.0.15729638, arm64-v8a + x86_64) | builds; `libmain.so` exports all 18 `ShaderParameterEditor` natives and `getParameterEditingAvailability` |
-| Manual device checklist (design §5) | **not run**: no device or emulator was available |
+| Manual device checklist (design §5) | run on an AYN Thor (Snapdragon 8 Gen 2, Android 13), see below |
+
+### On-device results (AYN Thor, debug APK, test preset `uitest/param-test`)
+
+| Check | Result |
+| --- | --- |
+| Row with no effect selected | "Select a post-processing effect first."; tap shows it as a toast |
+| Row on OpenGL with a preset | "Requires the Vulkan video backend." (librashader loaded, so the library check passed) |
+| Row on Vulkan | available; opens the screen in ~300 ms |
+| Preset librashader cannot parse | "Could not load preset: PreprocessError(…)" shown in place of the list |
+| Rows | description as title with the id below; id not repeated when equal; precision per step (`1.00`, `0.0`, `1`) |
+| Slider, whole steps | 0.05-step parameter lands on `1.50` |
+| Slider, range not a multiple of the step (0..1 step 0.3) | end position gives `1.0`, not `0.9`; no crash |
+| Slider, 1,000,000 whole steps | capped: mid-track gives `499500` |
+| Empty range | no slider, value button only |
+| Typed entry | `abc` rejected with "Enter a number."; `2,0` accepted as `2` |
+| Leaving the screen | `GFX.ini` gets `[LibrashaderParameters] uitest/param-test.slangp = brightness=1.500000;…` |
+| App restart | values restored |
+| Row Reset / Reset All | value back to default; Reset All removes the key from `GFX.ini` |
+| Crashes / errors in logcat | none |
+
+**Bug found and fixed:** the floating Reset All button covered the value and Reset controls of the
+row beneath it. Reset All moved into a header row at the top of the list.
+
+**Not exercised on the device:** the per-game note and a live change while a game runs. The debug
+app had no games, so there was no per-game settings page and no running game.

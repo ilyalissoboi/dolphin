@@ -189,11 +189,12 @@ function with `Librashader::GetAvailability().available`. The pointer field is r
   otherwise it launches the screen with the configured preset and whether the settings are
   per-game.
 - **`ShaderParametersActivity`** (Compose, `DolphinTheme`, edge-to-edge, `DolphinScaffold`).
-  Title "Shader Parameters - <preset leaf>" (the desktop title), back. Reset All is an extended
-  floating action button shown while any value differs from its default: `DolphinScaffold` has
-  no app-bar actions slot, and the FAB is how the app's other Compose screens place their primary
-  action. A note "Parameter values are global…" when opened from per-game settings. Body states:
-  loading (spinner), error / no-parameters (centred message), list.
+  Title "Shader Parameters - <preset leaf>" (the desktop title), back. The list opens with a
+  header row: the note "Parameter values are global…" when opened from per-game settings, and a
+  Reset All button, enabled while any value differs from its default. (`DolphinScaffold` has no
+  app-bar actions slot. A floating button was tried first and dropped after device testing: it
+  sits over the right-hand column, which is where every row keeps its value and Reset controls.)
+  Body states: loading (spinner), error / no-parameters (centred message), list.
 - **Row.** Label = description (fallback: name), secondary text = name. A `Slider` over
   `0f..positions` with no tick steps (thousands of ticks are unusable), rounded to an integer
   position on change. The value text is a button that opens a numeric entry dialog (parses
