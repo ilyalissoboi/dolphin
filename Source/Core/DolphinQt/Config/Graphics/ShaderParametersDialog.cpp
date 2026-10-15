@@ -3,8 +3,7 @@
 
 #include "DolphinQt/Config/Graphics/ShaderParametersDialog.h"
 
-#include <algorithm>
-#include <cmath>
+#include <utility>
 
 #include <QApplication>
 #include <QDoubleSpinBox>
@@ -17,9 +16,8 @@
 #include <QSlider>
 #include <QVBoxLayout>
 
-#include "VideoCommon/PostProcessing/LibrashaderPostProcessing.h"
+#include "VideoCommon/PostProcessing/ShaderParameterEditor.h"
 
-namespace Parameters = VideoCommon::LibrashaderParameters;
 
 ShaderParametersDialog::ShaderParametersDialog(QWidget* parent, const QString& preset,
                                                bool opened_from_game_properties)
@@ -37,13 +35,11 @@ ShaderParametersDialog::ShaderParametersDialog(QWidget* parent, const QString& p
 
   CreateWidgets(opened_from_game_properties);
 
-  const std::string path = VideoCommon::ResolvePresetPath(preset_id);
-  m_key = Parameters::KeyForPreset(path, preset_id);
-  if (!LoadParameters(path))
+  m_editor = VideoCommon::ShaderParameterEditor::Open(preset_id);
+  if (!ShowLoadStatus())
     return;
 
   BuildRows();
-  ApplyOverrides(Parameters::Load(m_key));
 }
 
 void ShaderParametersDialog::CreateWidgets(bool opened_from_game_properties)
@@ -93,44 +89,36 @@ void ShaderParametersDialog::CreateWidgets(bool opened_from_game_properties)
   connect(close, &QPushButton::clicked, this, &QDialog::accept);
 }
 
-bool ShaderParametersDialog::LoadParameters(const std::string& absolute_preset_path)
+bool ShaderParametersDialog::ShowLoadStatus()
 {
-  std::vector<Parameters::ParameterInfo> params;
-  std::string error;
-  if (absolute_preset_path.empty() || !Parameters::Enumerate(absolute_preset_path, &params, &error))
+  using Status = VideoCommon::ShaderParameterEditor::Status;
+  switch (m_editor->GetStatus())
   {
-    m_status->setText(tr("Could not load preset: %1")
-                          .arg(absolute_preset_path.empty() ? tr("invalid preset path") :
-                                                              QString::fromStdString(error)));
+  case Status::Error:
+    m_status->setText(
+        tr("Could not load preset: %1").arg(QString::fromStdString(m_editor->GetError())));
     m_reset_all->setEnabled(false);
     return false;
-  }
-
-  if (params.empty())
-  {
+  case Status::NoParameters:
     m_status->setText(tr("This preset has no adjustable parameters."));
     m_reset_all->setEnabled(false);
     return false;
+  case Status::Ok:
+    break;
   }
 
   m_status->hide();
-  m_rows.reserve(params.size());
-  for (Parameters::ParameterInfo& info : params)
-  {
-    Row row;
-    row.value = info.initial;
-    row.info = std::move(info);
-    m_rows.push_back(std::move(row));
-  }
   return true;
 }
 
 void ShaderParametersDialog::BuildRows()
 {
-  for (size_t i = 0; i < m_rows.size(); i++)
+  const auto& rows = m_editor->GetRows();
+  m_rows.resize(rows.size());
+  for (size_t i = 0; i < rows.size(); i++)
   {
-    Row& row = m_rows[i];
-    const Parameters::ParameterInfo& info = row.info;
+    const VideoCommon::LibrashaderParameters::ParameterInfo& info = rows[i].info;
+    RowWidgets& widgets = m_rows[i];
     const int grid_row = static_cast<int>(i);
 
     // The label is the human-readable description, falling back to the id when a shader declares
@@ -144,78 +132,59 @@ void ShaderParametersDialog::BuildRows()
     label->setToolTip(QString::fromStdString(info.name));
     m_grid->addWidget(label, grid_row, 0);
 
-    // A slider needs at least one whole step: has_range rules out a non-positive step and an
-    // inverted range, whole_steps rules out a range narrower than a single step (those have no
-    // usable positions, so they get the spin box alone).
-    const bool has_range = (info.step > 0.0f && info.maximum > info.minimum);
-    const double whole_steps =
-        has_range ? std::round((info.maximum - info.minimum) / info.step) : 0.0;
-    const bool degenerate = (whole_steps < 1.0);
-    if (!degenerate)
+    // The slider's positions and what they mean are the editor's (VideoCommon::SliderMapping); a
+    // parameter whose range has no usable positions gets the spin box alone.
+    if (rows[i].slider.positions > 0)
     {
-      // One position per whole step, so a position is exactly minimum + p * step. Ranges with more
-      // steps than the slider can carry are capped, which stretches the increment.
-      const int steps =
-          static_cast<int>(std::min<double>(whole_steps, static_cast<double>(MAX_SLIDER_STEPS)));
-      row.slider_increment =
-          (whole_steps <= static_cast<double>(MAX_SLIDER_STEPS)) ?
-              info.step :
-              (info.maximum - info.minimum) / static_cast<float>(MAX_SLIDER_STEPS);
-      row.slider = new QSlider(Qt::Horizontal);
-      row.slider->setRange(0, steps);
-      row.slider->setMinimumWidth(180);
-      row.slider->setFocusPolicy(Qt::StrongFocus);
-      row.slider->installEventFilter(this);
-      m_grid->addWidget(row.slider, grid_row, 1);
-      connect(row.slider, &QSlider::valueChanged, this, [this, i](int pos) {
-        Row& r = m_rows[i];
-        // The last position is the maximum exactly, even when the range is not a whole number of
-        // steps.
-        float v = (pos >= r.slider->maximum()) ?
-                      r.info.maximum :
-                      r.info.minimum + static_cast<float>(pos) * r.slider_increment;
-        // The position nearest the default *is* the default: minimum + p * step accumulates float
-        // noise on wide ranges, which would leave Reset enabled at the default position and persist
-        // that noise.
-        if (std::abs(v - r.info.initial) < r.slider_increment * 0.5f)
-          v = r.info.initial;
-        OnValueEdited(r, v);
+      widgets.slider = new QSlider(Qt::Horizontal);
+      widgets.slider->setRange(0, rows[i].slider.positions);
+      widgets.slider->setMinimumWidth(180);
+      widgets.slider->setFocusPolicy(Qt::StrongFocus);
+      widgets.slider->installEventFilter(this);
+      m_grid->addWidget(widgets.slider, grid_row, 1);
+      connect(widgets.slider, &QSlider::valueChanged, this, [this, i](int position) {
+        if (!m_updating && m_editor->SetSliderPosition(i, position))
+          RefreshRow(i);
       });
     }
 
-    row.spin = new QDoubleSpinBox();
+    widgets.spin = new QDoubleSpinBox();
     // Decimals first: QDoubleSpinBox rounds the range and the step to the current precision, so
     // setting them the other way round quantises both.
-    row.spin->setDecimals(Parameters::DecimalsForStep(info.step));
-    if (has_range)
+    widgets.spin->setDecimals(VideoCommon::LibrashaderParameters::DecimalsForStep(info.step));
+    if (info.step > 0.0f && info.maximum > info.minimum)
     {
       // Includes the sub-step ranges that lost their slider: the preset's range still applies.
-      row.spin->setRange(info.minimum, info.maximum);
-      row.spin->setSingleStep(info.step);
+      widgets.spin->setRange(info.minimum, info.maximum);
+      widgets.spin->setSingleStep(info.step);
     }
     else
     {
-      row.spin->setRange(-1.0e9, 1.0e9);
-      row.spin->setSingleStep(info.step > 0.0f ? info.step : 1.0);
+      widgets.spin->setRange(-1.0e9, 1.0e9);
+      widgets.spin->setSingleStep(info.step > 0.0f ? info.step : 1.0);
     }
-    row.spin->setMinimumWidth(90);
+    widgets.spin->setMinimumWidth(90);
     // Typing a multi-digit value would otherwise fire an edit per keystroke.
-    row.spin->setKeyboardTracking(false);
-    row.spin->setFocusPolicy(Qt::StrongFocus);
-    row.spin->installEventFilter(this);
-    m_grid->addWidget(row.spin, grid_row, 2);
-    connect(row.spin, &QDoubleSpinBox::valueChanged, this,
-            [this, i](double v) { OnValueEdited(m_rows[i], static_cast<float>(v)); });
+    widgets.spin->setKeyboardTracking(false);
+    widgets.spin->setFocusPolicy(Qt::StrongFocus);
+    widgets.spin->installEventFilter(this);
+    m_grid->addWidget(widgets.spin, grid_row, 2);
+    connect(widgets.spin, &QDoubleSpinBox::valueChanged, this, [this, i](double value) {
+      if (!m_updating && m_editor->SetValue(i, static_cast<float>(value)))
+        RefreshRow(i);
+    });
 
-    row.reset = new QPushButton(tr("Reset"));
-    m_grid->addWidget(row.reset, grid_row, 3);
-    connect(row.reset, &QPushButton::clicked, this,
-            [this, i] { OnValueEdited(m_rows[i], m_rows[i].info.initial); });
+    widgets.reset = new QPushButton(tr("Reset"));
+    m_grid->addWidget(widgets.reset, grid_row, 3);
+    connect(widgets.reset, &QPushButton::clicked, this, [this, i] {
+      if (m_editor->Reset(i))
+        RefreshRow(i);
+    });
 
-    RefreshRowWidgets(row);
+    RefreshRow(i);
   }
   m_grid->setColumnStretch(1, 1);
-  m_grid->setRowStretch(static_cast<int>(m_rows.size()), 1);
+  m_grid->setRowStretch(static_cast<int>(rows.size()), 1);
 }
 
 bool ShaderParametersDialog::eventFilter(QObject* watched, QEvent* event)
@@ -232,98 +201,29 @@ bool ShaderParametersDialog::eventFilter(QObject* watched, QEvent* event)
   return QDialog::eventFilter(watched, event);
 }
 
-void ShaderParametersDialog::ApplyOverrides(const Parameters::Overrides& overrides)
+void ShaderParametersDialog::RefreshRow(size_t index)
 {
-  for (Row& row : m_rows)
-  {
-    float value = row.info.initial;
-    const auto it = std::ranges::find_if(
-        overrides, [&row](const auto& pair) { return pair.first == row.info.name; });
-    if (it != overrides.end())
-    {
-      value = it->second;
-      // A persisted value outside the preset's declared range is clamped into it, and the clamped
-      // value is what the next edit pushes and persists.
-      if (row.info.maximum > row.info.minimum)
-        value = std::clamp(value, row.info.minimum, row.info.maximum);
-    }
-    SetRowValue(row, value);
-  }
-}
-
-void ShaderParametersDialog::SetRowValue(Row& row, float value)
-{
-  row.value = value;
-  RefreshRowWidgets(row);
-}
-
-void ShaderParametersDialog::RefreshRowWidgets(Row& row)
-{
+  // The slider and the spin box each drive the other, so without the guard an edit to either
+  // oscillates between them.
   const bool was_updating = m_updating;
   m_updating = true;
-  if (row.slider != nullptr)
-  {
-    const int position =
-        static_cast<int>(std::lround((row.value - row.info.minimum) / row.slider_increment));
-    row.slider->setValue(std::clamp(position, 0, row.slider->maximum()));
-  }
-  row.spin->setValue(row.value);
-  row.reset->setEnabled(!IsDefault(row));
+  RowWidgets& widgets = m_rows[index];
+  if (widgets.slider != nullptr)
+    widgets.slider->setValue(m_editor->GetSliderPosition(index));
+  widgets.spin->setValue(m_editor->GetRows()[index].value);
+  widgets.reset->setEnabled(!m_editor->IsDefault(index));
   m_updating = was_updating;
-}
-
-bool ShaderParametersDialog::IsDefault(const Row& row) const
-{
-  return Parameters::IsDefaultValue(row.value, row.info.initial);
-}
-
-Parameters::Overrides ShaderParametersDialog::CollectOverrides() const
-{
-  // Only the non-default values are persisted, so resetting a parameter removes it instead of
-  // writing the default back -- which is how a preset's own defaults can change on a pack update
-  // without users being pinned to the old ones.
-  Parameters::Overrides overrides;
-  for (const Row& row : m_rows)
-  {
-    if (!IsDefault(row))
-      overrides.emplace_back(row.info.name, row.value);
-  }
-  return overrides;
-}
-
-void ShaderParametersDialog::OnValueEdited(Row& row, float value)
-{
-  if (m_updating)
-    return;
-  if (std::abs(value - row.value) < 1e-7f)
-    return;
-
-  SetRowValue(row, value);
-  SaveOverrides();
 }
 
 void ShaderParametersDialog::OnResetAllClicked()
 {
-  for (Row& row : m_rows)
-    SetRowValue(row, row.info.initial);
-  SaveOverrides();
-}
-
-void ShaderParametersDialog::SaveOverrides()
-{
-  // PCSX2 debounces this write behind a timer and pushes to the live chain separately, because its
-  // write goes through Host::CommitBaseSettingChanges(), which writes the INI. Neither is ported,
-  // deliberately: Config::Layer::Set is in-memory only -- it assigns into the layer's map and sets
-  // a dirty flag -- and the INI is written by Config::Save() when the settings window closes. So
-  // there is no disk write here to debounce, and nothing a slider drag could thrash.
-  //
-  // The live chain is reached by the generation counter Save bumps, which it polls per frame. It
-  // then pushes *every* parameter rather than only the ones stored here, because a chain remembers
-  // the last value it was given and a reset therefore has to send the default explicitly; that push
-  // lives in LibrashaderPostProcessing::ApplyStoredOverrides().
-  //
-  // The write is to the base layer whichever page opened this dialog, so parameter values are
-  // global. That is a known limitation rather than an oversight -- see the note CreateWidgets adds
-  // when the caller is a game's own graphics page.
-  Parameters::Save(m_key, CollectOverrides());
+  // Edits are stored as they happen (ShaderParameterEditor persists every change to the base layer
+  // in memory; the INI is written by Config::Save() when the settings window closes) and reach a
+  // running chain through the generation counter it polls per frame, so a preset can be tuned while
+  // a game is on screen. The values are global whichever page opened this dialog -- see the note
+  // CreateWidgets adds when the caller is a game's own graphics page.
+  if (!m_editor->ResetAll())
+    return;
+  for (size_t i = 0; i < m_rows.size(); i++)
+    RefreshRow(i);
 }
