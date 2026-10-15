@@ -294,6 +294,62 @@
        </layout>
       </widget>
      </item>
+     <item>
+      <widget class="QGroupBox" name="gbaRoutingGroup">
+       <property name="title">
+        <string>GBA Audio Routing</string>
+       </property>
+       <layout class="QGridLayout" name="gbaRoutingLayout">
+        <item row="0" column="0" colspan="2">
+         <widget class="QCheckBox" name="gbaRoutingCheckBox">
+          <property name="text">
+           <string>Enable GBA Audio Routing</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QCheckBox" name="gba1CheckBox">
+          <property name="text">
+           <string notr="true"/>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="gba1DeviceComboBox"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QCheckBox" name="gba2CheckBox">
+          <property name="text">
+           <string notr="true"/>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="gba2DeviceComboBox"/>
+        </item>
+        <item row="3" column="0">
+         <widget class="QCheckBox" name="gba3CheckBox">
+          <property name="text">
+           <string notr="true"/>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QComboBox" name="gba3DeviceComboBox"/>
+        </item>
+        <item row="4" column="0">
+         <widget class="QCheckBox" name="gba4CheckBox">
+          <property name="text">
+           <string notr="true"/>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QComboBox" name="gba4DeviceComboBox"/>
+        </item>
+       </layout>
+      </widget>
+     </item>
     </layout>
    </item>
    <item>
@@ -332,6 +388,15 @@
   <tabstop>wiimote3DeviceComboBox</tabstop>
   <tabstop>wiimote4CheckBox</tabstop>
   <tabstop>wiimote4DeviceComboBox</tabstop>
+  <tabstop>gbaRoutingCheckBox</tabstop>
+  <tabstop>gba1CheckBox</tabstop>
+  <tabstop>gba1DeviceComboBox</tabstop>
+  <tabstop>gba2CheckBox</tabstop>
+  <tabstop>gba2DeviceComboBox</tabstop>
+  <tabstop>gba3CheckBox</tabstop>
+  <tabstop>gba3DeviceComboBox</tabstop>
+  <tabstop>gba4CheckBox</tabstop>
+  <tabstop>gba4DeviceComboBox</tabstop>
  </tabstops>
  <resources/>
  <connections/>

@@ -98,7 +98,7 @@ TEST(AdvancedPaneUiTest, FormOwnsTheAdvancedSettingsStructure)
   EXPECT_EQ(ui.mem1Slider->minimum(), 24);
   EXPECT_EQ(ui.mem1Slider->maximum(), 64);
   EXPECT_EQ(ui.mem2Slider->minimum(), 64);
-  EXPECT_EQ(ui.mem2Slider->maximum(), 128);
+  EXPECT_EQ(ui.mem2Slider->maximum(), 256);
 
   ASSERT_EQ(ui.customRtcLayout->count(), 2);
   EXPECT_EQ(ui.customRtcLayout->itemAt(0)->widget(), ui.customRtcCheckBox);

@@ -30,6 +30,7 @@ private:
   void OnDspChanged();
 
   void UpdateWiimoteRoutingEnabled();
+  void UpdateGBARoutingEnabled();
 
   void CheckNeedForLatencyControl();
   bool m_latency_control_supported = false;

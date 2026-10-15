@@ -39,11 +39,12 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_EQ(ui.rootLayout->itemAt(1)->layout(), ui.mainColumnLayout);
   EXPECT_NE(ui.rootLayout->itemAt(2)->spacerItem(), nullptr);
 
-  ASSERT_EQ(ui.mainColumnLayout->count(), 4);
+  ASSERT_EQ(ui.mainColumnLayout->count(), 5);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(0)->widget(), ui.dspGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(1)->widget(), ui.backendGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(2)->widget(), ui.playbackGroup);
   EXPECT_EQ(ui.mainColumnLayout->itemAt(3)->widget(), ui.wiimoteRoutingGroup);
+  EXPECT_EQ(ui.mainColumnLayout->itemAt(4)->widget(), ui.gbaRoutingGroup);
 
   EXPECT_EQ(ui.dspLayout->itemAtPosition(0, 0)->widget(), ui.dspEngineLabel);
   EXPECT_EQ(ui.dspLayout->itemAtPosition(0, 1)->widget(), ui.dspEngineComboBox);
@@ -85,6 +86,12 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_EQ(ui.wiimoteRoutingLayout->itemAtPosition(4, 0)->widget(), ui.wiimote4CheckBox);
   EXPECT_EQ(ui.wiimoteRoutingLayout->itemAtPosition(4, 1)->widget(), ui.wiimote4DeviceComboBox);
 
+  EXPECT_EQ(ui.gbaRoutingLayout->itemAtPosition(0, 0)->widget(), ui.gbaRoutingCheckBox);
+  EXPECT_EQ(ui.gbaRoutingLayout->itemAtPosition(1, 0)->widget(), ui.gba1CheckBox);
+  EXPECT_EQ(ui.gbaRoutingLayout->itemAtPosition(1, 1)->widget(), ui.gba1DeviceComboBox);
+  EXPECT_EQ(ui.gbaRoutingLayout->itemAtPosition(4, 0)->widget(), ui.gba4CheckBox);
+  EXPECT_EQ(ui.gbaRoutingLayout->itemAtPosition(4, 1)->widget(), ui.gba4DeviceComboBox);
+
   ASSERT_EQ(ui.volumeLayout->count(), 2);
   EXPECT_EQ(ui.volumeLayout->itemAt(0)->widget(), ui.volumeSlider);
   EXPECT_EQ(ui.volumeLayout->itemAt(1)->widget(), ui.volumeValueLabel);
@@ -99,6 +106,7 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_LE(ui.backendGroup->geometry().right(), pane.rect().right());
   EXPECT_LE(ui.playbackGroup->geometry().right(), pane.rect().right());
   EXPECT_LE(ui.wiimoteRoutingGroup->geometry().right(), pane.rect().right());
+  EXPECT_LE(ui.gbaRoutingGroup->geometry().right(), pane.rect().right());
   EXPECT_LE(ui.volumeGroup->geometry().right(), pane.rect().right());
 
   EXPECT_EQ(NextTabFocusWidget(ui.volumeSlider), ui.dspEngineComboBox);
@@ -108,5 +116,6 @@ TEST(AudioPaneUiTest, FormOwnsTheAudioSettingsStructure)
   EXPECT_EQ(NextTabFocusWidget(ui.latencySlider), ui.dolbyProLogicCheckBox);
   EXPECT_EQ(NextTabFocusWidget(ui.dolbyQualityComboBox), ui.audioBufferSizeSlider);
   EXPECT_EQ(NextTabFocusWidget(ui.muteOnUnlimitedSpeedCheckBox), ui.wiimoteRoutingCheckBox);
-  EXPECT_EQ(NextTabFocusWidget(ui.wiimote4DeviceComboBox), ui.volumeSlider);
+  EXPECT_EQ(NextTabFocusWidget(ui.wiimote4DeviceComboBox), ui.gbaRoutingCheckBox);
+  EXPECT_EQ(NextTabFocusWidget(ui.gba4DeviceComboBox), ui.volumeSlider);
 }

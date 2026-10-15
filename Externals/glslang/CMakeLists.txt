@@ -19,3 +19,8 @@ if (TARGET glslang)
   )
   dolphin_disable_warnings(glslang)
 endif()
+
+# Only built for SlangCompileTest; its C API shim trips MSVC's /WX on strncpy (C4996).
+if (TARGET glslang-default-resource-limits)
+  dolphin_disable_warnings(glslang-default-resource-limits)
+endif()

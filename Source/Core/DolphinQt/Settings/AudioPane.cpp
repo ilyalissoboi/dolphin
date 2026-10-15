@@ -31,6 +31,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/WiimoteSettings.h"
 #include "Core/Core.h"
+#include "Core/HW/SI/SI_Device.h"
 #include "Core/HW/Wiimote.h"
 #include "Core/System.h"
 
@@ -135,6 +136,21 @@ void AudioPane::BindSettings()
     ConfigWidget::BindStringChoice(output_combos[i], Config::MAIN_WIIMOTE_AUDIO_OUTPUT_DEVICE[i],
                                    output_devices);
   }
+
+  ConfigWidget::Bind(m_ui->gbaRoutingCheckBox, Config::MAIN_GBA_AUDIO_ROUTING_ENABLED);
+
+  const std::array gba_checkboxes{m_ui->gba1CheckBox, m_ui->gba2CheckBox, m_ui->gba3CheckBox,
+                                  m_ui->gba4CheckBox};
+  const std::array gba_combos{m_ui->gba1DeviceComboBox, m_ui->gba2DeviceComboBox,
+                              m_ui->gba3DeviceComboBox, m_ui->gba4DeviceComboBox};
+  static_assert(gba_checkboxes.size() == Config::GBA_SPEAKER_COUNT);
+  for (std::size_t i = 0; i < Config::GBA_SPEAKER_COUNT; ++i)
+  {
+    gba_checkboxes[i]->setText(tr("GBA %1").arg(i + 1));
+    ConfigWidget::Bind(gba_checkboxes[i], Config::MAIN_GBA_AUDIO_OUTPUT_ENABLED[i]);
+    ConfigWidget::BindStringChoice(gba_combos[i], Config::MAIN_GBA_AUDIO_OUTPUT_DEVICE[i],
+                                   output_devices);
+  }
 #endif
 }
 
@@ -169,6 +185,7 @@ void AudioPane::ConfigureLayout()
 
 #ifndef HAVE_CUBEB
   m_ui->wiimoteRoutingGroup->hide();
+  m_ui->gbaRoutingGroup->hide();
 #endif
 }
 
@@ -203,10 +220,20 @@ void AudioPane::ConnectWidgets()
   {
     connect(checkbox, &QCheckBox::toggled, this, [this](bool) { UpdateWiimoteRoutingEnabled(); });
   }
+  connect(m_ui->gbaRoutingCheckBox, &QCheckBox::toggled, this,
+          [this](bool) { UpdateGBARoutingEnabled(); });
+  for (QCheckBox* checkbox :
+       {m_ui->gba1CheckBox, m_ui->gba2CheckBox, m_ui->gba3CheckBox, m_ui->gba4CheckBox})
+  {
+    connect(checkbox, &QCheckBox::toggled, this, [this](bool) { UpdateGBARoutingEnabled(); });
+  }
   // Also react to external config changes: wiimote source type, speaker data, BT passthrough.
   connect(&Settings::Instance(), &Settings::ConfigChanged, this,
           &AudioPane::UpdateWiimoteRoutingEnabled);
+  connect(&Settings::Instance(), &Settings::ConfigChanged, this,
+          &AudioPane::UpdateGBARoutingEnabled);
   UpdateWiimoteRoutingEnabled();
+  UpdateGBARoutingEnabled();
 #endif
 }
 
@@ -243,6 +270,7 @@ void AudioPane::OnBackendChanged()
 
 #ifdef HAVE_CUBEB
   UpdateWiimoteRoutingEnabled();
+  UpdateGBARoutingEnabled();
 #endif
 }
 
@@ -271,6 +299,7 @@ void AudioPane::OnEmulationStateChanged(bool running)
 
 #ifdef HAVE_CUBEB
   UpdateWiimoteRoutingEnabled();
+  UpdateGBARoutingEnabled();
 #endif
 }
 
@@ -301,6 +330,33 @@ void AudioPane::UpdateWiimoteRoutingEnabled()
 
     output_checkboxes[i]->setEnabled(routing_on && is_emulated);
     output_combos[i]->setEnabled(routing_on && is_emulated && output_checkboxes[i]->isChecked());
+  }
+#endif
+}
+
+void AudioPane::UpdateGBARoutingEnabled()
+{
+#ifdef HAVE_CUBEB
+  const bool running = Core::GetState(Core::System::GetInstance()) != Core::State::Uninitialized;
+  const bool is_cubeb = Config::Get(Config::MAIN_AUDIO_BACKEND) == BACKEND_CUBEB;
+  const bool group_usable = !running && is_cubeb;
+
+  m_ui->gbaRoutingCheckBox->setEnabled(group_usable);
+
+  const bool routing_on = group_usable && m_ui->gbaRoutingCheckBox->isChecked();
+
+  const std::array gba_checkboxes{m_ui->gba1CheckBox, m_ui->gba2CheckBox, m_ui->gba3CheckBox,
+                                  m_ui->gba4CheckBox};
+  const std::array gba_combos{m_ui->gba1DeviceComboBox, m_ui->gba2DeviceComboBox,
+                              m_ui->gba3DeviceComboBox, m_ui->gba4DeviceComboBox};
+  for (std::size_t i = 0; i < Config::GBA_SPEAKER_COUNT; ++i)
+  {
+    const u32 device_type = Config::Get(Config::GetInfoForSIDevice(static_cast<u32>(i)));
+    const bool is_gba_connected = static_cast<SerialInterface::SIDevices>(device_type) ==
+                                  SerialInterface::SIDEVICE_GC_GBA_EMULATED;
+
+    gba_checkboxes[i]->setEnabled(routing_on && is_gba_connected);
+    gba_combos[i]->setEnabled(routing_on && is_gba_connected && gba_checkboxes[i]->isChecked());
   }
 #endif
 }
@@ -420,6 +476,33 @@ void AudioPane::AddDescriptions()
                                  tr(TR_WIIMOTE_OUTPUT_ENABLE_DESCRIPTION));
     ConfigWidget::SetDescription(output_combos[i], tr("Wii Remote %1").arg(i + 1),
                                  tr(TR_WIIMOTE_OUTPUT_DEVICE_DESCRIPTION));
+  }
+
+  static const char TR_GBA_ROUTING_DESCRIPTION[] =
+      QT_TR_NOOP("Routes each GBA's speaker audio to a separate audio output device. "
+                 "This setting cannot be changed while emulation is active."
+                 "<br><br>This setting is disabled when an audio backend other than "
+                 "Cubeb is selected."
+                 "<br><br><dolphin_emphasis>If unsure, leave this unchecked.</dolphin_emphasis>");
+  static const char TR_GBA_OUTPUT_ENABLE_DESCRIPTION[] =
+      QT_TR_NOOP("Enables routing this GBA's speaker audio to a separate output device.");
+  static const char TR_GBA_OUTPUT_DEVICE_DESCRIPTION[] =
+      QT_TR_NOOP("Selects the audio output device for this GBA's speaker audio."
+                 "<br><br>This setting is disabled when this port is not set to GBA "
+                 "(Integrated).");
+
+  ConfigWidget::SetDescription(m_ui->gbaRoutingCheckBox, tr("Enable GBA Audio Routing"),
+                               tr(TR_GBA_ROUTING_DESCRIPTION));
+  const std::array gba_checkboxes{m_ui->gba1CheckBox, m_ui->gba2CheckBox, m_ui->gba3CheckBox,
+                                  m_ui->gba4CheckBox};
+  const std::array gba_combos{m_ui->gba1DeviceComboBox, m_ui->gba2DeviceComboBox,
+                              m_ui->gba3DeviceComboBox, m_ui->gba4DeviceComboBox};
+  for (std::size_t i = 0; i < Config::GBA_SPEAKER_COUNT; ++i)
+  {
+    ConfigWidget::SetDescription(gba_checkboxes[i], QString{},
+                                 tr(TR_GBA_OUTPUT_ENABLE_DESCRIPTION));
+    ConfigWidget::SetDescription(gba_combos[i], tr("GBA %1").arg(i + 1),
+                                 tr(TR_GBA_OUTPUT_DEVICE_DESCRIPTION));
   }
 #endif
 }
