@@ -94,3 +94,14 @@ then passing, and the full `tests` / `qt-tests` suites still pass.
 1. Windows: `dolphin-emu`, `tests`, `qt-tests` build and pass.
 2. Android: `./gradlew assembleDebug testDebugUnitTest` (needs the Android SDK/NDK), then the
    manual checklist in design §5.
+
+## Verification results (2026-10-15)
+
+| Check | Result |
+| --- | --- |
+| `tests` (Windows, MSVC 19.51) | 1540 passed, 2 skipped; includes 26 new `SliderMapping` / `ParameterEditingAvailability` / `ShaderParameterEditor*` tests |
+| `qt-tests` (`-platform windows`) | 192 passed |
+| `dolphin-emu` (Windows) | builds with the dialog on the shared editor |
+| `./gradlew :app:testDebugUnitTest` | `ShaderParameterInputTest` 5/5; existing 33 JVM tests pass |
+| `./gradlew :app:assembleDebug` (NDK 30.0.15729638, arm64-v8a + x86_64) | builds; `libmain.so` exports all 18 `ShaderParameterEditor` natives and `getParameterEditingAvailability` |
+| Manual device checklist (design §5) | **not run**: no device or emulator was available |
