@@ -79,7 +79,7 @@ then passing, and the full `tests` / `qt-tests` suites still pass.
 
 1. `ShaderParameterInput.parse(text): Float?` + `ShaderParameterInputTest` (JVM): accepts
    `1.5`, `1,5`, `-0.25`, surrounding blanks; rejects `""`, `abc`, `1.2.3`, `NaN`, `Infinity`.
-2. `ShaderParametersViewModel` (`UiState` = `Loading | Message(text) | Loaded(rows, canResetAll)`),
+2. `ShaderParametersViewModel` (`UiState` = `Loading | LoadFailed(reason) | NoParameters | Loaded(rows)`),
    `ShaderParametersScreen`, `ShaderParametersActivity` (`launch(context, preset, perGame)`,
    `onStop` saves the base layer), manifest entry, strings.
 

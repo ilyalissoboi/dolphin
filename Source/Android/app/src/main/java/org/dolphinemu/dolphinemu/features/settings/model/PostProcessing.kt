@@ -16,4 +16,20 @@ object PostProcessing {
      */
     @JvmStatic
     external fun downloadShaderPack(packId: String, profile: String): Int
+
+    // VideoCommon::ParameterEditingAvailability, by ordinal.
+    const val PARAMETERS_AVAILABLE = 0
+    const val PARAMETERS_NO_PRESET = 1
+    const val PARAMETERS_LIBRARY_UNAVAILABLE = 2
+    const val PARAMETERS_UNSUPPORTED_BACKEND = 3
+
+    /**
+     * Whether the shader parameter editor can be offered, as one of the PARAMETERS_* constants: the
+     * first unmet requirement among a selected preset ([presetSpec], the raw
+     * GFX_ENHANCE_POST_SHADER value), the librashader library, and a backend whose librashader
+     * runtime applies stored values ([videoBackend], the MAIN_GFX_BACKEND config name -- Vulkan on
+     * Android; OpenGL ES runs the built-in engine, which ignores them).
+     */
+    @JvmStatic
+    external fun getParameterEditingAvailability(videoBackend: String, presetSpec: String): Int
 }

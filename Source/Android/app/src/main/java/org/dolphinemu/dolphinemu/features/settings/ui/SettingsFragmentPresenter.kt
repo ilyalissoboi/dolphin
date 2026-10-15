@@ -44,6 +44,7 @@ import org.dolphinemu.dolphinemu.features.settings.model.AdHocStringSetting
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting
 import org.dolphinemu.dolphinemu.features.settings.model.FloatSetting
 import org.dolphinemu.dolphinemu.features.settings.model.IntSetting
+import org.dolphinemu.dolphinemu.features.settings.model.NativeConfig
 import org.dolphinemu.dolphinemu.features.settings.model.PostProcessing
 import org.dolphinemu.dolphinemu.features.settings.model.ScaledIntSetting
 import org.dolphinemu.dolphinemu.features.settings.model.Settings
@@ -67,6 +68,7 @@ import org.dolphinemu.dolphinemu.features.settings.model.view.SingleChoiceSettin
 import org.dolphinemu.dolphinemu.features.settings.model.view.StringSingleChoiceSetting
 import org.dolphinemu.dolphinemu.features.settings.model.view.SubmenuSetting
 import org.dolphinemu.dolphinemu.features.settings.model.view.SwitchSetting
+import org.dolphinemu.dolphinemu.features.settings.ui.shaderparameters.ShaderParametersActivity
 import org.dolphinemu.dolphinemu.utils.BooleanSupplier
 import org.dolphinemu.dolphinemu.utils.EGLHelper
 import org.dolphinemu.dolphinemu.utils.GpuDriverHelper
@@ -1708,6 +1710,33 @@ class SettingsFragmentPresenter(
             ) { openPostProcessingPicker() }
         )
 
+        // Shader parameters for the selected effect. Works during emulation: edits apply to the
+        // running game on its next frame. When the editor cannot be offered, the subtitle says why
+        // and tapping repeats it, rather than hiding a row the user may be looking for.
+        val parameterAvailability = PostProcessing.getParameterEditingAvailability(
+            StringSetting.MAIN_GFX_BACKEND.string,
+            StringSetting.GFX_ENHANCE_POST_SHADER.string
+        )
+        val parameterDescription = context.getString(
+            when (parameterAvailability) {
+                PostProcessing.PARAMETERS_AVAILABLE -> R.string.shader_parameters_description
+                PostProcessing.PARAMETERS_NO_PRESET -> R.string.shader_parameters_unavailable_no_preset
+                PostProcessing.PARAMETERS_LIBRARY_UNAVAILABLE ->
+                    R.string.shader_parameters_unavailable_library
+                else -> R.string.shader_parameters_unavailable_backend
+            }
+        )
+        sl.add(
+            RunRunnable(
+                context,
+                R.string.shader_parameters,
+                parameterDescription,
+                0,
+                0,
+                true
+            ) { openShaderParameters(parameterAvailability, parameterDescription) }
+        )
+
         sl.add(
             RunRunnable(
                 context,
@@ -3028,6 +3057,18 @@ class SettingsFragmentPresenter(
             .setNeutralButton(R.string.cancel, null)
 
         builder.show()
+    }
+
+    private fun openShaderParameters(availability: Int, unavailableReason: String) {
+        if (availability != PostProcessing.PARAMETERS_AVAILABLE) {
+            fragmentView.showToastMessage(unavailableReason)
+            return
+        }
+        ShaderParametersActivity.launch(
+            fragmentView.fragmentActivity,
+            StringSetting.GFX_ENHANCE_POST_SHADER.string,
+            settings?.writeLayer == NativeConfig.LAYER_LOCAL_GAME
+        )
     }
 
     private fun convertOnThread(f: BooleanSupplier) {
