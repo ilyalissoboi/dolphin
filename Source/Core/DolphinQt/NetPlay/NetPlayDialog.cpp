@@ -26,6 +26,7 @@
 #include "Common/Logging/Log.h"
 #include "Common/TraversalClient.h"
 #include "Core/NetPlayCommon.h"
+#include "Core/NetPlayProto.h"
 
 #include "Core/Boot/Boot.h"
 #include "Core/Config/GraphicsSettings.h"
@@ -127,6 +128,8 @@ NetPlayDialog::NetPlayDialog(const GameListModel& game_list_model,
   m_ui->playersList->horizontalHeader()->setHighlightSections(false);
   for (int i = 0; i < 4; i++)
     m_ui->playersList->horizontalHeader()->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+
+  m_ui->bufferSizeSpinBox->setMaximum(NetPlay::MAX_TARGET_PAD_BUFFER_SIZE);
 
   m_pad_mapping = new PadMappingDialog(this);
   m_game_digest_dialog = new GameDigestDialog(this);

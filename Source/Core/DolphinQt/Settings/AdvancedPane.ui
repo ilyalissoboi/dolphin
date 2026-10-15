@@ -267,7 +267,7 @@
            <number>64</number>
           </property>
           <property name="maximum">
-           <number>128</number>
+           <number>256</number>
           </property>
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
