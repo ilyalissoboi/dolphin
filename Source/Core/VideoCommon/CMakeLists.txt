@@ -176,6 +176,8 @@ add_library(videocommon
   PostProcessing/ShaderPackDownload.h
   PostProcessing/ShaderPackSource.cpp
   PostProcessing/ShaderPackSource.h
+  PostProcessing/ShaderParameterEditor.cpp
+  PostProcessing/ShaderParameterEditor.h
   PostProcessing/SlangPreset.cpp
   PostProcessing/SlangPreset.h
   PostProcessing/SlangSamplers.cpp
