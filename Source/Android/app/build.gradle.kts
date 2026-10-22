@@ -1,3 +1,6 @@
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -19,12 +22,12 @@ val downloadEmusync = tasks.register("downloadEmusync") {
     outputs.file(out)
     doLast {
         val file = out.get().asFile
-        fun digest(f: File) = java.security.MessageDigest.getInstance("SHA-256")
+        fun digest(f: File) = MessageDigest.getInstance("SHA-256")
             .digest(f.readBytes()).joinToString("") { "%02x".format(it) }
         if (file.isFile && digest(file) == sha256) return@doLast
         file.parentFile.mkdirs()
         val tmp = File(file.path + ".part")
-        java.net.URI(url).toURL().openStream().use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        URI(url).toURL().openStream().use { input -> tmp.outputStream().use { input.copyTo(it) } }
         val got = digest(tmp)
         if (got != sha256) {
             tmp.delete()
