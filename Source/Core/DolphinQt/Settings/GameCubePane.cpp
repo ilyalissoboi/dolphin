@@ -711,6 +711,17 @@ void GameCubePane::SaveSettings()
     }
 
     Config::SetBaseOrCurrent(Config::GetInfoForEXIDevice(slot), dev);
+
+    // A memory card slot set to Nothing forgets its memory card and GCI folder paths. Otherwise
+    // they stay configured but hidden, and the other slot can't use that card or folder because
+    // SetMemcard and SetGCIFolder consider it already in use.
+    if (ExpansionInterface::IsMemcardSlot(slot) && dev == ExpansionInterface::EXIDeviceType::None &&
+        Config::GetActiveLayerForConfig(Config::GetInfoForEXIDevice(slot)) ==
+            Config::LayerType::Base)
+    {
+      Config::SetBase(Config::GetInfoForMemcardPath(slot), "");
+      Config::SetBase(Config::GetInfoForGCIPath(slot), "");
+    }
   }
 
 #ifdef HAS_LIBMGBA
