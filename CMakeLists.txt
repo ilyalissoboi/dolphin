@@ -769,7 +769,7 @@ endif()
 if(ENABLE_EMUSYNC AND NOT ANDROID)
   # A plain variable, not a cache entry: a cached pin keeps its first value in an existing build
   # folder, so a bump would be silently ignored there.
-  set(EMUSYNC_PIN "9814d604f9597d55503061f07fe69c5e475ce735")
+  set(EMUSYNC_PIN "aff008132b57a68cc491a7d63bb34604f8eea467")
   if(NOT EMUSYNC_SOURCE_DIR)
     find_program(EMUSYNC_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin")
     if(NOT EMUSYNC_CARGO)
