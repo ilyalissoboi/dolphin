@@ -804,6 +804,18 @@ if(ENABLE_EMUSYNC AND NOT ANDROID)
     include("${EMUSYNC_SOURCE_DIR}/bindings/cmake/EmuSync.cmake")
   endif()
 endif()
+# Android: emusync comes from its AAR (Source/Android/app/build.gradle.kts), whose Prefab package
+# defines emusync::emusync and packages libemusync.so. Without it (CMake run outside Gradle), the
+# feature compiles out.
+if(ENABLE_EMUSYNC AND ANDROID)
+  find_package(emusync CONFIG QUIET)
+  if(TARGET emusync::emusync)
+    set(EMUSYNC_FOUND ON)
+    message(STATUS "emusync: ENABLED (AAR Prefab package)")
+  else()
+    message(STATUS "emusync: no Prefab package -> memory card sync DISABLED")
+  endif()
+endif()
 
 add_subdirectory(Externals/watcher)
 
