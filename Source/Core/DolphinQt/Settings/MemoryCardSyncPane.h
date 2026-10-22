@@ -11,6 +11,9 @@
 #include <QTimer>
 #include <QWidget>
 
+class QLineEdit;
+class QPushButton;
+
 namespace Ui
 {
 class MemoryCardSyncPane;
@@ -37,7 +40,9 @@ private:
 
   void OnSecretEdited();
   void OnPassphraseEdited();
-  void OnPassphraseShowToggled(bool shown);
+  // A Show button for the field of `secret` (MemcardSync::SECRET_ACCESS_KEY or
+  // ENCRYPTION_PASSPHRASE).
+  void OnShowToggled(QLineEdit* edit, QPushButton* show_button, const char* secret, bool shown);
   void OnPassphraseRemoveClicked();
   void OnSyncNowClicked();
   // Applies the settings in the background, storing `secrets` first.
