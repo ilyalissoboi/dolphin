@@ -24,6 +24,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -119,6 +120,17 @@ class SettingsFragment : Fragment(), SettingsFragmentView {
         val activity = requireActivity() as SettingsActivityView
         presenter.invalidateSearchIndex()
         presenter.onViewCreated(menuTag, activity.settings)
+
+        if (menuTag == MenuTag.CONFIG_MEMCARD_SYNC) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
+                        presenter.refreshMemcardSyncStatus()
+                        delay(1000)
+                    }
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {

@@ -21,9 +21,14 @@ object MemcardSyncSettings {
     var lastError: String? = null
         private set
 
+    /** Whether an [apply] is still connecting. Main thread. */
+    private var starting = 0
+
     /** Applies the stored settings in the background. */
     fun apply() {
+        starting++
         MemcardSync.controller.startAsync { error ->
+            starting--
             lastError = error
             if (error != null) {
                 val context = DolphinApplication.getAppContext()
@@ -38,6 +43,7 @@ object MemcardSyncSettings {
         val values = MemcardSync.settings.load()
         return when {
             !controller.isAvailable -> context.getString(R.string.memcard_sync_unavailable)
+            starting > 0 -> context.getString(R.string.memcard_sync_status_connecting)
             !values.enabled -> context.getString(R.string.memcard_sync_status_off)
             lastError != null -> lastError!!
             !controller.isRunning -> context.getString(R.string.memcard_sync_status_incomplete)

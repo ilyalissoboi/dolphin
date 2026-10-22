@@ -1142,6 +1142,7 @@ It can efficiently compress both junk data and encrypted Wii data.
     <string name="memcard_sync_no_passphrase">No passphrase saved</string>
     <string name="memcard_sync_now">Sync Now</string>
     <string name="memcard_sync_now_started">Syncing…</string>
+    <string name="memcard_sync_status_connecting">Connecting to the storage…</string>
     <string name="memcard_sync_status_off">Off.</string>
     <string name="memcard_sync_status_incomplete">Not syncing: fill in the storage, access key ID and secret access key.</string>
     <string name="memcard_sync_status_running">Syncing. Nothing has changed yet.</string>

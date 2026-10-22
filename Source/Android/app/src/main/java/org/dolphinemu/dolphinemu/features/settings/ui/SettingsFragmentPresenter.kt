@@ -358,6 +358,18 @@ class SettingsFragmentPresenter(
         sl.add(HeaderSetting(context, R.string.setting_clear_info, 0))
     }
 
+    /** The memory card sync status the list shows, to rebuild it when the status changes. */
+    private var memcardSyncStatus: String? = null
+
+    /**
+     * Rebuilds the memory card sync screen if its status changed: starting, syncing and errors
+     * happen in the background. The fragment calls it every second while the screen is visible.
+     */
+    fun refreshMemcardSyncStatus() {
+        if (menuTag != MenuTag.CONFIG_MEMCARD_SYNC || settingsList == null) return
+        if (MemcardSyncSettings.status(context) != memcardSyncStatus) loadSettingsList()
+    }
+
     /**
      * Memory card sync with emusync (features/memcardsync). The values are kept by emusync's
      * SyncSettings, with the secrets in the Android Keystore, and every change applies at once.
@@ -428,11 +440,13 @@ class SettingsFragmentPresenter(
                 R.string.memcard_sync_device_name_description
             )
         )
+        val status = MemcardSyncSettings.status(context)
+        memcardSyncStatus = status
         sl.add(
             RunRunnable(
                 context,
                 R.string.memcard_sync_now,
-                MemcardSyncSettings.status(context),
+                status,
                 0,
                 R.string.memcard_sync_now_started,
                 true
