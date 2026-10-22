@@ -5,11 +5,13 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -60,6 +62,52 @@ void SetUserPath(QLineEdit* line_edit, unsigned int dir_index,
   line_edit->setText(path);
   File::SetUserPath(dir_index, value);
   Config::SetBaseOrCurrent(setting, value);
+}
+
+// The path a memory card slot uses for `device` (a raw memory card or a GCI folder), resolved for
+// PAL. The paths of the other regions follow the same pattern, so if the PAL paths of two slots
+// match, the others match too and vice versa.
+std::string GetEUPathForDevice(ExpansionInterface::Slot slot,
+                               ExpansionInterface::EXIDeviceType device)
+{
+  return device == ExpansionInterface::EXIDeviceType::MemoryCard ?
+             Config::GetMemcardPath(slot, DiscIO::Region::PAL) :
+             Config::GetGCIFolderPath(slot, DiscIO::Region::PAL);
+}
+
+// The other memory card slot, if it is set to `device` and that device uses `eu_path`. A path
+// stored for a device type the slot isn't set to is not in use.
+std::optional<ExpansionInterface::Slot> FindSlotUsingPath(ExpansionInterface::Slot slot,
+                                                          ExpansionInterface::EXIDeviceType device,
+                                                          const std::string& eu_path)
+{
+  for (ExpansionInterface::Slot other_slot : ExpansionInterface::MEMCARD_SLOTS)
+  {
+    if (other_slot != slot && Config::Get(Config::GetInfoForEXIDevice(other_slot)) == device &&
+        GetEUPathForDevice(other_slot, device) == eu_path)
+    {
+      return other_slot;
+    }
+  }
+  return std::nullopt;
+}
+
+// In GameCubePane's translation context, where these messages have always been.
+QString AlreadyUsedMessage(ExpansionInterface::EXIDeviceType device,
+                           ExpansionInterface::Slot other_slot)
+{
+  const QString slot_name = QString::fromStdString(fmt::to_string(other_slot));
+  if (device == ExpansionInterface::EXIDeviceType::MemoryCard)
+  {
+    return QCoreApplication::translate(
+               "GameCubePane",
+               "The same file can't be used in multiple slots; it is already used by %1.")
+        .arg(slot_name);
+  }
+  return QCoreApplication::translate(
+             "GameCubePane",
+             "The same folder can't be used in multiple slots; it is already used by %1.")
+      .arg(slot_name);
 }
 }  // namespace
 
@@ -423,23 +471,15 @@ bool GameCubePane::SetMemcard(ExpansionInterface::Slot slot, const QString& file
     }
   }
 
-  // Check if the other slot has the same memory card configured and refuse to use this card if so.
-  // The EU path is compared here, but it doesn't actually matter which one we compare since they
-  // follow a known pattern, so if the EU path matches the other match too and vice-versa.
-  for (ExpansionInterface::Slot other_slot : ExpansionInterface::MEMCARD_SLOTS)
+  // Refuse a card the other slot is using. A card path the other slot keeps while it is set to
+  // another device doesn't count; SaveSettings checks it when that slot becomes a memory card.
+  if (const auto other_slot =
+          FindSlotUsingPath(slot, ExpansionInterface::EXIDeviceType::MemoryCard, eu_path))
   {
-    if (other_slot == slot)
-      continue;
-
-    const std::string other_eu_path = Config::GetMemcardPath(other_slot, DiscIO::Region::PAL);
-    if (eu_path == other_eu_path)
-    {
-      ModalMessageBox::critical(
-          this, tr("Error"),
-          tr("The same file can't be used in multiple slots; it is already used by %1.")
-              .arg(QString::fromStdString(fmt::to_string(other_slot))));
-      return false;
-    }
+    ModalMessageBox::critical(
+        this, tr("Error"),
+        AlreadyUsedMessage(ExpansionInterface::EXIDeviceType::MemoryCard, *other_slot));
+    return false;
   }
 
   const std::string old_eu_path = Config::GetMemcardPath(slot, DiscIO::Region::PAL);
@@ -531,23 +571,15 @@ bool GameCubePane::SetGCIFolder(ExpansionInterface::Slot slot, const QString& pa
       return false;
     }
 
-    // Check if the other slot has the same folder configured and refuse to use this folder if so.
-    // The EU path is compared here, but it doesn't actually matter which one we compare since they
-    // follow a known pattern, so if the EU path matches the other match too and vice-versa.
-    for (ExpansionInterface::Slot other_slot : ExpansionInterface::MEMCARD_SLOTS)
+    // Refuse a folder the other slot is using. A folder path the other slot keeps while it is set
+    // to another device doesn't count; SaveSettings checks it when that slot becomes a GCI folder.
+    if (const auto other_slot =
+            FindSlotUsingPath(slot, ExpansionInterface::EXIDeviceType::MemoryCardFolder, eu_path))
     {
-      if (other_slot == slot)
-        continue;
-
-      const std::string other_eu_path = Config::GetGCIFolderPath(other_slot, DiscIO::Region::PAL);
-      if (eu_path == other_eu_path)
-      {
-        ModalMessageBox::critical(
-            this, tr("Error"),
-            tr("The same folder can't be used in multiple slots; it is already used by %1.")
-                .arg(QString::fromStdString(fmt::to_string(other_slot))));
-        return false;
-      }
+      ModalMessageBox::critical(
+          this, tr("Error"),
+          AlreadyUsedMessage(ExpansionInterface::EXIDeviceType::MemoryCardFolder, *other_slot));
+      return false;
     }
 
     path_changed = eu_path != Config::GetGCIFolderPath(slot, DiscIO::Region::PAL);
@@ -694,6 +726,27 @@ void GameCubePane::LoadSettings()
 
 void GameCubePane::SaveSettings()
 {
+  // A slot switched to a memory card or GCI folder uses the path configured for that device: the
+  // default, since a slot keeps only the path of its current device (below), unless an older
+  // configuration kept one. Refuse the switch if the other slot is using the same card or folder.
+  for (ExpansionInterface::Slot slot : ExpansionInterface::MEMCARD_SLOTS)
+  {
+    const auto dev =
+        static_cast<ExpansionInterface::EXIDeviceType>(m_slot_combos[slot]->currentData().toInt());
+    if (dev == Config::Get(Config::GetInfoForEXIDevice(slot)) ||
+        (dev != ExpansionInterface::EXIDeviceType::MemoryCard &&
+         dev != ExpansionInterface::EXIDeviceType::MemoryCardFolder))
+    {
+      continue;
+    }
+    if (const auto other_slot = FindSlotUsingPath(slot, dev, GetEUPathForDevice(slot, dev)))
+    {
+      ModalMessageBox::critical(this, tr("Error"), AlreadyUsedMessage(dev, *other_slot));
+      LoadSettings();
+      return;
+    }
+  }
+
   Config::ConfigChangeCallbackGuard config_guard;
 
   auto& system = Core::System::GetInstance();
@@ -712,15 +765,20 @@ void GameCubePane::SaveSettings()
 
     Config::SetBaseOrCurrent(Config::GetInfoForEXIDevice(slot), dev);
 
-    // A memory card slot set to Nothing forgets its memory card and GCI folder paths. Otherwise
-    // they stay configured but hidden, and the other slot can't use that card or folder because
-    // SetMemcard and SetGCIFolder consider it already in use.
-    if (ExpansionInterface::IsMemcardSlot(slot) && dev == ExpansionInterface::EXIDeviceType::None &&
+    // A memory card slot keeps only the path of the device it is set to: its memory card file,
+    // GCI folder or AGP cartridge ROM. The others would stay configured but hidden, still taking
+    // up their card or folder, and come back when the slot is switched to that device again.
+    // Skipped when the device comes from a game's settings, so the user's own paths are kept.
+    if (ExpansionInterface::IsMemcardSlot(slot) &&
         Config::GetActiveLayerForConfig(Config::GetInfoForEXIDevice(slot)) ==
             Config::LayerType::Base)
     {
-      Config::SetBase(Config::GetInfoForMemcardPath(slot), "");
-      Config::SetBase(Config::GetInfoForGCIPath(slot), "");
+      if (dev != ExpansionInterface::EXIDeviceType::MemoryCard)
+        Config::SetBase(Config::GetInfoForMemcardPath(slot), "");
+      if (dev != ExpansionInterface::EXIDeviceType::MemoryCardFolder)
+        Config::SetBase(Config::GetInfoForGCIPath(slot), "");
+      if (dev != ExpansionInterface::EXIDeviceType::AGP)
+        Config::SetBase(Config::GetInfoForAGPCartPath(slot), "");
     }
   }
 
