@@ -81,10 +81,10 @@ void MemoryCardSyncPane::ConnectLayout()
     OnShowToggled(m_ui->passphraseLineEdit, m_ui->passphraseShowButton,
                   MemcardSync::ENCRYPTION_PASSPHRASE, shown);
   });
-  // Show leaves the focus in its field: taking it would finish the edit, which saves what was
-  // typed and empties the field, so there would be nothing left to show.
-  m_ui->secretShowButton->setFocusPolicy(Qt::NoFocus);
-  m_ui->passphraseShowButton->setFocusPolicy(Qt::NoFocus);
+  // Clicking Show leaves the focus in its field: taking it would finish the edit, which saves what
+  // was typed and empties the field, so there would be nothing left to show. Tab still reaches it.
+  m_ui->secretShowButton->setFocusPolicy(Qt::TabFocus);
+  m_ui->passphraseShowButton->setFocusPolicy(Qt::TabFocus);
   connect(m_ui->passphraseRemoveButton, &QPushButton::clicked, this,
           &MemoryCardSyncPane::OnPassphraseRemoveClicked);
   connect(m_ui->syncNowButton, &QPushButton::clicked, this, &MemoryCardSyncPane::OnSyncNowClicked);
@@ -185,8 +185,10 @@ void MemoryCardSyncPane::OnShowToggled(QLineEdit* edit, QPushButton* show_button
     return;
   }
   // Show unmasks what is being typed; with nothing typed, it loads the stored secret, e.g. to set
-  // up another device with it (and losing the passphrase loses the saves).
-  if (!edit->text().isEmpty() || !MemcardSync::HasSecret(secret))
+  // up another device with it (and losing the passphrase loses the saves). While settings apply,
+  // e.g. a value just saved by tabbing to Show, the store may not have it yet: Apply() shows it
+  // once they are applied.
+  if (!edit->text().isEmpty() || m_starting || !MemcardSync::HasSecret(secret))
     return;
 
   // Reading the credential store can block (an unlock prompt), so not on the UI thread.
@@ -248,6 +250,19 @@ void MemoryCardSyncPane::Apply(std::vector<std::pair<const char*, std::string>> 
                                       pane->m_starting = false;
                                       pane->UpdateSecretPlaceholders();
                                       pane->UpdateStatus();
+                                      // A Show pressed while they applied.
+                                      Ui::MemoryCardSyncPane& ui = *pane->m_ui;
+                                      if (ui.secretShowButton->isChecked())
+                                      {
+                                        pane->OnShowToggled(ui.secretLineEdit, ui.secretShowButton,
+                                                            MemcardSync::SECRET_ACCESS_KEY, true);
+                                      }
+                                      if (ui.passphraseShowButton->isChecked())
+                                      {
+                                        pane->OnShowToggled(ui.passphraseLineEdit,
+                                                            ui.passphraseShowButton,
+                                                            MemcardSync::ENCRYPTION_PASSPHRASE, true);
+                                      }
                                     });
                                   });
 }
