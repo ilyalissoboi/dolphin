@@ -81,10 +81,10 @@ void MemoryCardSyncPane::ConnectLayout()
     OnShowToggled(m_ui->passphraseLineEdit, m_ui->passphraseShowButton,
                   MemcardSync::ENCRYPTION_PASSPHRASE, shown);
   });
-  // Show leaves the focus in its field: taking it would finish the edit, which saves what was
-  // typed and empties the field, so there would be nothing left to show.
-  m_ui->secretShowButton->setFocusPolicy(Qt::NoFocus);
-  m_ui->passphraseShowButton->setFocusPolicy(Qt::NoFocus);
+  // Clicking Show leaves the focus in its field: taking it would finish the edit, which saves what
+  // was typed and empties the field, so there would be nothing left to show. Tab still reaches it.
+  m_ui->secretShowButton->setFocusPolicy(Qt::TabFocus);
+  m_ui->passphraseShowButton->setFocusPolicy(Qt::TabFocus);
   connect(m_ui->passphraseRemoveButton, &QPushButton::clicked, this,
           &MemoryCardSyncPane::OnPassphraseRemoveClicked);
   connect(m_ui->syncNowButton, &QPushButton::clicked, this, &MemoryCardSyncPane::OnSyncNowClicked);
@@ -185,8 +185,10 @@ void MemoryCardSyncPane::OnShowToggled(QLineEdit* edit, QPushButton* show_button
     return;
   }
   // Show unmasks what is being typed; with nothing typed, it loads the stored secret, e.g. to set
-  // up another device with it (and losing the passphrase loses the saves).
-  if (!edit->text().isEmpty() || !MemcardSync::HasSecret(secret))
+  // up another device with it (and losing the passphrase loses the saves). While settings apply,
+  // e.g. a value just saved by tabbing to Show, the store may not have it yet: Apply() shows it
+  // once they are applied.
+  if (!edit->text().isEmpty() || m_pending_applies > 0 || !MemcardSync::HasSecret(secret))
     return;
 
   // Reading the credential store can block (an unlock prompt), so not on the UI thread.
@@ -238,18 +240,37 @@ void MemoryCardSyncPane::Apply(std::vector<std::pair<const char*, std::string>> 
   std::vector<MemcardSync::SecretUpdate> updates;
   for (auto& [name, value] : secrets)
     updates.push_back({name, std::move(value)});
-  m_starting = true;
+  ++m_pending_applies;
   UpdateStatus();
   MemcardSync::ApplySettingsAsync(std::move(updates),
                                   [pane = QPointer<MemoryCardSyncPane>(this)](const std::string&) {
                                     QueueOnObject(qApp, [pane] {
-                                      if (!pane)
-                                        return;
-                                      pane->m_starting = false;
-                                      pane->UpdateSecretPlaceholders();
-                                      pane->UpdateStatus();
+                                      if (pane)
+                                        pane->OnApplied();
                                     });
                                   });
+}
+
+void MemoryCardSyncPane::OnApplied()
+{
+  --m_pending_applies;
+  UpdateSecretPlaceholders();
+  UpdateStatus();
+  // Only once every queued change is in: an earlier one finishing doesn't mean a secret saved
+  // since is stored yet.
+  if (m_pending_applies > 0)
+    return;
+  // A Show pressed while they applied.
+  if (m_ui->secretShowButton->isChecked())
+  {
+    OnShowToggled(m_ui->secretLineEdit, m_ui->secretShowButton, MemcardSync::SECRET_ACCESS_KEY,
+                  true);
+  }
+  if (m_ui->passphraseShowButton->isChecked())
+  {
+    OnShowToggled(m_ui->passphraseLineEdit, m_ui->passphraseShowButton,
+                  MemcardSync::ENCRYPTION_PASSPHRASE, true);
+  }
 }
 
 void MemoryCardSyncPane::UpdateEnabledState()
@@ -281,7 +302,7 @@ void MemoryCardSyncPane::UpdateStatus()
   QString text;
   if (!MemcardSync::IsAvailable())
     text = tr("This build of Dolphin has no memory card sync.");
-  else if (m_starting)
+  else if (m_pending_applies > 0)
     text = tr("Connecting to the storage...");
   else if (const std::string error = MemcardSync::GetLastStartError(); !error.empty())
     text = QString::fromStdString(error);
@@ -295,5 +316,5 @@ void MemoryCardSyncPane::UpdateStatus()
     text = tr("Syncing. Nothing has changed yet.");
   m_ui->statusLabel->setText(text);
   m_ui->syncNowButton->setEnabled(MemcardSync::IsAvailable() && MemcardSync::IsRunning() &&
-                                  !m_starting);
+                                  m_pending_applies == 0);
 }

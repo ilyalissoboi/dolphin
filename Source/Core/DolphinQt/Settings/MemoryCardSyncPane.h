@@ -47,12 +47,14 @@ private:
   void OnSyncNowClicked();
   // Applies the settings in the background, storing `secrets` first.
   void Apply(std::vector<std::pair<const char*, std::string>> secrets = {});
+  // An Apply() is done.
+  void OnApplied();
   void UpdateEnabledState();
   void UpdateSecretPlaceholders();
   void UpdateStatus();
 
   std::unique_ptr<Ui::MemoryCardSyncPane> m_ui;
   QTimer m_status_timer;
-  // A settings change is being applied.
-  bool m_starting = false;
+  // Settings changes still being applied: each Apply() until its callback.
+  int m_pending_applies = 0;
 };

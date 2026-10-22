@@ -1132,7 +1132,7 @@ It can efficiently compress both junk data and encrypted Wii data.
     <string name="memcard_sync_access_key_id">Access Key ID</string>
     <string name="memcard_sync_access_key_id_description">From your storage provider. A key that can only read and write this bucket is enough.</string>
     <string name="memcard_sync_secret">Secret Access Key</string>
-    <string name="memcard_sync_secret_description">Kept encrypted with a key in this device\'s Keystore, and never shown again. Enter a new one to replace it.</string>
+    <string name="memcard_sync_secret_description">Kept encrypted with a key in this device\'s Keystore. The show button displays it; enter a new one to replace it.</string>
     <string name="memcard_sync_passphrase">Encryption Passphrase</string>
     <string name="memcard_sync_passphrase_description">Optional. Encrypts your saves on this device before they upload. For storage that is already encrypted, enter the passphrase used when it was set up. Use the same on every device; it can\'t be recovered. Clear the field to remove it.</string>
     <string name="memcard_sync_device_name">Device Name</string>
