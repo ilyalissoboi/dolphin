@@ -118,6 +118,7 @@ option(USE_DISCORD_PRESENCE "Enables Discord Rich Presence, show the current gam
 option(USE_MGBA "Enables GBA controllers emulation using libmgba" ON)
 option(ENABLE_AUTOUPDATE "Enables support for automatic updates" ON)
 option(USE_RETRO_ACHIEVEMENTS "Enables integration with retroachievements.org" ON)
+option(ENABLE_EMUSYNC "Enables memory card sync with emusync (needs Rust to build)" ON)
 option(ENABLE_CCACHE "Enables CCache compiler cache" OFF)
 
 # Maintainers: if you consider blanket disabling this for your users, please
@@ -757,6 +758,27 @@ add_subdirectory(Externals/FatFs)
 
 if (USE_RETRO_ACHIEVEMENTS)
   add_subdirectory(Externals/rcheevos)
+endif()
+
+# Memory card sync (Core/HW/GCMemcard/MemcardSync.h). emusync is a Rust library: a pinned commit is
+# fetched and built by cargo through emusync's own CMake module, which defines emusync::emusync and
+# sets EMUSYNC_FOUND. Optional: without cargo, rustc or the Rust target (or with ENABLE_EMUSYNC
+# off) the feature compiles out. -DEMUSYNC_SOURCE_DIR=<checkout> builds from a local checkout.
+if(ENABLE_EMUSYNC AND NOT ANDROID)
+  # A plain variable, not a cache entry: a cached pin keeps its first value in an existing build
+  # folder, so a bump would be silently ignored there.
+  set(EMUSYNC_PIN "9814d604f9597d55503061f07fe69c5e475ce735")
+  if(NOT EMUSYNC_SOURCE_DIR)
+    include(FetchContent)
+    FetchContent_Declare(emusync
+      GIT_REPOSITORY https://github.com/ilyalissoboi/emusync.git
+      GIT_TAG ${EMUSYNC_PIN}
+    )
+    # emusync has no top-level CMakeLists.txt, so this only downloads it.
+    FetchContent_MakeAvailable(emusync)
+    set(EMUSYNC_SOURCE_DIR "${emusync_SOURCE_DIR}")
+  endif()
+  include("${EMUSYNC_SOURCE_DIR}/bindings/cmake/EmuSync.cmake")
 endif()
 
 add_subdirectory(Externals/watcher)

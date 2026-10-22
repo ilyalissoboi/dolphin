@@ -29,6 +29,7 @@
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
 #include "Core/HW/GCMemcard/GCMemcard.h"
+#include "Core/HW/GCMemcard/MemcardSync.h"
 #include "Core/HW/Sram.h"
 #include "Core/System.h"
 
@@ -151,6 +152,8 @@ void MemoryCard::FlushThread()
       memcpy(&m_flush_buffer[0], &m_memcard_data[0], m_memory_card_size);
     }
     file.WriteBytes(&m_flush_buffer[0], m_memory_card_size);
+    file.Close();
+    MemcardSync::OnCardWritten(m_filename);
 
     if (do_exit)
       return;
