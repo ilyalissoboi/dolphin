@@ -39,6 +39,7 @@
 #include "DolphinQt/Settings/GameCubePane.h"
 #include "DolphinQt/Settings/GeneralPane.h"
 #include "DolphinQt/Settings/InterfacePane.h"
+#include "DolphinQt/Settings/MemoryCardSyncPane.h"
 #include "DolphinQt/Settings/OnScreenDisplayPane.h"
 #include "DolphinQt/Settings/PathPane.h"
 #include "DolphinQt/Settings/TriforcePane.h"
@@ -290,11 +291,10 @@ namespace
 {
 constexpr int SETTINGS_CATEGORY_ICON_SIZE = 32;
 
-constexpr std::array<std::string_view, 11> SETTINGS_CATEGORY_ICON_NAMES = {
-    "Settings_General",   "Settings_Graphics",        "Settings_Controllers",
-    "Settings_Interface", "Settings_OnScreenDisplay", "Settings_Audio",
-    "Settings_Paths",     "Settings_GameCube",        "Settings_Wii",
-    "Settings_Triforce",  "Settings_Advanced",
+constexpr std::array<std::string_view, 12> SETTINGS_CATEGORY_ICON_NAMES = {
+    "Settings_General",         "Settings_Graphics", "Settings_Controllers", "Settings_Interface",
+    "Settings_OnScreenDisplay", "Settings_Audio",    "Settings_Paths",       "Settings_GameCube",
+    "Settings_MemoryCardSync",  "Settings_Wii",      "Settings_Triforce",    "Settings_Advanced",
 };
 static_assert(std::to_underlying(SettingsWindowPaneIndex::Advanced) + 1 ==
               static_cast<int>(SETTINGS_CATEGORY_ICON_NAMES.size()));
@@ -377,6 +377,11 @@ SettingsWindow::SettingsWindow(MainWindow* parent) : StackedSettingsWindow{paren
       GetSettingsCategoryIcon(SettingsWindowPaneIndex::GameCube, palette()),
       tr("<strong>GameCube Settings</strong><hr>Configure GameCube system language, memory cards, "
          "devices, and broadband adapter behavior."));
+  AddWrappedPane(
+      new MemoryCardSyncPane, tr("Memory Card Sync"),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::MemoryCardSync, palette()),
+      tr("<strong>Memory Card Sync Settings</strong><hr>Keep the saves on your GameCube memory "
+         "cards in step with your other devices through cloud storage you own."));
   AddWrappedPane(
       new WiiPane, tr("Wii"), GetSettingsCategoryIcon(SettingsWindowPaneIndex::Wii, palette()),
       tr("<strong>Wii Settings</strong><hr>Configure Wii system language, storage, input devices, "

@@ -118,6 +118,7 @@ option(USE_DISCORD_PRESENCE "Enables Discord Rich Presence, show the current gam
 option(USE_MGBA "Enables GBA controllers emulation using libmgba" ON)
 option(ENABLE_AUTOUPDATE "Enables support for automatic updates" ON)
 option(USE_RETRO_ACHIEVEMENTS "Enables integration with retroachievements.org" ON)
+option(ENABLE_EMUSYNC "Enables memory card sync with emusync (needs Rust to build)" ON)
 option(ENABLE_CCACHE "Enables CCache compiler cache" OFF)
 
 # Maintainers: if you consider blanket disabling this for your users, please
@@ -757,6 +758,51 @@ add_subdirectory(Externals/FatFs)
 
 if (USE_RETRO_ACHIEVEMENTS)
   add_subdirectory(Externals/rcheevos)
+endif()
+
+# Memory card sync (Core/HW/GCMemcard/MemcardSync.h). emusync is a Rust library: the source of a
+# pinned commit is downloaded and built by cargo through emusync's own CMake module, which defines
+# emusync::emusync and sets EMUSYNC_FOUND. Optional: without cargo (checked before anything is
+# downloaded), without network access to GitHub, or without the Rust target, the feature compiles
+# out with a message, so offline and source-tarball builds still configure.
+# -DEMUSYNC_SOURCE_DIR=<checkout> builds from a local checkout instead of downloading.
+if(ENABLE_EMUSYNC AND NOT ANDROID)
+  # A plain variable, not a cache entry: a cached pin keeps its first value in an existing build
+  # folder, so a bump would be silently ignored there.
+  set(EMUSYNC_PIN "9814d604f9597d55503061f07fe69c5e475ce735")
+  if(NOT EMUSYNC_SOURCE_DIR)
+    find_program(EMUSYNC_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin")
+    if(NOT EMUSYNC_CARGO)
+      message(STATUS "emusync: cargo not found -> memory card sync DISABLED. Install Rust (https://rustup.rs) to enable it.")
+    else()
+      # One folder per pin, so a bump downloads the new source and an unchanged pin never again.
+      set(emusync_dir "${CMAKE_BINARY_DIR}/emusync-${EMUSYNC_PIN}")
+      if(NOT EXISTS "${emusync_dir}/bindings/cmake/EmuSync.cmake")
+        set(emusync_archive "${CMAKE_BINARY_DIR}/emusync-${EMUSYNC_PIN}.tar.gz")
+        file(DOWNLOAD "https://github.com/ilyalissoboi/emusync/archive/${EMUSYNC_PIN}.tar.gz"
+             "${emusync_archive}" STATUS emusync_download TIMEOUT 120)
+        list(GET emusync_download 0 emusync_download_code)
+        if(emusync_download_code EQUAL 0)
+          file(REMOVE_RECURSE "${emusync_dir}.extract")
+          file(ARCHIVE_EXTRACT INPUT "${emusync_archive}" DESTINATION "${emusync_dir}.extract")
+          # GitHub's archive holds one folder, emusync-<commit>.
+          file(GLOB emusync_extracted "${emusync_dir}.extract/*")
+          file(RENAME "${emusync_extracted}" "${emusync_dir}")
+          file(REMOVE_RECURSE "${emusync_dir}.extract")
+        else()
+          list(GET emusync_download 1 emusync_download_error)
+          message(WARNING "emusync: could not download its source (${emusync_download_error}) -> memory card sync DISABLED. Configure again with network access, or pass -DEMUSYNC_SOURCE_DIR=<emusync checkout>.")
+        endif()
+        file(REMOVE "${emusync_archive}")
+      endif()
+      if(EXISTS "${emusync_dir}/bindings/cmake/EmuSync.cmake")
+        set(EMUSYNC_SOURCE_DIR "${emusync_dir}")
+      endif()
+    endif()
+  endif()
+  if(EMUSYNC_SOURCE_DIR)
+    include("${EMUSYNC_SOURCE_DIR}/bindings/cmake/EmuSync.cmake")
+  endif()
 endif()
 
 add_subdirectory(Externals/watcher)

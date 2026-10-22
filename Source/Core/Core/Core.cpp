@@ -54,6 +54,7 @@
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/GBAPad.h"
 #include "Core/HW/GCKeyboard.h"
+#include "Core/HW/GCMemcard/MemcardSync.h"
 #include "Core/HW/GCPad.h"
 #include "Core/HW/HW.h"
 #include "Core/HW/SystemTimers.h"
@@ -577,6 +578,10 @@ static void EmuThread(Core::System& system, std::unique_ptr<BootParameters> boot
   AudioCommon::InitSoundStream(system);
   Common::ScopeGuard audio_guard([&system] { AudioCommon::ShutdownSoundStream(system); });
 
+  // Memory card sync: newer saves from other devices are written into the cards before HW::Init
+  // opens them, and the cards are left alone until the session ends below.
+  MemcardSync::OnEmulationStarting(system);
+
   HW::Init(system,
            NetPlay::IsNetPlayRunning() ? &(boot_session_data.GetNetplaySettings()->sram) : nullptr);
 
@@ -584,6 +589,9 @@ static void EmuThread(Core::System& system, std::unique_ptr<BootParameters> boot
     INFO_LOG_FMT(CONSOLE, "{}", StopMessage(false, "Shutting down HW"));
     HW::Shutdown(system);
     INFO_LOG_FMT(CONSOLE, "{}", StopMessage(false, "HW shutdown"));
+
+    // The cards are closed: upload them, and apply what waited for the game to end.
+    MemcardSync::OnEmulationStopped();
 
     // The config must be restored only after the whole HW has shut down,
     // not when it is still running.

@@ -33,6 +33,7 @@
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/DolphinAnalytics.h"
+#include "Core/HW/GCMemcard/MemcardSync.h"
 #include "Core/System.h"
 
 #include "DolphinQt/Host.h"
@@ -308,6 +309,9 @@ int main(int argc, char* argv[])
     {
       DolphinAnalytics::Instance().ReportDolphinStart("qt");
 
+      // Memory card sync starts in the background, from the settings.
+      MemcardSync::Initialize();
+
       MainWindow win{Core::System::GetInstance(), std::move(boot),
                      static_cast<const char*>(options.get("movie"))};
 
@@ -349,6 +353,8 @@ int main(int argc, char* argv[])
   }
 
   Core::Shutdown(Core::System::GetInstance());
+  // After the last game closed its cards: gives their uploads a few seconds.
+  MemcardSync::Shutdown();
   UICommon::Shutdown();
   Host::GetInstance()->deleteLater();
 
