@@ -405,11 +405,12 @@ class SettingsFragmentPresenter(
                 R.string.memcard_sync_access_key_id_description
             )
         )
-        // Never read back: a new one replaces it.
+        // Read back into the dialog, masked, for its show button: to check which key this device
+        // uses, or to set up another device with it. Emptying the field removes it.
         sl.add(
             InputStringSetting(
                 context,
-                MemcardSyncSettings.StringSetting({ "" }, s::setSecretAccessKey),
+                MemcardSyncSettings.StringSetting({ s.secretAccessKey().orEmpty() }, s::setSecretAccessKey),
                 R.string.memcard_sync_secret,
                 R.string.memcard_sync_secret_description
             ) {

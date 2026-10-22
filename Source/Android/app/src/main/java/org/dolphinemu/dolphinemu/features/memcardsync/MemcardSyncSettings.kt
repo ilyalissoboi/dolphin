@@ -59,6 +59,8 @@ object MemcardSyncSettings {
             get() = read()
 
         override fun setString(settings: Settings, newValue: String) {
+            // OK in a dialog left unchanged: nothing to store, and no restart.
+            if (newValue == read()) return
             write(newValue)
             apply()
         }
