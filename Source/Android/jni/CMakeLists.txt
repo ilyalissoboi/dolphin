@@ -35,6 +35,7 @@ add_library(main SHARED
   NetPlay/NetPlayUICallbacks.cpp
   NetPlay/NetPlayUICallbacks.h
   MainAndroid.cpp
+  MemcardSync.cpp
   RiivolutionPatches.cpp
   SkylanderConfig.cpp
   WiiUtils.cpp

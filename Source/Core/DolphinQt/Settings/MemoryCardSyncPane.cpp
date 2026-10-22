@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -71,13 +72,19 @@ void MemoryCardSyncPane::ConnectLayout()
   connect(m_ui->secretLineEdit, &QLineEdit::editingFinished, this,
           &MemoryCardSyncPane::OnSecretEdited);
   connect(m_ui->secretShowButton, &QPushButton::toggled, this, [this](bool shown) {
-    // The stored secret access key is never read back: Show only unmasks what is being typed.
-    m_ui->secretLineEdit->setEchoMode(shown ? QLineEdit::Normal : QLineEdit::Password);
+    OnShowToggled(m_ui->secretLineEdit, m_ui->secretShowButton, MemcardSync::SECRET_ACCESS_KEY,
+                  shown);
   });
   connect(m_ui->passphraseLineEdit, &QLineEdit::editingFinished, this,
           &MemoryCardSyncPane::OnPassphraseEdited);
-  connect(m_ui->passphraseShowButton, &QPushButton::toggled, this,
-          &MemoryCardSyncPane::OnPassphraseShowToggled);
+  connect(m_ui->passphraseShowButton, &QPushButton::toggled, this, [this](bool shown) {
+    OnShowToggled(m_ui->passphraseLineEdit, m_ui->passphraseShowButton,
+                  MemcardSync::ENCRYPTION_PASSPHRASE, shown);
+  });
+  // Show leaves the focus in its field: taking it would finish the edit, which saves what was
+  // typed and empties the field, so there would be nothing left to show.
+  m_ui->secretShowButton->setFocusPolicy(Qt::NoFocus);
+  m_ui->passphraseShowButton->setFocusPolicy(Qt::NoFocus);
   connect(m_ui->passphraseRemoveButton, &QPushButton::clicked, this,
           &MemoryCardSyncPane::OnPassphraseRemoveClicked);
   connect(m_ui->syncNowButton, &QPushButton::clicked, this, &MemoryCardSyncPane::OnSyncNowClicked);
@@ -102,8 +109,8 @@ void MemoryCardSyncPane::AddDescriptions()
   ConfigWidget::SetDescription(
       m_ui->secretLineEdit, tr("Secret Access Key"),
       tr("Kept in your system's credential store (Credential Manager, Keychain or Secret "
-         "Service), never in Dolphin's settings file, and never shown again. Type or paste a new "
-         "one to replace it."));
+         "Service), never in Dolphin's settings file. Show displays the saved key; type or paste "
+         "a new one to replace it."));
   ConfigWidget::SetDescription(
       m_ui->passphraseLineEdit, tr("Encryption Passphrase"),
       tr("Optional. Encrypts your saves on this computer before they upload, so the storage "
@@ -130,15 +137,28 @@ void MemoryCardSyncPane::hideEvent(QHideEvent* event)
   m_status_timer.stop();
 }
 
+// Whether the field holds the stored secret that Show put there, unchanged: nothing to save.
+static bool ShowsStoredSecret(const QLineEdit* edit)
+{
+  const QVariant revealed = edit->property("revealed");
+  return revealed.isValid() && revealed.toString() == edit->text();
+}
+
+// Empties a secret's field and masks it again, once its value is handed over or removed.
+static void ResetSecretField(QLineEdit* edit, QPushButton* show_button)
+{
+  edit->clear();
+  edit->setProperty("revealed", QVariant());
+  show_button->setChecked(false);
+}
+
 void MemoryCardSyncPane::OnSecretEdited()
 {
-  const std::string value = m_ui->secretLineEdit->text().trimmed().toStdString();
-  if (value.empty())
+  const QString text = m_ui->secretLineEdit->text().trimmed();
+  if (text.isEmpty() || ShowsStoredSecret(m_ui->secretLineEdit))
     return;
-  // The field never holds the stored secret: empty it again once it is handed over.
-  m_ui->secretLineEdit->clear();
-  m_ui->secretShowButton->setChecked(false);
-  Apply({{MemcardSync::SECRET_ACCESS_KEY, value}});
+  ResetSecretField(m_ui->secretLineEdit, m_ui->secretShowButton);
+  Apply({{MemcardSync::SECRET_ACCESS_KEY, text.toStdString()}});
 }
 
 void MemoryCardSyncPane::OnPassphraseEdited()
@@ -146,51 +166,53 @@ void MemoryCardSyncPane::OnPassphraseEdited()
   // Not trimmed: emusync keeps spaces too, and the same passphrase has to unlock the storage on
   // every device.
   const QString text = m_ui->passphraseLineEdit->text();
-  const bool revealed_and_unchanged =
-      m_ui->passphraseShowButton->isChecked() &&
-      m_ui->passphraseLineEdit->property("revealed").toString() == text;
-  if (text.isEmpty() || revealed_and_unchanged)
+  if (text.isEmpty() || ShowsStoredSecret(m_ui->passphraseLineEdit))
     return;
-  m_ui->passphraseLineEdit->clear();
-  m_ui->passphraseLineEdit->setProperty("revealed", QVariant());
-  m_ui->passphraseShowButton->setChecked(false);
+  ResetSecretField(m_ui->passphraseLineEdit, m_ui->passphraseShowButton);
   Apply({{MemcardSync::ENCRYPTION_PASSPHRASE, text.toStdString()}});
 }
 
-void MemoryCardSyncPane::OnPassphraseShowToggled(bool shown)
+void MemoryCardSyncPane::OnShowToggled(QLineEdit* edit, QPushButton* show_button,
+                                       const char* secret, bool shown)
 {
-  QLineEdit* const edit = m_ui->passphraseLineEdit;
   edit->setEchoMode(shown ? QLineEdit::Normal : QLineEdit::Password);
   if (!shown)
   {
-    // Hide puts a stored passphrase that was shown away again, rather than only masking it.
-    if (edit->property("revealed").toString() == edit->text())
+    // Hide puts a stored secret that was shown away again, rather than only masking it.
+    if (ShowsStoredSecret(edit))
       edit->clear();
     edit->setProperty("revealed", QVariant());
     return;
   }
-  if (!edit->text().isEmpty() || !MemcardSync::HasSecret(MemcardSync::ENCRYPTION_PASSPHRASE))
+  // Show unmasks what is being typed; with nothing typed, it loads the stored secret, e.g. to set
+  // up another device with it (and losing the passphrase loses the saves).
+  if (!edit->text().isEmpty() || !MemcardSync::HasSecret(secret))
     return;
 
-  // Show loads the stored passphrase: it's needed to set up other devices, and losing it loses the
-  // saves. Reading the credential store can block (an unlock prompt), so not on the UI thread.
-  std::thread([pane = QPointer<MemoryCardSyncPane>(this)] {
+  // Reading the credential store can block (an unlock prompt), so not on the UI thread.
+  std::thread([pane = QPointer<MemoryCardSyncPane>(this), edit, show_button, secret] {
     std::string error;
-    std::optional<std::string> value =
-        MemcardSync::LoadSecret(MemcardSync::ENCRYPTION_PASSPHRASE, &error);
-    QueueOnObject(qApp, [pane, value = std::move(value), error = std::move(error)]() mutable {
-      if (pane && pane->m_ui->passphraseShowButton->isChecked())
+    std::optional<std::string> value = MemcardSync::LoadSecret(secret, &error);
+    QueueOnObject(qApp, [pane, edit, show_button, secret, value = std::move(value),
+                         error = std::move(error)]() mutable {
+      if (pane && show_button->isChecked() && edit->text().isEmpty())
       {
         if (value.has_value())
         {
           const QString text = QString::fromStdString(*value);
-          pane->m_ui->passphraseLineEdit->setText(text);
-          pane->m_ui->passphraseLineEdit->setProperty("revealed", text);
+          edit->setText(text);
+          edit->setProperty("revealed", text);
+        }
+        else if (!error.empty())
+        {
+          pane->m_ui->statusLabel->setText(QString::fromStdString(error));
         }
         else
         {
-          pane->m_ui->statusLabel->setText(error.empty() ? tr("No passphrase is saved.") :
-                                                           QString::fromStdString(error));
+          pane->m_ui->statusLabel->setText(std::string_view(secret) ==
+                                                   MemcardSync::SECRET_ACCESS_KEY ?
+                                               tr("No secret access key is saved.") :
+                                               tr("No passphrase is saved."));
         }
       }
       if (value.has_value())
@@ -201,9 +223,7 @@ void MemoryCardSyncPane::OnPassphraseShowToggled(bool shown)
 
 void MemoryCardSyncPane::OnPassphraseRemoveClicked()
 {
-  m_ui->passphraseLineEdit->clear();
-  m_ui->passphraseLineEdit->setProperty("revealed", QVariant());
-  m_ui->passphraseShowButton->setChecked(false);
+  ResetSecretField(m_ui->passphraseLineEdit, m_ui->passphraseShowButton);
   Apply({{MemcardSync::ENCRYPTION_PASSPHRASE, std::string()}});
 }
 
