@@ -188,7 +188,7 @@ void MemoryCardSyncPane::OnShowToggled(QLineEdit* edit, QPushButton* show_button
   // up another device with it (and losing the passphrase loses the saves). While settings apply,
   // e.g. a value just saved by tabbing to Show, the store may not have it yet: Apply() shows it
   // once they are applied.
-  if (!edit->text().isEmpty() || m_starting || !MemcardSync::HasSecret(secret))
+  if (!edit->text().isEmpty() || m_pending_applies > 0 || !MemcardSync::HasSecret(secret))
     return;
 
   // Reading the credential store can block (an unlock prompt), so not on the UI thread.
@@ -240,31 +240,37 @@ void MemoryCardSyncPane::Apply(std::vector<std::pair<const char*, std::string>> 
   std::vector<MemcardSync::SecretUpdate> updates;
   for (auto& [name, value] : secrets)
     updates.push_back({name, std::move(value)});
-  m_starting = true;
+  ++m_pending_applies;
   UpdateStatus();
   MemcardSync::ApplySettingsAsync(std::move(updates),
                                   [pane = QPointer<MemoryCardSyncPane>(this)](const std::string&) {
                                     QueueOnObject(qApp, [pane] {
-                                      if (!pane)
-                                        return;
-                                      pane->m_starting = false;
-                                      pane->UpdateSecretPlaceholders();
-                                      pane->UpdateStatus();
-                                      // A Show pressed while they applied.
-                                      Ui::MemoryCardSyncPane& ui = *pane->m_ui;
-                                      if (ui.secretShowButton->isChecked())
-                                      {
-                                        pane->OnShowToggled(ui.secretLineEdit, ui.secretShowButton,
-                                                            MemcardSync::SECRET_ACCESS_KEY, true);
-                                      }
-                                      if (ui.passphraseShowButton->isChecked())
-                                      {
-                                        pane->OnShowToggled(ui.passphraseLineEdit,
-                                                            ui.passphraseShowButton,
-                                                            MemcardSync::ENCRYPTION_PASSPHRASE, true);
-                                      }
+                                      if (pane)
+                                        pane->OnApplied();
                                     });
                                   });
+}
+
+void MemoryCardSyncPane::OnApplied()
+{
+  --m_pending_applies;
+  UpdateSecretPlaceholders();
+  UpdateStatus();
+  // Only once every queued change is in: an earlier one finishing doesn't mean a secret saved
+  // since is stored yet.
+  if (m_pending_applies > 0)
+    return;
+  // A Show pressed while they applied.
+  if (m_ui->secretShowButton->isChecked())
+  {
+    OnShowToggled(m_ui->secretLineEdit, m_ui->secretShowButton, MemcardSync::SECRET_ACCESS_KEY,
+                  true);
+  }
+  if (m_ui->passphraseShowButton->isChecked())
+  {
+    OnShowToggled(m_ui->passphraseLineEdit, m_ui->passphraseShowButton,
+                  MemcardSync::ENCRYPTION_PASSPHRASE, true);
+  }
 }
 
 void MemoryCardSyncPane::UpdateEnabledState()
@@ -296,7 +302,7 @@ void MemoryCardSyncPane::UpdateStatus()
   QString text;
   if (!MemcardSync::IsAvailable())
     text = tr("This build of Dolphin has no memory card sync.");
-  else if (m_starting)
+  else if (m_pending_applies > 0)
     text = tr("Connecting to the storage...");
   else if (const std::string error = MemcardSync::GetLastStartError(); !error.empty())
     text = QString::fromStdString(error);
@@ -310,5 +316,5 @@ void MemoryCardSyncPane::UpdateStatus()
     text = tr("Syncing. Nothing has changed yet.");
   m_ui->statusLabel->setText(text);
   m_ui->syncNowButton->setEnabled(MemcardSync::IsAvailable() && MemcardSync::IsRunning() &&
-                                  !m_starting);
+                                  m_pending_applies == 0);
 }
