@@ -163,6 +163,9 @@ static constexpr u32 NO_WAIT_MS = 1;
 static constexpr std::chrono::minutes PERIODIC_SYNC{5};
 // What exiting Dolphin gives queued uploads.
 static constexpr u32 EXIT_UPLOAD_MS = 5000;
+// How long a boot waits for a start in progress: the start's own check of the storage takes up to
+// ~10 s.
+static constexpr std::chrono::seconds BOOT_WAITS_FOR_START{12};
 // What going to the background gives uploads (Android).
 static constexpr u32 SUSPEND_UPLOAD_MS = 3000;
 // The credential-store service the secrets are kept under.
@@ -217,6 +220,9 @@ static std::thread s_apply_thread;
 static std::mutex s_apply_lock;
 static std::condition_variable s_apply_cv;
 static bool s_apply_pending = false;
+// A run of the apply thread is in progress (s_apply_pending is cleared when it begins).
+static bool s_apply_running = false;
+static std::condition_variable s_apply_idle_cv;
 static bool s_apply_quit = false;
 static std::vector<SecretUpdate> s_apply_secrets;
 static std::vector<std::function<void(const std::string&)>> s_apply_done;
@@ -835,6 +841,7 @@ static void ApplyLoop()
       if (!s_apply_pending)
         return;
       s_apply_pending = false;
+      s_apply_running = true;
       secrets = std::exchange(s_apply_secrets, {});
       done = std::exchange(s_apply_done, {});
     }
@@ -857,6 +864,25 @@ static void ApplyLoop()
       WARN_LOG_FMT(CORE, "MemcardSync: not syncing: {}", error);
     for (const auto& cb : done)
       cb(error);
+    {
+      std::lock_guard lock(s_apply_lock);
+      s_apply_running = false;
+    }
+    s_apply_idle_cv.notify_all();
+  }
+}
+
+// Waits, up to BOOT_WAITS_FOR_START, for a start or stop queued or in progress: at Dolphin's
+// startup, Initialize() queues one, and a game launched at once (from the command line, or by
+// DolphinNoGUI) must not boot with no client and miss the saves from other devices.
+static void WaitForPendingStart()
+{
+  std::unique_lock lock(s_apply_lock);
+  if (!s_apply_idle_cv.wait_for(lock, BOOT_WAITS_FOR_START, [] {
+        return s_apply_quit || (!s_apply_pending && !s_apply_running);
+      }))
+  {
+    WARN_LOG_FMT(CORE, "MemcardSync: still starting; the game boots with the cards as they are.");
   }
 }
 
@@ -889,6 +915,7 @@ void Shutdown()
     s_apply_quit = true;
   }
   s_apply_cv.notify_one();
+  s_apply_idle_cv.notify_all();
   // A start in progress finishes first (it can wait up to 10 s on the network).
   if (s_apply_thread.joinable())
     s_apply_thread.join();
@@ -899,6 +926,7 @@ void Shutdown()
 
 void OnEmulationStarting(Core::System& system)
 {
+  WaitForPendingStart();
   const DiscIO::Region region = SConfig::GetInstance().m_region;
   {
     std::lock_guard lock(s_state_lock);
