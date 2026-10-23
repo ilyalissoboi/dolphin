@@ -12,8 +12,8 @@ plugins {
 // AAR, downloaded once and checked against its SHA-256. It carries libemusync.so for the native
 // build (a Prefab package, found by the root CMakeLists.txt) and for the APK, and the Kotlin side
 // (settings with Keystore secrets, background start and stop, app lifecycle).
-val emusyncVersion = "0.1.1"
-val emusyncAarSha256 = "1af1fff71ede6d5c8baeb3c08f48df065817fc3aeb0b03f720f24cbb4f0ed550"
+val emusyncVersion = "0.2.1"
+val emusyncAarSha256 = "2082033f77f5c6e654e1be1f35f13c01c831ffb83294fdb6334b17345a441045"
 val emusyncAar = layout.buildDirectory.file("emusync/emusync-$emusyncVersion.aar")
 val downloadEmusync = tasks.register("downloadEmusync") {
     val url = "https://github.com/ilyalissoboi/emusync/releases/download/v$emusyncVersion/emusync-$emusyncVersion.aar"
