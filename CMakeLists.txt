@@ -770,6 +770,15 @@ if(ENABLE_EMUSYNC AND NOT ANDROID)
   # A plain variable, not a cache entry: a cached pin keeps its first value in an existing build
   # folder, so a bump would be silently ignored there.
   set(EMUSYNC_PIN "760171a04a2ccc9a762279c534b083327d6e8fdb")
+  # emusync's module caches EMUSYNC_SOURCE_DIR. A cached folder inside this build folder is an
+  # earlier download, not a checkout given with -D: forget it, or a bump would keep the old source.
+  if(DEFINED CACHE{EMUSYNC_SOURCE_DIR})
+    get_filename_component(emusync_cached "$CACHE{EMUSYNC_SOURCE_DIR}" ABSOLUTE)
+    string(FIND "${emusync_cached}/" "${CMAKE_BINARY_DIR}/" emusync_in_build)
+    if(emusync_in_build EQUAL 0)
+      unset(EMUSYNC_SOURCE_DIR CACHE)
+    endif()
+  endif()
   if(NOT EMUSYNC_SOURCE_DIR)
     find_program(EMUSYNC_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin")
     if(NOT EMUSYNC_CARGO)
