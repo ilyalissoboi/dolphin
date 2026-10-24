@@ -66,6 +66,7 @@ void VideoConfig::Refresh()
       auto& system = Core::System::GetInstance();
 
       const bool lock_gpu_thread = Core::IsRunning(system);
+      const bool was_running = Core::GetState(system) == Core::State::Running;
       if (lock_gpu_thread)
         system.GetFifo().PauseAndLock();
 
@@ -73,7 +74,7 @@ void VideoConfig::Refresh()
       g_Config.VerifyValidity();
 
       if (lock_gpu_thread)
-        system.GetFifo().RestoreState(true);
+        system.GetFifo().RestoreState(was_running);
     };
 
     s_config_changed_callback_id =

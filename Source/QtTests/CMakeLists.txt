@@ -4,6 +4,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ApplicationThemeTest.cpp
   AudioPaneUiTest.cpp
   BigPictureHostTest.cpp
+  ImGuiKeyEventTest.cpp
   QtTestsMain.cpp
   SignalRecorder.h
   NullConfigLoader.h

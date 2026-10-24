@@ -3,6 +3,7 @@ add_library(inputcommon
   DynamicInputTextureManager.h
   GCAdapter.cpp
   GCAdapter.h
+  GCAdapterInputGate.h
   ImageOperations.cpp
   ImageOperations.h
   InputConfig.cpp

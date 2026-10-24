@@ -14,6 +14,7 @@
 
 #include "AudioCommon/AudioCommon.h"
 
+#include "Common/BigPicture/PresentationState.h"
 #include "Common/Config/Config.h"
 #include "Common/Thread.h"
 
@@ -168,6 +169,14 @@ void HotkeyScheduler::Run()
       ControlReference::SetInputGate(true);
 
       HotkeyManagerEmu::GetStatus(true);
+
+      // Menu navigation has a separate input channel. Polling the host status above clears
+      // old hotkey presses; no emulation/config hotkey may leak through a modal menu.
+      if (BigPicture::GetPresentationState().IsModal())
+      {
+        HandleFrameStepHotkeys();
+        continue;
+      }
 
       // Open
       if (IsHotkey(HK_OPEN))

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "DolphinQt/Host.h"
+#include "Common/BigPicture/PresentationState.h"
 
 #include <functional>
 
@@ -9,8 +10,6 @@
 #include <QApplication>
 #include <QLocale>
 #include <QThread>
-
-#include <imgui.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -283,9 +282,7 @@ void Host_RequestRenderWindowSize(int w, int h)
 
 bool Host_UIBlocksControllerState()
 {
-  // TODO: Remove the Paused check once async presentation is implemented.
-  return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard &&
-         Core::GetState(Core::System::GetInstance()) != Core::State::Paused;
+  return BigPicture::GetPresentationState().GetCapture().keyboard;
 }
 
 void Host_TitleChanged()

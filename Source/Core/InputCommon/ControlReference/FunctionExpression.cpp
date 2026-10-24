@@ -9,6 +9,10 @@
 
 namespace ciface::ExpressionParser
 {
+bool FunctionExpression::IsAnyInputActive() const
+{
+  return std::ranges::any_of(m_args, [](const auto& input) { return input->IsAnyInputActive(); });
+}
 using Clock = std::chrono::steady_clock;
 using FSec = std::chrono::duration<ControlState>;
 

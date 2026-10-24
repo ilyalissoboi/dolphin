@@ -66,6 +66,8 @@ private:
   void DrawDebugText();
   void DrawChallengesAndLeaderboards();
   void UpdateImguiTexture(ImTextureData* tex);
+  void ProcessInput();
+  u64 m_input_epoch = 0;
 
   // ImGui resources.
   std::unique_ptr<NativeVertexFormat> m_imgui_vertex_format;
