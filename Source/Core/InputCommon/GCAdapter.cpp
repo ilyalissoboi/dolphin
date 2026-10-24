@@ -25,6 +25,7 @@ using namespace std::chrono_literals;
 #include <jni.h>
 #endif
 
+#include "Common/BigPicture/PresentationState.h"
 #include "Common/BitUtils.h"
 #include "Common/Config/Config.h"
 #include "Common/Event.h"
@@ -38,6 +39,8 @@ using namespace std::chrono_literals;
 #include "Core/HW/SI/SI_Device.h"
 #include "Core/HW/SystemTimers.h"
 #include "Core/System.h"
+#include "InputCommon/ControllerInterface/ControllerInterface.h"
+#include "InputCommon/GCAdapterInputGate.h"
 #include "InputCommon/GCPadStatus.h"
 
 #if GCADAPTER_USE_LIBUSB_IMPLEMENTATION
@@ -848,14 +851,22 @@ GCPadStatus Input(int chan)
 
   auto& pad_state = s_port_states[chan];
 
+  static std::array<GCAdapterInputGate, 4> menu_gates;
+  const auto filter = [&](GCPadStatus status) {
+    const auto& capture = BigPicture::GetPresentationState();
+    return menu_gates[chan].Filter(status, capture.IsModal(), capture.GetInputEpoch(),
+                                   ControllerInterface::GetCurrentInputChannel() ==
+                                       ciface::InputChannel::BigPicture);
+  };
+
   // Return the "origin" state for the first input on a new connection.
   if (pad_state.is_new_connection)
   {
     pad_state.is_new_connection = false;
-    return pad_state.origin;
+    return filter(pad_state.origin);
   }
 
-  return pad_state.status;
+  return filter(pad_state.status);
 }
 
 // Get ControllerType from first byte in input payload.

@@ -20,6 +20,7 @@
 #include <lz4.h>
 #include <lzo/lzo1x.h>
 
+#include "Common/BigPicture/PresentationState.h"
 #include "Common/Buffer.h"
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
@@ -29,6 +30,7 @@
 #include "Common/LocaleUtil.h"
 #include "Common/Logging/Log.h"
 #include "Common/MsgHandler.h"
+#include "Common/ScopeGuard.h"
 #include "Common/StringUtil.h"
 #include "Common/Thread.h"
 #include "Common/TimeUtil.h"
@@ -41,6 +43,7 @@
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/GeckoCode.h"
+#include "Core/HW/CPU.h"
 #include "Core/HW/HW.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/Wiimote.h"
@@ -51,6 +54,7 @@
 
 #include "UICommon/UICommon.h"
 
+#include "VideoCommon/BigPicture/Runtime.h"
 #include "VideoCommon/FrameDumpFFMpeg.h"
 #include "VideoCommon/OnScreenDisplay.h"
 #include "VideoCommon/VideoBackendBase.h"
@@ -471,8 +475,18 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   }
 }
 
+static auto SuspendUIPresentation()
+{
+  BigPicture::GetPresentationState().Suspend();
+  return Common::ScopeGuard([] {
+    BigPicture::GetPresentationState().Resume();
+    VideoCommon::BigPicture::Wakeup();
+  });
+}
+
 static void SaveAsFromCore(Core::System& system, std::string filename)
 {
+  const auto ui_lock = SuspendUIPresentation();
   // Try with a buffer a bit larger than the previous state.
   // This will often avoid the "Measure" step.
   const auto buffer_size_estimate = static_cast<std::size_t>(s_last_state_size) * 110 / 100;
@@ -810,6 +824,7 @@ static void LoadFileStateData(const std::string& filename, Common::UniqueBuffer<
 
 static void LoadAsFromCore(Core::System& system, std::string filename)
 {
+  const auto ui_lock = SuspendUIPresentation();
   // Ensure all data has reached the filesystem before trying to use it.
   s_compress_and_dump_thread.WaitForCompletion();
 
@@ -866,6 +881,7 @@ static void LoadAsFromCore(Core::System& system, std::string filename)
     }
   }
 
+  system.GetCPU().InvalidatePauseOwnership();
   if (s_on_after_load_callback)
     s_on_after_load_callback();
 }
@@ -874,6 +890,8 @@ void LoadAs(Core::System& system, std::string filename)
 {
   if (!CheckIfStateLoadIsAllowed(system))
     return;
+
+  system.GetCPU().InvalidatePauseOwnership();
 
   Core::RunOnCPUThread(system, [&system, filename = std::move(filename)]() mutable {
     LoadAsFromCore(system, std::move(filename));
@@ -918,6 +936,8 @@ void LoadLastSaved(Core::System& system, int i)
   if (!CheckIfStateLoadIsAllowed(system))
     return;
 
+  system.GetCPU().InvalidatePauseOwnership();
+
   Core::RunOnCPUThread(system, [&system, i] {
     // Data must reach the filesystem for up to date "UsedSlots".
     s_compress_and_dump_thread.WaitForCompletion();
@@ -959,7 +979,10 @@ void UndoLoadState(Core::System& system)
   if (!CheckIfStateLoadIsAllowed(system))
     return;
 
+  system.GetCPU().InvalidatePauseOwnership();
+
   Core::RunOnCPUThread(system, [&system] {
+    const auto ui_lock = SuspendUIPresentation();
     if (s_undo_load_buffer.empty())
     {
       PanicAlertFmtT("There is nothing to undo!");

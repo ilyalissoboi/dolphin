@@ -102,6 +102,7 @@ struct HostState
   Lifecycle lifecycle = Lifecycle::Idle;
   bool netplay = false;
   bool hardcore = false;
+  std::uint64_t pause_revision = 0;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

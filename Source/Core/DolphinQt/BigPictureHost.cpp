@@ -10,11 +10,18 @@
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 
 BigPictureHost::BigPictureHost(QObject* parent, ReadStateCallback read_state,
-                               ExecuteCallback execute)
+                               ExecuteCallback execute, PauseCallback pause,
+                               PublishCallback publish)
     : QObject(parent), m_read_state(std::move(read_state)), m_execute(std::move(execute)),
-      m_controller(*this)
+      m_pause(std::move(pause)), m_publish(std::move(publish)), m_controller(*this)
 {
   Publish();
+}
+
+BigPictureHost::~BigPictureHost()
+{
+  if (m_publish)
+    m_publish(nullptr);
 }
 
 BigPicture::HostState BigPictureHost::ReadState() const
@@ -34,12 +41,28 @@ BigPicture::Result BigPictureHost::Execute(const BigPicture::Command& command)
 
 void BigPictureHost::Submit(BigPicture::Command command)
 {
+  auto next = m_next_id.load();
+  while (next <= command.id && !m_next_id.compare_exchange_weak(next, command.id + 1))
+  {
+  }
   // Always queue, including on the UI thread. A drawing/input callback never executes a host
   // action inline, and Qt discards the callback if the host is destroyed before delivery.
   QueueOnObject(this, [this, command = std::move(command)] {
     m_controller.Submit(command);
     Publish();
   });
+}
+
+void BigPictureHost::RequestBack()
+{
+  Submit({GetSnapshot()->generation, m_next_id.fetch_add(1), BigPicture::Action::Back});
+}
+
+void BigPictureHost::InvalidatePauseOwnership()
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  m_owns_pause = false;
+  ++m_pause_invalidation;
 }
 
 std::shared_ptr<const BigPicture::Snapshot> BigPictureHost::GetSnapshot() const
@@ -50,8 +73,45 @@ std::shared_ptr<const BigPicture::Snapshot> BigPictureHost::GetSnapshot() const
 
 void BigPictureHost::Publish()
 {
+  auto snapshot = m_controller.GetSnapshot();
+  // Capture starts before requesting a pause, and stops before resuming. No snapshot mutex
+  // is held while touching core state or waking a graphics owner.
+  if (m_publish)
+    m_publish(snapshot);
+  const bool open = snapshot->mode == BigPicture::Mode::InGame &&
+                    (snapshot->host.lifecycle == BigPicture::Lifecycle::Running ||
+                     snapshot->host.lifecycle == BigPicture::Lifecycle::Paused);
+  auto actual = ReadState();
+  if (m_owns_pause &&
+      (snapshot->generation != m_pause_generation || actual.pause_revision != m_pause_revision ||
+       actual.lifecycle != BigPicture::Lifecycle::Paused))
+    m_owns_pause = false;
+  if (m_pause && open && !m_menu_was_open && actual.lifecycle == BigPicture::Lifecycle::Running &&
+      !actual.netplay)
+  {
+    const auto invalidation = m_pause_invalidation;
+    const auto expected_revision = actual.pause_revision + 1;
+    m_pause(true);
+    actual = ReadState();
+    m_owns_pause = actual.lifecycle == BigPicture::Lifecycle::Paused &&
+                   invalidation == m_pause_invalidation &&
+                   actual.pause_revision == expected_revision;
+    m_pause_generation = snapshot->generation;
+    m_pause_revision = actual.pause_revision;
+    m_controller.Refresh();
+  }
+  else if (m_pause && !open && m_menu_was_open && m_owns_pause)
+  {
+    m_owns_pause = false;
+    m_pause(false);
+    m_controller.Refresh();
+  }
+  m_menu_was_open = open;
+  snapshot = m_controller.GetSnapshot();
+  if (m_publish)
+    m_publish(snapshot);
   std::lock_guard lock(m_snapshot_mutex);
-  m_snapshot = m_controller.GetSnapshot();
+  m_snapshot = std::move(snapshot);
 }
 
 void BigPictureHost::Refresh()

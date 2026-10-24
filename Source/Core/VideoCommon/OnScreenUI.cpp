@@ -3,6 +3,7 @@
 
 #include "VideoCommon/OnScreenUI.h"
 
+#include "Common/BigPicture/PresentationState.h"
 #include "Common/CommonPaths.h"
 #include "Common/EnumMap.h"
 #include "Common/FileUtil.h"
@@ -30,6 +31,7 @@
 #include "VideoCommon/Statistics.h"
 #include "VideoCommon/VertexManagerBase.h"
 #include "VideoCommon/VideoConfig.h"
+#include "VideoCommon/VideoEvents.h"
 
 #include <inttypes.h>
 #include <mutex>
@@ -104,6 +106,7 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
 
   m_imgui_last_frame_time = Common::Timer::NowUs();
   m_ready = true;
+  ::BigPicture::GetPresentationState().SetRendererReady(true);
   BeginImGuiFrameUnlocked(width, height);  // lock is already held
 
   return true;
@@ -111,6 +114,7 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
 
 OnScreenUI::~OnScreenUI()
 {
+  ::BigPicture::GetPresentationState().SetRendererReady(false);
   std::unique_lock<std::mutex> imgui_lock(m_imgui_mutex);
 
   ImGui::EndFrame();
@@ -206,6 +210,8 @@ void OnScreenUI::BeginImGuiFrameUnlocked(u32 width, u32 height)
   io.DisplaySize =
       ImVec2(static_cast<float>(m_backbuffer_width), static_cast<float>(m_backbuffer_height));
   io.DeltaTime = time_diff_secs;
+
+  ProcessInput();
 
   ImGui::NewFrame();
 }
@@ -316,11 +322,15 @@ void OnScreenUI::DrawDebugText()
   if (g_ActiveConfig.bOverlayStats)
     g_stats.Display();
 
-  if (Config::Get(Config::GFX_SHOW_NETPLAY_MESSAGES) && g_netplay_chat_ui)
-    g_netplay_chat_ui->Display();
-
-  if (Config::Get(Config::NETPLAY_GOLF_MODE_OVERLAY) && g_netplay_golf_ui)
-    g_netplay_golf_ui->Display();
+  if (!::BigPicture::GetPresentationState().IsModal())
+  {
+    if (const auto chat = g_netplay_chat_ui.load();
+        chat && Config::Get(Config::GFX_SHOW_NETPLAY_MESSAGES))
+      chat->Display();
+    if (const auto golf = g_netplay_golf_ui.load();
+        golf && Config::Get(Config::NETPLAY_GOLF_MODE_OVERLAY))
+      golf->Display();
+  }
 
   if (g_ActiveConfig.bOverlayProjStats)
     g_stats.DisplayProj();
@@ -426,7 +436,11 @@ void OnScreenUI::Finalize(bool draw_emulation_overlays)
   OSD::DrawMessages();
   if (draw_emulation_overlays)
     DrawChallengesAndLeaderboards();
+  GetVideoEvents().host_ui_frame_event.Trigger();
   ImGui::Render();
+  ::BigPicture::GetPresentationState().PublishCapture(
+      m_input_epoch, ImGui::GetIO().WantCaptureKeyboard, ImGui::GetIO().WantCaptureMouse);
+  ::BigPicture::GetPresentationState().FrameCompleted();
 
   // Check for font changes
   ImGuiStyle& style = ImGui::GetStyle();
@@ -548,6 +562,11 @@ void OnScreenUI::SetScale(float backbuffer_scale)
 }
 void OnScreenUI::SetKeyMap(const DolphinKeyMap& key_map)
 {
+  ::BigPicture::GetPresentationState().SetKeyMap({key_map.begin(), key_map.end()});
+}
+
+void OnScreenUI::ProcessInput()
+{
   static constexpr DolphinKeyMap dolphin_to_imgui_map = {
       ImGuiKey_Tab,       ImGuiKey_LeftArrow, ImGuiKey_RightArrow, ImGuiKey_UpArrow,
       ImGuiKey_DownArrow, ImGuiKey_PageUp,    ImGuiKey_PageDown,   ImGuiKey_Home,
@@ -557,10 +576,16 @@ void OnScreenUI::SetKeyMap(const DolphinKeyMap& key_map)
       ImGuiKey_Y,         ImGuiKey_Z,
   };
 
-  auto lock = GetImGuiLock();
-
-  if (!ImGui::GetCurrentContext())
-    return;
+  auto input = ::BigPicture::GetPresentationState().TakeInput();
+  m_input_epoch = input.epoch;
+  auto& io = ImGui::GetIO();
+  if (input.reset)
+  {
+    io.ClearInputKeys();
+    io.ClearInputMouse();
+    io.ClearEventsQueue();
+    ImGui::SetWindowFocus(nullptr);
+  }
 
   m_dolphin_to_imgui_map.clear();
   for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::Z); dolphin_key++)
@@ -568,37 +593,73 @@ void OnScreenUI::SetKeyMap(const DolphinKeyMap& key_map)
     const int imgui_key = dolphin_to_imgui_map[DolphinKey(dolphin_key)];
     if (imgui_key >= 0)
     {
-      const int mapped_key = key_map[DolphinKey(dolphin_key)];
-      m_dolphin_to_imgui_map[mapped_key & 0x1FF] = imgui_key;
+      if (static_cast<size_t>(dolphin_key) < input.key_map.size())
+        m_dolphin_to_imgui_map[input.key_map[dolphin_key]] = imgui_key;
+    }
+  }
+  for (const auto& event : input.events)
+  {
+    switch (event.type)
+    {
+    case ::BigPicture::InputEvent::Type::Key:
+      if (auto it = m_dolphin_to_imgui_map.find(event.key); it != m_dolphin_to_imgui_map.end())
+        io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.down);
+      if (!event.text.empty())
+        io.AddInputCharactersUTF8(event.text.c_str());
+      break;
+    case ::BigPicture::InputEvent::Type::MousePosition:
+      io.AddMousePosEvent(event.x, event.y);
+      break;
+    case ::BigPicture::InputEvent::Type::MouseButtons:
+      for (size_t i = 0; i < std::size(io.MouseDown); ++i)
+        io.AddMouseButtonEvent(static_cast<int>(i), (event.buttons & (1u << i)) != 0);
+      break;
+    case ::BigPicture::InputEvent::Type::Focus:
+      io.AddFocusEvent(event.down);
+      break;
+    case ::BigPicture::InputEvent::Type::Reset:
+      io.ClearInputKeys();
+      io.ClearInputMouse();
+      io.ClearEventsQueue();
+      ImGui::SetWindowFocus(nullptr);
+      break;
     }
   }
 }
 
 void OnScreenUI::SetKey(u32 key, bool is_down, const char* chars)
 {
-  auto lock = GetImGuiLock();
-  if (auto iter = m_dolphin_to_imgui_map.find(key); iter != m_dolphin_to_imgui_map.end())
-    ImGui::GetIO().AddKeyEvent((ImGuiKey)iter->second, is_down);
-
-  if (chars)
-    ImGui::GetIO().AddInputCharactersUTF8(chars);
+  auto& state = ::BigPicture::GetPresentationState();
+  const auto snapshot = state.GetSnapshot();
+  state.Enqueue({::BigPicture::InputEvent::Type::Key, snapshot ? snapshot->generation : 0, key,
+                 is_down, chars ? chars : ""});
 }
 
 void OnScreenUI::SetMousePos(float x, float y)
 {
-  auto lock = GetImGuiLock();
-
-  ImGui::GetIO().AddMousePosEvent(x, y);
+  auto& state = ::BigPicture::GetPresentationState();
+  const auto snapshot = state.GetSnapshot();
+  state.Enqueue({::BigPicture::InputEvent::Type::MousePosition,
+                 snapshot ? snapshot->generation : 0,
+                 0,
+                 false,
+                 {},
+                 x,
+                 y});
 }
 
 void OnScreenUI::SetMousePress(u32 button_mask)
 {
-  auto lock = GetImGuiLock();
-
-  for (size_t i = 0; i < std::size(ImGui::GetIO().MouseDown); i++)
-  {
-    ImGui::GetIO().AddMouseButtonEvent(static_cast<int>(i), (button_mask & (1u << i)) != 0);
-  }
+  auto& state = ::BigPicture::GetPresentationState();
+  const auto snapshot = state.GetSnapshot();
+  state.Enqueue({::BigPicture::InputEvent::Type::MouseButtons,
+                 snapshot ? snapshot->generation : 0,
+                 0,
+                 false,
+                 {},
+                 0,
+                 0,
+                 button_mask});
 }
 
 }  // namespace VideoCommon

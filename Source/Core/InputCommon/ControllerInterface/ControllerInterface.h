@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 
+#include "Common/BigPicture/PresentationState.h"
 #include "Common/HookableEvent.h"
 #include "Common/Matrix.h"
 #include "Common/WindowSystemInfo.h"
@@ -51,6 +52,7 @@ enum class InputChannel
   SerialInterface,
   Bluetooth,
   FreeLook,
+  BigPicture,
   Count,
 };
 
@@ -152,6 +154,15 @@ public:
   {
     const auto channel = int(ControllerInterface::GetCurrentInputChannel());
 
+    const auto epoch = BigPicture::GetPresentationState().GetInputEpoch();
+    if (m_input_epochs[channel] != epoch)
+    {
+      m_input_epochs[channel] = epoch;
+      m_value[channel] = {};
+      m_delta[channel] = {};
+      return;
+    }
+
     m_value[channel] = m_delta[channel];
     m_delta[channel] = {};
   }
@@ -170,8 +181,9 @@ public:
   }
 
 private:
-  std::array<T, int(InputChannel::Count)> m_value;
-  std::array<T, int(InputChannel::Count)> m_delta;
+  std::array<T, int(InputChannel::Count)> m_value{};
+  std::array<T, int(InputChannel::Count)> m_delta{};
+  std::array<std::uint64_t, int(InputChannel::Count)> m_input_epochs{};
 };
 }  // namespace ciface
 

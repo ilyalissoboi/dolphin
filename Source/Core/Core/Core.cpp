@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "Core/Core.h"
+#include "Common/BigPicture/PresentationState.h"
 
 #include <algorithm>
 #include <atomic>
@@ -819,6 +820,7 @@ static void RestoreStateAndUnlock(Core::System& system, const bool unpause_on_un
     return;
 
   system.GetDSP().GetDSPEmulator()->UnpauseAndUnlock();
+  system.GetFifo().RestoreState(false);
   ResetRumble();
 
   // CPU is unlocked last because CPU::RestoreStateAndUnlock contains the synchronization mechanism
@@ -1035,14 +1037,15 @@ void DoFrameStep(Core::System& system)
 
 void UpdateInputGate(bool require_focus, bool require_full_focus)
 {
-  // If the user accepts background input, controls should pass even if an on screen interface is on
+  // Background input may bypass focus checks. Explicit modal capture remains unconditional.
   const bool focus_passes =
       !require_focus ||
       ((Host_RendererHasFocus() || Host_TASInputHasFocus()) && !Host_UIBlocksControllerState());
   // Ignore full focus if we don't require basic focus
   const bool full_focus_passes =
       !require_focus || !require_full_focus || (focus_passes && Host_RendererHasFullFocus());
-  ControlReference::SetInputGate(focus_passes && full_focus_passes);
+  ControlReference::SetInputGate(focus_passes && full_focus_passes &&
+                                 !BigPicture::GetPresentationState().IsModal());
 }
 
 CPUThreadGuard::CPUThreadGuard(Core::System& system)

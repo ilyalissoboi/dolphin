@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
+#include "Common/BigPicture/PresentationState.h"
 
 #include <algorithm>
 
@@ -417,5 +418,6 @@ ControllerInterface::RegisterDevicesChangedCallback(Common::HookableEvent<>::Cal
 // Invoke all callbacks that were registered
 void ControllerInterface::InvokeDevicesChangedCallbacks()
 {
+  BigPicture::GetPresentationState().ResetInput();
   m_devices_changed_event.Trigger();
 }

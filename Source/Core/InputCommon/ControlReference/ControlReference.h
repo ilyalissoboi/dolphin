@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <memory>
 
 #include "InputCommon/ControlReference/ExpressionParser.h"
@@ -93,6 +94,10 @@ public:
   InputReference();
   bool IsInput() const override;
   ControlState State(const ControlState state) override;
+
+private:
+  std::uint64_t m_input_epoch = 0;
+  bool m_require_release = false;
 };
 
 //

@@ -58,6 +58,7 @@
 #include "Core/Config/WiimoteSettings.h"
 #include "Core/Core.h"
 #include "Core/FreeLookManager.h"
+#include "Core/HW/CPU.h"
 #include "Core/HW/DVD/DVDInterface.h"
 #include "Core/HW/GBAPad.h"
 #include "Core/HW/GCKeyboard.h"
@@ -79,6 +80,7 @@
 #include "DiscIO/NANDImporter.h"
 #include "DiscIO/RiivolutionPatcher.h"
 
+#include "Common/BigPicture/PresentationState.h"
 #include "DolphinQt/AboutDialog.h"
 #include "DolphinQt/Achievements/AchievementsWindow.h"
 #include "DolphinQt/BigPictureHost.h"
@@ -132,6 +134,7 @@
 #include "DolphinQt/TAS/WiiTASInputWindow.h"
 #include "DolphinQt/ToolBar.h"
 #include "DolphinQt/WiiUpdate.h"
+#include "VideoCommon/BigPicture/Runtime.h"
 #ifdef _WIN32
 #include "DolphinQt/resource.h"
 #endif
@@ -305,6 +308,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           state.lifecycle = BigPicture::Lifecycle::Stopping;
         state.netplay = NetPlay::IsNetPlayRunning();
         state.hardcore = AchievementManager::GetInstance().IsHardcoreModeActive();
+        state.pause_revision = m_system.GetCPU().GetPauseRevision();
         return state;
       },
       [this](const BigPicture::Command& command) -> BigPicture::Result {
@@ -341,6 +345,20 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
                   BigPicture::UnavailableReason::InvalidArgument};
         }
         return {command, ResultStatus::Dispatched};
+      },
+      [this](bool paused) {
+        Core::SetState(m_system, paused ? Core::State::Paused : Core::State::Running);
+        if (paused && Core::GetState(m_system) == Core::State::Paused)
+        {
+          // Finish accepted guest presents before the menu starts its retained-frame redraws.
+          const Core::CPUThreadGuard guard(m_system);
+        }
+      },
+      [this](std::shared_ptr<const BigPicture::Snapshot> snapshot) {
+        BigPicture::GetPresentationState().Publish(snapshot);
+        if (snapshot)
+          m_render_widget->RefreshInputCapture();
+        VideoCommon::BigPicture::Wakeup();
       });
   connect(&Settings::Instance(), &Settings::ConfigChanged, m_big_picture_host,
           &BigPictureHost::Refresh);
@@ -846,9 +864,13 @@ void MainWindow::ConnectRenderWidget()
   m_render_widget->hide();
   connect(m_render_widget, &RenderWidget::Closed, this, &MainWindow::ForceStop);
   connect(m_render_widget, &RenderWidget::FocusChanged, this, [this](bool focus) {
+    if (!focus)
+      m_big_picture_host->InvalidatePauseOwnership();
     if (m_render_widget->isFullScreen())
       SetFullScreenResolution(focus);
   });
+  connect(m_render_widget, &RenderWidget::MenuBack, m_big_picture_host,
+          &BigPictureHost::RequestBack);
 }
 
 void MainWindow::ConnectHost()
@@ -2193,8 +2215,8 @@ void MainWindow::OnExportRecording()
 
 void MainWindow::OnActivateChat()
 {
-  if (g_netplay_chat_ui)
-    g_netplay_chat_ui->Activate();
+  if (const auto chat = g_netplay_chat_ui.load())
+    chat->Activate();
 }
 
 void MainWindow::OnRequestGolfControl()

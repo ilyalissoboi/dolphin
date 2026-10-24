@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -18,9 +19,15 @@ class BigPictureHost final : public QObject, private BigPicture::Host
 public:
   using ReadStateCallback = std::function<BigPicture::HostState()>;
   using ExecuteCallback = std::function<BigPicture::Result(const BigPicture::Command&)>;
+  using PauseCallback = std::function<void(bool)>;
+  using PublishCallback = std::function<void(std::shared_ptr<const BigPicture::Snapshot>)>;
 
-  BigPictureHost(QObject* parent, ReadStateCallback read_state, ExecuteCallback execute);
+  BigPictureHost(QObject* parent, ReadStateCallback read_state, ExecuteCallback execute,
+                 PauseCallback pause = {}, PublishCallback publish = {});
+  ~BigPictureHost() override;
   void Submit(BigPicture::Command command);
+  void RequestBack();
+  void InvalidatePauseOwnership();
   std::shared_ptr<const BigPicture::Snapshot> GetSnapshot() const;
   void Refresh();
   void InvalidateSession();
@@ -32,7 +39,15 @@ private:
 
   ReadStateCallback m_read_state;
   ExecuteCallback m_execute;
+  PauseCallback m_pause;
+  PublishCallback m_publish;
   BigPicture::Controller m_controller;
   mutable std::mutex m_snapshot_mutex;
   std::shared_ptr<const BigPicture::Snapshot> m_snapshot;
+  std::atomic<std::uint64_t> m_next_id{1};
+  bool m_menu_was_open = false;
+  bool m_owns_pause = false;
+  std::uint64_t m_pause_generation = 0;
+  std::uint64_t m_pause_revision = 0;
+  std::uint64_t m_pause_invalidation = 0;
 };
