@@ -173,6 +173,7 @@ bool Gfx::BindBackbuffer(const ClearColor& clear_color)
 void Gfx::PresentBackbuffer()
 {
   m_swap_chain->Present();
+  D3D::stateman->InvalidateFramebuffer();
 }
 
 void Gfx::OnConfigChanged(u32 bits)

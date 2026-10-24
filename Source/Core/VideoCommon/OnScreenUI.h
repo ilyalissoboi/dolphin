@@ -52,7 +52,9 @@ public:
 
   void SetScale(float backbuffer_scale);
 
-  void Finalize();
+  // Complete the frame and update dynamic font textures. UI-only sessions must not draw overlays
+  // that read emulation state. The caller must own the graphics context, as for DrawImGui().
+  void Finalize(bool draw_emulation_overlays = true);
 
   // Receive keyboard and mouse from QT
   void SetKeyMap(const DolphinKeyMap& key_map);
