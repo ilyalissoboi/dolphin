@@ -25,6 +25,7 @@
 #include "Core/Config/UISettings.h"
 #include "Core/Core.h"
 #include "Core/FreeLookManager.h"
+#include "Core/Host.h"
 #include "Core/HotkeyManager.h"
 #include "Core/IOS/IOS.h"
 #include "Core/State.h"
@@ -37,6 +38,7 @@
 #endif
 #include "DolphinQt/Settings.h"
 
+#include "InputCommon/BigPictureInput.h"
 #include "InputCommon/ControlReference/ControlReference.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 
@@ -147,8 +149,49 @@ void HotkeyScheduler::Run()
   {
     Common::SleepCurrentThread(5);
 
+    // Menu input has its own channel and must precede guest-affecting hotkeys/FreeLook.
+    // Reuse the existing backend sample; the menu reader temporarily switches its channel.
     g_controller_interface.SetCurrentInputChannel(ciface::InputChannel::FreeLook);
     g_controller_interface.UpdateInput();
+    auto& presentation = BigPicture::GetPresentationState();
+    const auto input_epoch = presentation.GetFrameInputEpoch();
+    const bool toggle = BigPictureInput::Poll(
+        HotkeyManagerEmu::IsEnabled() && Host_RendererHasFocus(), presentation.IsModal());
+    for (const auto& request : presentation.TakeNavigationRequests())
+    {
+      if (request.options)
+      {
+        const auto& options = *request.options;
+        emit BigPictureOptions(options.swap_confirm_back, options.scale, options.safe_area,
+                               request.generation, request.input_epoch);
+      }
+      else
+      {
+        emit BigPictureAction(static_cast<int>(request.action), request.generation,
+                              request.input_epoch);
+      }
+    }
+    if (toggle)
+    {
+      const auto snapshot = presentation.GetSnapshot();
+      if (snapshot && (snapshot->host.lifecycle == BigPicture::Lifecycle::Running ||
+                       snapshot->host.lifecycle == BigPicture::Lifecycle::Paused))
+      {
+        if (snapshot->mode == BigPicture::Mode::Desktop)
+        {
+          if (const auto epoch = presentation.BeginMenuRequest(snapshot->generation, input_epoch))
+            emit BigPictureAction(static_cast<int>(BigPicture::Action::OpenMenu),
+                                  snapshot->generation, *epoch);
+        }
+        else
+        {
+          emit BigPictureAction(static_cast<int>(BigPicture::Action::ReturnToDesktop),
+                                snapshot->generation, input_epoch);
+        }
+      }
+      continue;
+    }
+
     FreeLook::UpdateInput();
 
     g_controller_interface.SetCurrentInputChannel(ciface::InputChannel::Host);

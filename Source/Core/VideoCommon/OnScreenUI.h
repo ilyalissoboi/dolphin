@@ -10,12 +10,14 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "VideoCommon/BigPicture/Navigation.h"
 #include "VideoCommon/OnScreenUIKeyMap.h"
 
 class NativeVertexFormat;
 class AbstractTexture;
 class AbstractPipeline;
 struct ImTextureData;
+struct ImFont;
 
 namespace VideoCommon
 {
@@ -67,7 +69,13 @@ private:
   void DrawChallengesAndLeaderboards();
   void UpdateImguiTexture(ImTextureData* tex);
   void ProcessInput();
+  void DrawNavigation();
   u64 m_input_epoch = 0;
+  u64 m_navigation_generation = 0;
+  ::BigPicture::NavigationStatus m_navigation;
+  BigPicture::NavigationToolkit m_navigation_toolkit;
+  bool m_navigation_keyboard = true;
+  ImFont* m_menu_font = nullptr;
 
   // ImGui resources.
   std::unique_ptr<NativeVertexFormat> m_imgui_vertex_format;

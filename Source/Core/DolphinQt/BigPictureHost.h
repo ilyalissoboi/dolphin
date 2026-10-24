@@ -25,8 +25,10 @@ public:
   BigPictureHost(QObject* parent, ReadStateCallback read_state, ExecuteCallback execute,
                  PauseCallback pause = {}, PublishCallback publish = {});
   ~BigPictureHost() override;
-  void Submit(BigPicture::Command command);
+  void Submit(BigPicture::Command command, std::optional<std::uint64_t> input_epoch = std::nullopt);
   void RequestBack();
+  void RequestAction(std::uint64_t generation, BigPicture::Action action,
+                     std::optional<std::uint64_t> input_epoch = std::nullopt);
   void InvalidatePauseOwnership();
   std::shared_ptr<const BigPicture::Snapshot> GetSnapshot() const;
   void Refresh();

@@ -437,6 +437,7 @@ void OnScreenUI::Finalize(bool draw_emulation_overlays)
   if (draw_emulation_overlays)
     DrawChallengesAndLeaderboards();
   GetVideoEvents().host_ui_frame_event.Trigger();
+  DrawNavigation();
   ImGui::Render();
   ::BigPicture::GetPresentationState().PublishCapture(
       m_input_epoch, ImGui::GetIO().WantCaptureKeyboard, ImGui::GetIO().WantCaptureMouse);
@@ -578,13 +579,52 @@ void OnScreenUI::ProcessInput()
 
   auto input = ::BigPicture::GetPresentationState().TakeInput();
   m_input_epoch = input.epoch;
+  const bool mapping_changed =
+      m_navigation.options.swap_confirm_back != input.navigation.options.swap_confirm_back;
+  m_navigation = std::move(input.navigation);
   auto& io = ImGui::GetIO();
-  if (input.reset)
+  const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
+  const bool modal = snapshot && snapshot->mode == ::BigPicture::Mode::InGame &&
+                     ::BigPicture::GetPresentationState().IsModal();
+  io.ConfigNavCursorVisibleAlways = modal;
+  io.ConfigFlags &= ~(ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
+  io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
+  if (modal)
+  {
+    if (!m_menu_font)
+    {
+      // Keep menu text sizes and fallback glyphs independent of diagnostic OSD settings.
+      const auto fallback_paths = ::BigPicture::GetPresentationState().GetMenuFontPaths();
+      auto font_path = File::GetUserPath(D_LOAD_IDX) + "OSD_Font.ttf";
+      if (!File::Exists(font_path))
+        font_path = !fallback_paths.empty() ? fallback_paths.front() :
+                                              File::GetSysDirectory() + DIR_SEP + RESOURCES_DIR +
+                                                  DIR_SEP + "OSD_Font.ttf";
+      if (File::Exists(font_path))
+        m_menu_font = io.Fonts->AddFontFromFileTTF(font_path.c_str());
+      if (!m_menu_font)
+        m_menu_font = io.Fonts->AddFontDefault();
+      for (const auto& path : fallback_paths)
+      {
+        if (path == font_path || !File::Exists(path))
+          continue;
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.DstFont = m_menu_font;
+        io.Fonts->AddFontFromFileTTF(path.c_str(), 0, &config);
+      }
+    }
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+    if (m_navigation.gamepad)
+      io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
+  }
+  if (input.reset || mapping_changed)
   {
     io.ClearInputKeys();
     io.ClearInputMouse();
     io.ClearEventsQueue();
     ImGui::SetWindowFocus(nullptr);
+    m_navigation_toolkit.InvalidateFocus();
   }
 
   m_dolphin_to_imgui_map.clear();
@@ -602,12 +642,26 @@ void OnScreenUI::ProcessInput()
     switch (event.type)
     {
     case ::BigPicture::InputEvent::Type::Key:
+      if (event.down)
+        m_navigation_keyboard = true;
       if (auto it = m_dolphin_to_imgui_map.find(event.key); it != m_dolphin_to_imgui_map.end())
         io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.down);
       [[fallthrough]];
     case ::BigPicture::InputEvent::Type::Text:
       if (!event.text.empty())
         io.AddInputCharactersUTF8(event.text.c_str());
+      break;
+    case ::BigPicture::InputEvent::Type::Navigation:
+      if (modal && event.key < ::BigPicture::NAV_BUTTON_COUNT)
+      {
+        const auto key =
+            BigPicture::GetNavigationKey(static_cast<::BigPicture::NavButton>(event.key),
+                                         m_navigation.options.swap_confirm_back);
+        if (key != ImGuiKey_None)
+          io.AddKeyEvent(key, event.down);
+        if (event.down)
+          m_navigation_keyboard = false;
+      }
       break;
     case ::BigPicture::InputEvent::Type::MousePosition:
       io.AddMousePosEvent(event.x, event.y);
@@ -626,6 +680,79 @@ void OnScreenUI::ProcessInput()
       ImGui::SetWindowFocus(nullptr);
       break;
     }
+  }
+}
+
+void OnScreenUI::DrawNavigation()
+{
+  auto& presentation = ::BigPicture::GetPresentationState();
+  const auto snapshot = presentation.GetSnapshot();
+  if (!snapshot || snapshot->mode != ::BigPicture::Mode::InGame || !presentation.IsModal())
+  {
+    m_navigation_toolkit.InvalidateFocus();
+    return;
+  }
+  if (m_navigation_generation != snapshot->generation)
+  {
+    m_navigation_toolkit.Reset();
+    m_navigation_generation = snapshot->generation;
+  }
+  const auto text = presentation.GetNavigationText();
+  if (text.title.empty())
+    return;
+  auto options = m_navigation.options;
+  const bool preferences =
+      !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::Settings;
+  BigPicture::MenuPage page;
+  page.id = preferences ? "preferences" : "root";
+  page.title = preferences ? text.preferences : text.title;
+  if (preferences)
+  {
+    page.items = {
+        {"swap", text.swap, options.swap_confirm_back ? text.on : text.off},
+        {"scale", text.scale, std::to_string(static_cast<int>(options.scale * 100)) + "%"},
+        {"safe_area", text.safe_area,
+         std::to_string(static_cast<int>(options.safe_area * 100)) + "%"}};
+  }
+  else
+  {
+    page.columns = 2;
+    page.items = {{"preferences", text.preferences}, {"close", text.close}};
+    page.default_focus = "close";
+  }
+  const auto prompt = [&](::BigPicture::NavButton button, const std::string& label) {
+    const auto& binding = m_navigation.bindings[static_cast<std::size_t>(button)];
+    return !m_navigation_keyboard && !binding.empty() && binding.size() <= 24 ?
+               binding + ": " + label :
+               label;
+  };
+  const auto confirm =
+      options.swap_confirm_back ? ::BigPicture::NavButton::Back : ::BigPicture::NavButton::Confirm;
+  const auto back =
+      options.swap_confirm_back ? ::BigPicture::NavButton::Confirm : ::BigPicture::NavButton::Back;
+  const std::string prompts = m_navigation_keyboard ?
+                                  text.keyboard_prompts :
+                                  m_navigation.device + "   " + prompt(confirm, text.select) +
+                                      "   " + prompt(back, text.back) + "   " +
+                                      prompt(::BigPicture::NavButton::Previous, text.previous) +
+                                      "   " + prompt(::BigPicture::NavButton::Next, text.next);
+  const auto result = m_navigation_toolkit.Draw(page, options, prompts, m_menu_font);
+  if (result.back || result.activated == "close")
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Back},
+                                   m_input_epoch);
+  else if (result.activated == "preferences")
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Settings},
+                                   m_input_epoch);
+  else if (result.activated)
+  {
+    if (*result.activated == "swap")
+      options.swap_confirm_back = !options.swap_confirm_back;
+    else if (*result.activated == "scale")
+      options.scale = options.scale >= 1.5f ? 0.75f : options.scale + 0.25f;
+    else if (*result.activated == "safe_area")
+      options.safe_area = options.safe_area >= 0.149f ? 0 : options.safe_area + 0.05f;
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Back, options},
+                                   m_input_epoch);
   }
 }
 

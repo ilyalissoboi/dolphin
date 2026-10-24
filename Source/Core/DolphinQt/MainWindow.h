@@ -184,6 +184,7 @@ private:
   void ShowFreeLookWindow();
   void ShowAboutDialog();
   void ShowHotkeyDialog();
+  void ShowBigPictureInputDialog(int controller);
   void ShowNetPlaySetupDialog();
   void ShowNetPlayBrowser();
   void ShowFIFOPlayer();
@@ -275,6 +276,7 @@ private:
   WiiSpeakWindow* m_wii_speak_window = nullptr;
   LogitechMicWindow* m_logitech_mic_window = nullptr;
   MappingWindow* m_hotkey_window = nullptr;
+  std::array<MappingWindow*, 4> m_big_picture_input_windows{};
   FreeLookWindow* m_freelook_window = nullptr;
 
   HotkeyScheduler* m_hotkey_scheduler;
