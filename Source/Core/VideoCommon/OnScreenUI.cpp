@@ -413,15 +413,19 @@ void OnScreenUI::DrawChallengesAndLeaderboards()
 #endif  // USE_RETRO_ACHIEVEMENTS
 }
 
-void OnScreenUI::Finalize()
+void OnScreenUI::Finalize(bool draw_emulation_overlays)
 {
   auto lock = GetImGuiLock();
 
-  auto& perf_metrics = Core::System::GetInstance().GetPerfMetrics();
-  perf_metrics.DrawImGuiStats(m_backbuffer_scale);
-  DrawDebugText();
+  if (draw_emulation_overlays)
+  {
+    auto& perf_metrics = Core::System::GetInstance().GetPerfMetrics();
+    perf_metrics.DrawImGuiStats(m_backbuffer_scale);
+    DrawDebugText();
+  }
   OSD::DrawMessages();
-  DrawChallengesAndLeaderboards();
+  if (draw_emulation_overlays)
+    DrawChallengesAndLeaderboards();
   ImGui::Render();
 
   // Check for font changes

@@ -26,6 +26,7 @@ class QTimer;
 class AchievementsWindow;
 class AssemblerWidget;
 class BreakpointWidget;
+class BigPictureHost;
 struct BootParameters;
 class CheatsManager;
 class CodeWidget;
@@ -100,6 +101,7 @@ public:
 
   void ShowControllersWindow();
   void ShowTriforceWindow();
+  BigPictureHost* GetBigPictureHost() const { return m_big_picture_host; }
 
 signals:
   void ReadOnlyModeChanged(bool read_only);
@@ -114,6 +116,7 @@ private:
 
   // May ask for confirmation. Returns whether or not it actually stopped.
   bool RequestStop();
+  bool RequestStopWithConfirmation(bool confirmed);
   void ForceStop();
   void Reset();
   void FrameAdvance();
@@ -239,6 +242,7 @@ private:
 
   Core::System& m_system;
   std::unique_ptr<Ui::MainWindow> m_ui;
+  BigPictureHost* m_big_picture_host = nullptr;
 
 #ifdef HAVE_XRANDR
   std::unique_ptr<X11Utils::XRRConfiguration> m_xrr_config;

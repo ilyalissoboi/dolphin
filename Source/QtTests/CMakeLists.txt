@@ -3,6 +3,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   AdvancedPaneUiTest.cpp
   ApplicationThemeTest.cpp
   AudioPaneUiTest.cpp
+  BigPictureHostTest.cpp
   QtTestsMain.cpp
   SignalRecorder.h
   NullConfigLoader.h
@@ -44,6 +45,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   TriforcePaneUiTest.cpp
   WiiPaneUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureHost.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/CoverManager.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/ClickBlurLabel.cpp
