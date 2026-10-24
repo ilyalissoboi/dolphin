@@ -7,11 +7,31 @@
 #include <QThread>
 #include <gtest/gtest.h>
 
+#include "Common/BigPicture/PresentationState.h"
 #include "DolphinQt/BigPictureHost.h"
 
 namespace
 {
 using namespace BigPicture;
+
+TEST(BigPictureHostTest, QueuedNavigationCannotExecuteAfterFocusReset)
+{
+  auto& presentation = GetPresentationState();
+  presentation.SetFocused(true);
+  BigPictureHost host(
+      nullptr, [] { return HostState{Lifecycle::Running}; },
+      [](const Command& command) { return Result{command}; });
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu,
+                     presentation.GetFrameInputEpoch());
+  presentation.SetFocused(false);
+  presentation.SetFocused(true);
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu,
+                     presentation.GetFrameInputEpoch());
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::InGame);
+}
 
 TEST(BigPictureHostTest, WorkerCommandsExecuteOnlyOnQtOwnerAndSnapshotsStayValid)
 {

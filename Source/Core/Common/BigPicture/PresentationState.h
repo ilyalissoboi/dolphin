@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "Common/BigPicture/Contracts.h"
+#include "Common/BigPicture/Navigation.h"
 
 namespace BigPicture
 {
@@ -30,6 +31,7 @@ struct InputEvent
   {
     Key,
     Text,
+    Navigation,
     MousePosition,
     MouseButtons,
     Focus,
@@ -51,6 +53,7 @@ struct FrameInput
   std::vector<int> key_map;
   bool reset = false;
   std::deque<InputEvent> events;
+  NavigationStatus navigation;
 };
 
 // No graphics resources or host callbacks live here. A suspended state rejects presentation
@@ -64,11 +67,24 @@ public:
   void SetFocused(bool focused);
   void SetRendererReady(bool ready);
   bool IsModal() const { return m_modal.load(); }
+  std::optional<std::uint64_t> BeginMenuRequest(std::uint64_t generation,
+                                                std::uint64_t input_epoch);
+  void FinishMenuRequest(std::optional<std::uint64_t> input_epoch);
   void SetKeyMap(std::vector<int> key_map);
   void Enqueue(InputEvent event);
   FrameInput TakeInput();
   void ResetInput();
   void RequestFrames();
+  void SetNavigationStatus(NavigationStatus status);
+  void SetNavigationText(NavigationText text);
+  NavigationText GetNavigationText() const;
+  void SetMenuFontPaths(std::vector<std::string> paths);
+  std::vector<std::string> GetMenuFontPaths() const;
+  void RequestNavigation(NavigationRequest request,
+                         std::optional<std::uint64_t> input_epoch = std::nullopt);
+  bool IsInputCurrent(std::uint64_t epoch) const;
+  std::uint64_t GetFrameInputEpoch() const;
+  std::deque<NavigationRequest> TakeNavigationRequests();
 
   void PublishCapture(std::uint64_t epoch, bool keyboard, bool mouse);
   CaptureState GetCapture() const;
@@ -93,12 +109,19 @@ private:
   std::shared_ptr<const Snapshot> m_snapshot;
   std::deque<InputEvent> m_events;
   std::vector<int> m_key_map;
+  NavigationStatus m_navigation;
+  NavigationText m_navigation_text;
+  std::vector<std::string> m_menu_font_paths;
+  std::deque<NavigationRequest> m_navigation_requests;
   bool m_reset = true;
   bool m_focused = true;
   bool m_ready = false;
+  bool m_menu_visible = false;
+  bool m_menu_pending = false;
   unsigned m_suspensions = 0;
   bool m_presenting = false;
   Clock::time_point m_next_present{};
+  // Publish visible/pending capture together; accepting the Qt request must not open a gap.
   std::atomic<bool> m_modal{false};
   std::atomic<unsigned> m_capture{0};
   std::atomic<std::uint64_t> m_input_epoch{0};

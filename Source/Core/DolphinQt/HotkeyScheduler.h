@@ -21,6 +21,9 @@ public:
   void Start();
   void Stop();
 signals:
+  void BigPictureAction(int action, quint64 generation, quint64 input_epoch);
+  void BigPictureOptions(bool swap, double scale, double safe_area, quint64 generation,
+                         quint64 input_epoch);
   void Open();
   void EjectDisc();
   void ChangeDisc();

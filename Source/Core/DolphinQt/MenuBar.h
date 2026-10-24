@@ -122,6 +122,7 @@ signals:
   void ConfigureAudio();
   void ConfigureControllers();
   void ConfigureHotkeys();
+  void ConfigureBigPicture(int controller);
   void ConfigureFreelook();
 
   // View

@@ -47,6 +47,7 @@ public:
     MAPPING_WIIMOTE_EMU,
     // Hotkeys
     MAPPING_HOTKEYS,
+    MAPPING_BIG_PICTURE,
     // Freelook
     MAPPING_FREELOOK,
     // Triforce

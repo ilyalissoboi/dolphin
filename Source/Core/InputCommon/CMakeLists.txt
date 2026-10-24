@@ -1,4 +1,6 @@
 add_library(inputcommon
+  BigPictureInput.cpp
+  BigPictureInput.h
   DynamicInputTextureManager.cpp
   DynamicInputTextureManager.h
   GCAdapter.cpp

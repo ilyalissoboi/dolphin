@@ -7,6 +7,7 @@
 
 #include <QThread>
 
+#include "Common/BigPicture/PresentationState.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 
 BigPictureHost::BigPictureHost(QObject* parent, ReadStateCallback read_state,
@@ -39,7 +40,7 @@ BigPicture::Result BigPictureHost::Execute(const BigPicture::Command& command)
   return m_execute(command);
 }
 
-void BigPictureHost::Submit(BigPicture::Command command)
+void BigPictureHost::Submit(BigPicture::Command command, std::optional<std::uint64_t> input_epoch)
 {
   auto next = m_next_id.load();
   while (next <= command.id && !m_next_id.compare_exchange_weak(next, command.id + 1))
@@ -47,15 +48,29 @@ void BigPictureHost::Submit(BigPicture::Command command)
   }
   // Always queue, including on the UI thread. A drawing/input callback never executes a host
   // action inline, and Qt discards the callback if the host is destroyed before delivery.
-  QueueOnObject(this, [this, command = std::move(command)] {
+  QueueOnObject(this, [this, command = std::move(command), input_epoch] {
+    if (input_epoch && !BigPicture::GetPresentationState().IsInputCurrent(*input_epoch))
+    {
+      if (command.action == BigPicture::Action::OpenMenu)
+        BigPicture::GetPresentationState().FinishMenuRequest(input_epoch);
+      return;
+    }
     m_controller.Submit(command);
     Publish();
+    if (command.action == BigPicture::Action::OpenMenu)
+      BigPicture::GetPresentationState().FinishMenuRequest(input_epoch);
   });
 }
 
 void BigPictureHost::RequestBack()
 {
-  Submit({GetSnapshot()->generation, m_next_id.fetch_add(1), BigPicture::Action::Back});
+  RequestAction(GetSnapshot()->generation, BigPicture::Action::Back);
+}
+
+void BigPictureHost::RequestAction(std::uint64_t generation, BigPicture::Action action,
+                                   std::optional<std::uint64_t> input_epoch)
+{
+  Submit({generation, m_next_id.fetch_add(1), action}, input_epoch);
 }
 
 void BigPictureHost::InvalidatePauseOwnership()
