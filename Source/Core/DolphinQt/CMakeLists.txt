@@ -86,6 +86,8 @@ PRIVATE
 )
 
 add_executable(dolphin-emu
+  BigPictureHost.cpp
+  BigPictureHost.h
   AboutDialog.cpp
   AboutDialog.h
   AboutDialog.ui

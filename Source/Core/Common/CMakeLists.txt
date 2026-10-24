@@ -14,6 +14,7 @@ add_library(common
   Assembler/GekkoParser.cpp
   Assembler/GekkoParser.h
   Assert.h
+  BigPicture/Contracts.h
   BitField.h
   BitSet.h
   BitUtils.h
