@@ -24,6 +24,7 @@
 #include "Core/System.h"
 
 #include "DolphinQt/Host.h"
+#include "DolphinQt/QtUtils/ImGuiKeyEvent.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/Settings.h"
@@ -573,28 +574,8 @@ void RenderWidget::PassEventToPresenter(const QEvent* event)
   case QEvent::KeyPress:
   case QEvent::KeyRelease:
   {
-    // Preserve full Qt codes: masking their low bits aliases modifiers with ordinary keys
-    // (for example Shift with Space). The render owner maps these to named ImGui keys.
     const QKeyEvent* key_event = static_cast<const QKeyEvent*>(event);
-    if (key_event->isAutoRepeat())
-      break;
-    const bool is_down = event->type() == QEvent::KeyPress;
-    const u32 key = static_cast<u32>(key_event->key());
-
-    const char* chars = nullptr;
-    QByteArray utf8;
-
-    if (is_down)
-    {
-      utf8 = key_event->text().toUtf8();
-
-      if (utf8.size())
-        chars = utf8.constData();
-    }
-
-    // Pass the key onto Presenter (for the imgui UI)
-    input.Enqueue(
-        {BigPicture::InputEvent::Type::Key, generation, key, is_down, chars ? chars : ""});
+    QtUtils::QueueImGuiKeyEvent(input, *key_event, generation);
   }
   break;
 

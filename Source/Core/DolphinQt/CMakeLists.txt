@@ -448,6 +448,7 @@ add_executable(dolphin-emu
   QtUtils/FromStdString.h
   QtUtils/ImageConverter.cpp
   QtUtils/ImageConverter.h
+  QtUtils/ImGuiKeyEvent.h
   QtUtils/NonAutodismissibleMenu.cpp
   QtUtils/NonAutodismissibleMenu.h
   QtUtils/NonDefaultQPushButton.cpp

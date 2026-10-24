@@ -35,7 +35,8 @@ execution unconditionally. Surfaces continue to resize on the graphics owner.
   dereferences `g_presenter` during graphics initialization/teardown or accesses live `ImGuiIO`.
   The render owner drains events before `NewFrame` and publishes capture after rendering.
 - Full Qt key codes are preserved, preventing aliases such as Shift/Space. Releases are forwarded;
-  Qt auto-repeat cannot repeatedly close a menu. Escape requests one Back action while modal.
+  Qt auto-repeat forwards UTF-8 text independently of key transitions, preserving repeated chat
+  characters without repeatedly closing a menu. Escape requests one Back action while modal.
 - Queue overflow, session changes, focus changes and disconnect reset pressed state. A frame epoch
   rejects capture published by an old frame after a reset. Physical input has a separate epoch so
   ordinary desktop initialization/focus changes do not impose menu-release behavior.
@@ -64,13 +65,16 @@ The normal application and both test binaries build under MSVC 19.51 with pinned
 optional emusync integration remains disabled in this validation build, as in slice 1.
 
 - CTest passed: **1,578 core tests passed**, with the same two environment-dependent real-preset
-  tests skipped. All **199 Qt tests passed** using the Windows platform plugin. The bundle has no
+  tests skipped. All **202 Qt tests passed** using the Windows platform plugin. The bundle has no
   offscreen plugin; the test setup selects `Binaries/QtPlugins/platforms` explicitly.
-- This slice adds **19 core tests and four Qt tests**. They cover bounded pacing/wakes, draining
+- This slice adds **19 core tests and seven Qt tests**. They cover bounded pacing/wakes, draining
   exclusion under concurrent input, stale capture, queue overflow, release retention, background
   input, the opening chord, constant/stateful expressions, absolute surfaces/combined modifiers,
   relative motion, native-adapter origin
   handling, owner-side chat focus, and pause ownership including intervening pause/focus events.
+  Review regression tests use Qt key events to verify repeated UTF-8 text, suppression of
+  auto-repeat release/press transitions, and full key codes. The application and both test suites
+  were rebuilt and rerun after the review fix.
 - Final runtime results used two-second idle samples at 1280 × 720; these are feasibility checks
   on hidden windows, not sustained performance or power benchmarks:
 

@@ -604,6 +604,8 @@ void OnScreenUI::ProcessInput()
     case ::BigPicture::InputEvent::Type::Key:
       if (auto it = m_dolphin_to_imgui_map.find(event.key); it != m_dolphin_to_imgui_map.end())
         io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.down);
+      [[fallthrough]];
+    case ::BigPicture::InputEvent::Type::Text:
       if (!event.text.empty())
         io.AddInputCharactersUTF8(event.text.c_str());
       break;

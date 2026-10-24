@@ -29,6 +29,7 @@ struct InputEvent
   enum class Type
   {
     Key,
+    Text,
     MousePosition,
     MouseButtons,
     Focus,
