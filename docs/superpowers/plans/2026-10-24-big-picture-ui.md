@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Approved plan; implementation not started
+**Status:** Implementation in progress; slice 0 complete, next open slice 1
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -77,9 +77,9 @@ Two pitfalls must be addressed explicitly:
    returned spans/pointers are invalidated by subsequent registration. Do not construct hidden
    settings dialogs to populate it, or read it directly from the graphics thread.
 
-The ImGui submodule is pinned to `45acd5e0e82f4c954432533ae9985ff0e1aad6d5` but is not populated
-in this checkout. The earlier scope identifies the 1.92 dynamic-font path; the existing renderer
-uses that API. Populate the pinned submodule and verify the exact API during the first spike.
+At the planning baseline, the ImGui submodule pinned to
+`45acd5e0e82f4c954432533ae9985ff0e1aad6d5` was not populated in this checkout. Slice 0 populated
+the pinned dependencies and confirmed ImGui 1.92.2b and its dynamic font API.
 Do not add FreeType/SVG dependencies or upgrade ImGui merely to imitate a reference frontend.
 
 ## 3. User experience and initial scope
@@ -200,6 +200,11 @@ rendering; mutations go through the host settings service and publish fresh snap
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
 new set of files. Slices 1–4 produce the first usable in-game release; 5–9 complete core Big Picture.
 
+**Progress, 2026-10-24:** Slice 0 is complete; see the
+[lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
+runtime measurements, retained fixes and the ownership design. Slice 1 is the next open slice.
+Production asynchronous scheduling remains slice 2; standalone frontend startup remains slice 5.
+
 | Slice | Work and primary touchpoints | Completion gate |
 |---|---|---|
 | 0. Lifecycle and readability spike | Populate pinned dependencies; trace `Core`/backend/FIFO lock ownership; prototype paused UI presents in dual-core, single-core and deterministic modes; prototype a UI-only surface; test dynamic fonts and independently sourced controller glyphs at 720p/1080p/4K | Record the ownership design, required backend changes, measured idle pacing and font decision. Demonstrate pause without guest advancement and boot/stop without a dummy game. Keep only reusable production changes |
@@ -273,4 +278,4 @@ desktop launch as the default until these gates pass. Update the feature documen
 
 The largest uncertainty is graphics lifetime, followed by settings metadata and input arbitration.
 Estimate implementation effort after slice 0 establishes the backend changes; existing line
-counts are not a reliable effort estimate. This change contains planning documents only.
+counts are not a reliable effort estimate. Per-slice results record implementation evidence.

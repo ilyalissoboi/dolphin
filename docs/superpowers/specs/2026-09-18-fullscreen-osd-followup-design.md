@@ -1,14 +1,15 @@
 # Fullscreen OSD / Big Picture UI — Follow-Up Project Scoping
 
 **Date:** 2026-09-18
-**Status:** scoped, not approved for implementation
+**Status:** historical scope; implementation tracked in the approved plan
 **Depends on:** `2026-09-18-declarative-desktop-ui-design.md` slice 0 (the setting registry)
 **Reference implementation:** PCSX2 (`~/work/pcsx2`), `pcsx2/ImGui/`
 
 **2026-10-24 follow-up:** See the [Big Picture implementation plan](../plans/2026-10-24-big-picture-ui.md)
 for current repository findings, PCSX2/GooseStation comparisons, rendering-lifetime work and
-settings-registry gaps. The plan is approved; implementation has not started. The historical scope
-below is retained.
+settings-registry gaps. Implementation has started; see the
+[slice 0 results](2026-10-24-big-picture-lifecycle-spike-results.md). The historical scope below
+is retained.
 
 This is a scoping document, not an implementation plan. Its purpose is to size the work, record
 which dependency gaps are real, and identify the one decision in the desktop migration that

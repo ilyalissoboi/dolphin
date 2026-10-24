@@ -199,6 +199,9 @@ public:
     m_pending.framebuffer = fb;
   }
 
+  // Flip-model presentation unbinds the backbuffer without updating the cached state.
+  void InvalidateFramebuffer() { m_dirtyFlags.set(DirtyFlag_Framebuffer); }
+
   void SetOMUAV(ID3D11UnorderedAccessView* uav)
   {
     if (m_current.uav != uav)
