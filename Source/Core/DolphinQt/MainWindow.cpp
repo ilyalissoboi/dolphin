@@ -81,6 +81,7 @@
 
 #include "DolphinQt/AboutDialog.h"
 #include "DolphinQt/Achievements/AchievementsWindow.h"
+#include "DolphinQt/BigPictureHost.h"
 #include "DolphinQt/CheatsManager.h"
 #include "DolphinQt/Config/FreeLookWindow.h"
 #include "DolphinQt/Config/LogConfigWidget.h"
@@ -278,6 +279,72 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
 
   CreateComponents();
 
+  m_big_picture_host = new BigPictureHost(
+      this,
+      [this] {
+        BigPicture::HostState state;
+        switch (Core::GetState(m_system))
+        {
+        case Core::State::Uninitialized:
+          state.lifecycle = BigPicture::Lifecycle::Idle;
+          break;
+        case Core::State::Starting:
+          state.lifecycle = BigPicture::Lifecycle::Booting;
+          break;
+        case Core::State::Running:
+          state.lifecycle = BigPicture::Lifecycle::Running;
+          break;
+        case Core::State::Paused:
+          state.lifecycle = BigPicture::Lifecycle::Paused;
+          break;
+        case Core::State::Stopping:
+          state.lifecycle = BigPicture::Lifecycle::Stopping;
+          break;
+        }
+        if (m_stop_requested || m_stop_confirm_showing)
+          state.lifecycle = BigPicture::Lifecycle::Stopping;
+        state.netplay = NetPlay::IsNetPlayRunning();
+        state.hardcore = AchievementManager::GetInstance().IsHardcoreModeActive();
+        return state;
+      },
+      [this](const BigPicture::Command& command) -> BigPicture::Result {
+        using BigPicture::Action;
+        using BigPicture::ResultStatus;
+        switch (command.action)
+        {
+        case Action::Boot:
+          StartGame(command.path, ScanForSecondDisc::Yes);
+          if (Core::IsUninitialized(m_system))
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                    tr("Failed to init core").toStdString()};
+          break;
+        case Action::Resume:
+          Core::SetState(m_system, Core::State::Running);
+          return {command, Core::GetState(m_system) == Core::State::Running ?
+                               ResultStatus::Succeeded :
+                               ResultStatus::Failed};
+        case Action::Stop:
+          if (!RequestStopWithConfirmation(true))
+            return {command, ResultStatus::Cancelled};
+          break;
+        case Action::Reset:
+          Reset();
+          break;
+        case Action::SaveState:
+          StateSaveSlotAt(command.slot);
+          break;
+        case Action::LoadState:
+          StateLoadSlotAt(command.slot);
+          break;
+        default:
+          return {command, ResultStatus::Unavailable,
+                  BigPicture::UnavailableReason::InvalidArgument};
+        }
+        return {command, ResultStatus::Dispatched};
+      });
+  connect(&Settings::Instance(), &Settings::ConfigChanged, m_big_picture_host,
+          &BigPictureHost::Refresh);
+
   ConnectGameList();
   ConnectHost();
   ConnectToolBar();
@@ -472,6 +539,7 @@ void MainWindow::ShutdownControllers()
 void MainWindow::InitCoreCallbacks()
 {
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
+    m_big_picture_host->Refresh();
     if (state == Core::State::Uninitialized)
       OnStopComplete();
 
@@ -1005,6 +1073,7 @@ void MainWindow::OnStopComplete()
 {
   m_graceful_shutdown_timer->stop();
   m_stop_requested = false;
+  m_big_picture_host->Refresh();
   HideRenderWidget(!m_exit_requested, m_exit_requested);
 #ifdef USE_DISCORD_PRESENCE
   if (!m_netplay_dialog->isVisible())
@@ -1035,6 +1104,11 @@ void MainWindow::OnStopComplete()
 
 bool MainWindow::RequestStop()
 {
+  return RequestStopWithConfirmation(false);
+}
+
+bool MainWindow::RequestStopWithConfirmation(bool confirmed)
+{
   if (Core::IsUninitialized(m_system))
   {
     Core::QueueHostJob([this](Core::System&) { OnStopComplete(); }, true);
@@ -1054,7 +1128,7 @@ bool MainWindow::RequestStop()
   else
     FullScreen();
 
-  bool confirm_on_stop = Config::Get(Config::MAIN_CONFIRM_ON_STOP);
+  bool confirm_on_stop = !confirmed && Config::Get(Config::MAIN_CONFIRM_ON_STOP);
 #ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
   confirm_on_stop = confirm_on_stop || AchievementManager::GetInstance().CheckForModifications();
 #endif  // RC_CLIENT_SUPPORTS_RAINTEGRATION
@@ -1302,6 +1376,7 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
   ShowRenderWidget();
 
   // Boot up, show an error if it fails to load the game.
+  m_big_picture_host->InvalidateSession();
   if (!BootManager::BootCore(m_system, std::move(parameters),
                              ::GetWindowSystemInfo(m_render_widget->windowHandle())))
   {

@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slice 0 complete, next open slice 1
+**Status:** Implementation in progress; slices 0–1 complete, next open slice 2
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -200,9 +200,11 @@ rendering; mutations go through the host settings service and publish fresh snap
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
 new set of files. Slices 1–4 produce the first usable in-game release; 5–9 complete core Big Picture.
 
-**Progress, 2026-10-24:** Slice 0 is complete; see the
+**Progress, 2026-10-24:** Slices 0–1 are complete; see the
 [lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
-runtime measurements, retained fixes and the ownership design. Slice 1 is the next open slice.
+runtime measurements, retained fixes and the ownership design, and the
+[state/host-bridge results](../specs/2026-10-24-big-picture-host-bridge-results.md) for the command,
+snapshot, confirmation and lifecycle tests. Slice 2 is the next open slice.
 Production asynchronous scheduling remains slice 2; standalone frontend startup remains slice 5.
 
 | Slice | Work and primary touchpoints | Completion gate |
