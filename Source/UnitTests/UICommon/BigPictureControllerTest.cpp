@@ -147,7 +147,7 @@ TEST_F(BigPictureControllerTest, BootWaitsForCompletionAndRejectsQueuedOldComman
   EXPECT_EQ(controller.GetSnapshot()->result->command.id, boot.id);
   EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
   EXPECT_FALSE(controller.GetSnapshot()->pending);
-  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::InGame);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Desktop);
 }
 
 TEST_F(BigPictureControllerTest, AsynchronousBootFailureReturnsAnErrorToLibrary)

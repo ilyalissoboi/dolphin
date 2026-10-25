@@ -32,6 +32,7 @@
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 
 #include "VideoCommon/BigPicture/Runtime.h"
+#include "VideoCommon/BigPicture/StandaloneSession.h"
 #include "VideoCommon/Present.h"
 
 #ifdef _WIN32
@@ -446,6 +447,7 @@ bool RenderWidget::event(QEvent* event)
     emit HandleChanged(reinterpret_cast<void*>(winId()));
     break;
   case QEvent::Show:
+    SetPresenterKeyMap();
     // Don't do if "stay on top" changed (or was true)
     if (Settings::Instance().GetLockCursor() &&
         Settings::Instance().GetCursorVisibility() != Config::ShowCursor::Constantly &&
@@ -542,6 +544,7 @@ bool RenderWidget::event(QEvent* event)
       m_last_window_height = height;
       m_last_window_scale = dpr;
       emit SizeChanged(width, height);
+      VideoCommon::BigPicture::ResizeStandaloneSurface(dpr);
     }
     break;
   }

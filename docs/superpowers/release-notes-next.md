@@ -2,6 +2,15 @@
 
 ## User-Visible Changes
 
+### Big Picture
+
+Big Picture can now open without a running game through View → Big Picture, the startup
+preference in Config → Big Picture, or the GUI `--big-picture` option. Normal desktop startup
+remains the default. The initial screen can play the selected/default game, open the desktop
+game picker, adjust menu preferences, toggle fullscreen, return to desktop or exit Dolphin.
+Stopping a game launched in this mode returns to Big Picture. A full scanned library and
+controller file picker are planned for the next slice.
+
 ### Post-Processing
 
 1. **The Post-Processing Renderer setting has been removed.** There is no engine to pick any more: a preset runs through librashader whenever the active graphics backend has a librashader runtime *and* that runtime reports it can run on this system. That now covers D3D11, D3D12, Vulkan and OpenGL on Windows; Metal, Vulkan (MoltenVK) and OpenGL on macOS; and Vulkan on Android arm64-v8a. Dolphin uses its built-in post-processor everywhere else: the Software and Null backends, platforms with no vendored librashader binary (desktop Linux, Android x86_64), and any case where the library is present but unusable — a symbol that will not resolve, or an OpenGL context below librashader's floor (GLES, or desktop GL below GLSL 330). The fallback is automatic, and neither engine is user-selectable.

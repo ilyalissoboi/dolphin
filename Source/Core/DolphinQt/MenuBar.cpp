@@ -129,7 +129,7 @@ void MenuBar::OnEmulationStateChanged(Core::State state)
   m_stop_action->setEnabled(running);
   m_stop_action->setVisible(running);
   m_reset_action->setEnabled(running);
-  m_fullscreen_action->setEnabled(running);
+  m_fullscreen_action->setEnabled(running || m_big_picture_active);
   m_screenshot_action->setEnabled(running);
   m_state_save_menu->setEnabled(running);
 
@@ -475,6 +475,7 @@ void MenuBar::UpdateStateSlotMenu()
 
 void MenuBar::AddViewMenu()
 {
+  connect(m_ui.actionViewBigPicture, &QAction::triggered, this, &MenuBar::EnterBigPicture);
   QMenu* const view_menu = m_ui.menuView;
   QAction* const show_log = m_ui.actionViewShowLog;
   show_log->setCheckable(true);
@@ -609,6 +610,12 @@ void MenuBar::AddViewMenu()
 
   m_ui.actionViewSearch->setShortcut(QKeySequence::Find);
   connect(m_ui.actionViewSearch, &QAction::triggered, this, &MenuBar::ShowSearch);
+}
+
+void MenuBar::SetBigPictureActive(bool active)
+{
+  m_big_picture_active = active;
+  m_fullscreen_action->setEnabled(active || !Core::IsUninitialized(Core::System::GetInstance()));
 }
 
 void MenuBar::AddOptionsMenu()

@@ -29,9 +29,11 @@ void PresentationState::ResetInputLocked()
 void PresentationState::Publish(std::shared_ptr<const Snapshot> snapshot)
 {
   std::lock_guard lock(m_mutex);
-  const bool modal = snapshot && snapshot->mode == Mode::InGame &&
-                     (snapshot->host.lifecycle == Lifecycle::Running ||
-                      snapshot->host.lifecycle == Lifecycle::Paused);
+  const bool modal =
+      snapshot &&
+      ((snapshot->mode == Mode::InGame && (snapshot->host.lifecycle == Lifecycle::Running ||
+                                           snapshot->host.lifecycle == Lifecycle::Paused)) ||
+       (snapshot->mode == Mode::Library && snapshot->host.lifecycle == Lifecycle::Idle));
   if (modal && !m_menu_visible)
     ++m_input_epoch;
   if (!m_snapshot || !snapshot || m_snapshot->generation != snapshot->generation ||

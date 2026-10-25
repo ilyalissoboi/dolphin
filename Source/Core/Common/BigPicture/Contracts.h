@@ -57,6 +57,8 @@ enum class Action
   DesktopSettings,
   RefreshStates,
   Exit,
+  OpenGame,
+  Fullscreen,
   Count
 };
 enum class UnavailableReason
@@ -126,6 +128,8 @@ struct HostState
   bool stop_requires_desktop = false;
   bool state_slots_ready = false;
   std::array<StateSlot, STATE_SLOT_COUNT> state_slots;
+  std::string launch_path;
+  std::string launch_title;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

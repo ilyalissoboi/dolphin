@@ -31,6 +31,7 @@ public:
   // Called before every external boot, even if state notifications coalesce. Stop completion
   // is observed by Refresh. This invalidates commands from a previous emulation/graphics session.
   void InvalidateSession();
+  void InvalidatePresentation();
   std::shared_ptr<const Snapshot> GetSnapshot() const;
 
 private:

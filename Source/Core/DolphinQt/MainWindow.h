@@ -82,6 +82,11 @@ namespace UICommon
 class GameFile;
 }
 
+namespace VideoCommon::BigPicture
+{
+class StandaloneSession;
+}
+
 namespace X11Utils
 {
 class XRRConfiguration;
@@ -93,7 +98,7 @@ class MainWindow final : public QMainWindow
 
 public:
   explicit MainWindow(Core::System& system, std::unique_ptr<BootParameters> boot_parameters,
-                      const std::string& movie_path);
+                      const std::string& movie_path, bool start_big_picture = false);
   ~MainWindow() override;
 
   WindowSystemInfo GetWindowSystemInfo() const;
@@ -104,6 +109,7 @@ public:
   void ShowControllersWindow();
   void ShowTriforceWindow();
   BigPictureHost* GetBigPictureHost() const { return m_big_picture_host; }
+  void EnterBigPicture();
 
 signals:
   void ReadOnlyModeChanged(bool read_only);
@@ -162,6 +168,19 @@ private:
   void InitCoreCallbacks();
   void RefreshBigPictureStateSlots();
   bool LeaveBigPictureForDesktop(std::uint64_t generation);
+  enum class StandaloneStop
+  {
+    None,
+    Desktop,
+    Boot,
+    Restart,
+    Exit,
+    OpenGame,
+    Settings
+  };
+  void StopStandalone(StandaloneStop next);
+  void PollStandalone();
+  void CompleteStandaloneStop(StandaloneStop next, bool failed);
 
   enum class ScanForSecondDisc
   {
@@ -251,6 +270,15 @@ private:
   std::array<BigPicture::StateSlot, BigPicture::STATE_SLOT_COUNT> m_big_picture_state_slots;
   bool m_big_picture_state_slots_ready = false;
   bool m_big_picture_disc_game = false;
+  std::unique_ptr<VideoCommon::BigPicture::StandaloneSession> m_standalone;
+  QTimer* m_standalone_timer = nullptr;
+  StandaloneStop m_standalone_stop = StandaloneStop::None;
+  bool m_big_picture_requested = false;
+  bool m_standalone_ready = false;
+  bool m_standalone_restart_queued = false;
+  bool m_shutting_down = false;
+  std::uint64_t m_standalone_serial = 0;
+  std::unique_ptr<BootParameters> m_standalone_boot;
 
 #ifdef HAVE_XRANDR
   std::unique_ptr<X11Utils::XRRConfiguration> m_xrr_config;

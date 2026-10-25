@@ -118,9 +118,13 @@ OnScreenUI::~OnScreenUI()
   ::BigPicture::GetPresentationState().SetRendererReady(false);
   std::unique_lock<std::mutex> imgui_lock(m_imgui_mutex);
 
-  ImGui::EndFrame();
-  ImPlot::DestroyContext();
-  ImGui::DestroyContext();
+  if (ImGui::GetCurrentContext())
+  {
+    if (m_ready)
+      ImGui::EndFrame();
+    ImPlot::DestroyContext();
+    ImGui::DestroyContext();
+  }
   m_imgui_textures.clear();
 }
 
@@ -585,7 +589,7 @@ void OnScreenUI::ProcessInput()
   m_navigation = std::move(input.navigation);
   auto& io = ImGui::GetIO();
   const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
-  const bool modal = snapshot && snapshot->mode == ::BigPicture::Mode::InGame &&
+  const bool modal = snapshot && snapshot->mode != ::BigPicture::Mode::Desktop &&
                      ::BigPicture::GetPresentationState().IsModal();
   io.ConfigNavCursorVisibleAlways = modal;
   io.ConfigFlags &= ~(ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
@@ -688,7 +692,7 @@ void OnScreenUI::DrawNavigation()
 {
   auto& presentation = ::BigPicture::GetPresentationState();
   const auto snapshot = presentation.GetSnapshot();
-  if (!snapshot || snapshot->mode != ::BigPicture::Mode::InGame || !presentation.IsModal())
+  if (!snapshot || snapshot->mode == ::BigPicture::Mode::Desktop || !presentation.IsModal())
   {
     m_navigation_toolkit.InvalidateFocus();
     return;

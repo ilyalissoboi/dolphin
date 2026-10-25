@@ -168,13 +168,15 @@ void HotkeyScheduler::Run()
       else
       {
         emit BigPictureAction(static_cast<int>(request.action), request.generation,
-                              request.input_epoch, request.slot, request.confirmation_id);
+                              request.input_epoch, request.slot, request.confirmation_id,
+                              QString::fromStdString(request.path));
       }
     }
     if (toggle)
     {
       const auto snapshot = presentation.GetSnapshot();
-      if (snapshot && (snapshot->host.lifecycle == BigPicture::Lifecycle::Running ||
+      if (snapshot && (snapshot->mode == BigPicture::Mode::Library ||
+                       snapshot->host.lifecycle == BigPicture::Lifecycle::Running ||
                        snapshot->host.lifecycle == BigPicture::Lifecycle::Paused))
       {
         if (snapshot->mode == BigPicture::Mode::Desktop)

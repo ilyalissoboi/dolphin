@@ -330,4 +330,73 @@ TEST(BigPictureHostTest, SynchronousStopCompletionReturnsToDesktopAfterDispatchU
   EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
   EXPECT_FALSE(host.GetSnapshot()->pending);
 }
+TEST(BigPictureHostTest, PendingBootSurvivesIdleOwnerTeardownAndStartsWithoutOpeningTheMenu)
+{
+  HostState state;
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        if (command.action == Action::Boot)
+          state.lifecycle = Lifecycle::Booting;
+        return Result{command, ResultStatus::Dispatched};
+      });
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Boot, {}, 0, 0, "game.iso");
+  QCoreApplication::processEvents();
+  const auto accepted = host.GetSnapshot();
+  ASSERT_TRUE(accepted->pending);
+  EXPECT_EQ(accepted->pending->path, "game.iso");
+  host.PrepareForBoot();
+  EXPECT_TRUE(host.GetSnapshot()->pending);
+  state.lifecycle = Lifecycle::Running;
+  host.Refresh();
+  EXPECT_EQ(host.GetSnapshot()->result->status, ResultStatus::Succeeded);
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+}
+
+TEST(BigPictureHostTest, RendererRecreationPreservesAnInlineBootErrorAndRejectsOldActivations)
+{
+  HostState state;
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        state.lifecycle = Lifecycle::Booting;
+        return Result{command, ResultStatus::Dispatched};
+      });
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Boot, {}, 0, 0, "bad.iso");
+  QCoreApplication::processEvents();
+  state.lifecycle = Lifecycle::Idle;
+  host.Refresh();
+  const auto failed = host.GetSnapshot();
+  ASSERT_TRUE(failed->error);
+  host.InvalidatePresentation();
+  EXPECT_GT(host.GetSnapshot()->generation, failed->generation);
+  EXPECT_EQ(host.GetSnapshot()->screens.back(), Screen::Error);
+  host.RequestAction(failed->generation, Action::Back);
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->result->status, ResultStatus::Stale);
+  EXPECT_TRUE(host.GetSnapshot()->error);
+  host.RequestBack();
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->screens.back(), Screen::Library);
+}
+
+TEST(BigPictureHostTest, NativeBootFromTheIdleMenuDoesNotAcquireAPlayPause)
+{
+  HostState state;
+  int pauses = 0;
+  BigPictureHost host(
+      nullptr, [&] { return state; }, [](const Command& command) { return Result{command}; },
+      [&](bool) { ++pauses; });
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.PrepareForBoot();
+  state.lifecycle = Lifecycle::Running;
+  host.Refresh();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  EXPECT_EQ(pauses, 0);
+}
 }  // namespace

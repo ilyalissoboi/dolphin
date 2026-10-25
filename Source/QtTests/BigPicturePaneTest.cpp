@@ -12,17 +12,22 @@
 #include <QTemporaryDir>
 #include <gtest/gtest.h>
 
+#include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
 #include "Common/IniFile.h"
+#include "Core/Config/UISettings.h"
 #include "DolphinQt/Settings/BigPicturePane.h"
 #include "InputCommon/BigPictureInput.h"
 #include "InputCommon/InputConfig.h"
+#include "NullConfigLoader.h"
 
 class BigPicturePaneTest : public testing::Test
 {
 protected:
   void SetUp() override
   {
+    Config::Init();
+    Config::AddLayer(std::make_unique<NullLoader>());
     ASSERT_TRUE(directory.isValid());
     ASSERT_TRUE(BigPictureInput::GetConfig()->ControllersNeedToBeCreated());
     previous_config_path = File::GetUserPath(D_CONFIG_IDX);
@@ -34,6 +39,7 @@ protected:
   {
     BigPictureInput::GetConfig()->ClearControllers();
     File::SetUserPath(D_CONFIG_IDX, previous_config_path);
+    Config::Shutdown();
   }
   QTemporaryDir directory;
   std::string previous_config_path;
@@ -54,6 +60,18 @@ TEST_F(BigPicturePaneTest, ConfigureButtonsRequestTheMatchingInputEditor)
     button->click();
   }
   EXPECT_EQ(requests, (std::vector<int>{0, 1, 2, 3}));
+}
+
+TEST_F(BigPicturePaneTest, StartupPreferenceRoundTripsThroughTheGlobalConfiguration)
+{
+  BigPicturePane pane;
+  auto* const startup = pane.findChild<QCheckBox*>(QStringLiteral("startBigPictureCheckBox"));
+  ASSERT_NE(startup, nullptr);
+  EXPECT_FALSE(startup->isChecked());
+  startup->setChecked(true);
+  EXPECT_TRUE(Config::Get(Config::MAIN_START_BIG_PICTURE));
+  BigPicturePane second;
+  EXPECT_TRUE(second.findChild<QCheckBox*>(QStringLiteral("startBigPictureCheckBox"))->isChecked());
 }
 
 TEST_F(BigPicturePaneTest, SharedPreferencesLoadAndPersistWithoutChangingBindings)

@@ -95,8 +95,10 @@ static void TryToSnapToXFBSize(int& width, int& height, int xfb_width, int xfb_h
   }
 }
 
-Presenter::Presenter()
+Presenter::Presenter(bool ui_only) : m_ui_only(ui_only)
 {
+  if (m_ui_only)
+    return;
   auto& video_events = GetVideoEvents();
 
   m_config_changed =
@@ -149,6 +151,34 @@ bool Presenter::Initialize()
   }
 
   return true;
+}
+
+bool Presenter::InitializeUI()
+{
+  SetBackbuffer(g_gfx->GetSurfaceInfo());
+  if (g_gfx->IsHeadless() || m_backbuffer_width == 0 || m_backbuffer_height == 0)
+    return false;
+  m_onscreen_ui = std::make_unique<OnScreenUI>();
+  return m_onscreen_ui->Initialize(m_backbuffer_width, m_backbuffer_height, m_backbuffer_scale);
+}
+
+bool Presenter::PresentUI()
+{
+  // This owner has no EFB, XFB, VI, post processor, frame dumper or guest shader managers.
+  // BindBackbuffer services surface changes on the backend's owning thread.
+  const bool bound = g_gfx->BindBackbuffer({{0.025f, 0.035f, 0.055f, 1.0f}});
+  m_onscreen_ui->Finalize(false);
+  if (bound)
+    m_onscreen_ui->DrawImGui();
+  g_gfx->PresentBackbuffer();
+  m_onscreen_ui->BeginImGuiFrame(m_backbuffer_width, m_backbuffer_height);
+  return bound;
+}
+
+void Presenter::SetUIScale(float scale)
+{
+  m_ui_scale = scale;
+  SetBackbuffer(g_gfx->GetSurfaceInfo());
 }
 
 bool Presenter::FetchXFB(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u64 ticks)
@@ -346,7 +376,8 @@ void Presenter::SetBackbuffer(int backbuffer_width, int backbuffer_height)
       (m_backbuffer_width != backbuffer_width || m_backbuffer_height != backbuffer_height);
   m_backbuffer_width = backbuffer_width;
   m_backbuffer_height = backbuffer_height;
-  UpdateDrawRectangle();
+  if (!m_ui_only)
+    UpdateDrawRectangle();
 
   OnBackbufferSet(size_changed, is_first);
 }
@@ -358,16 +389,18 @@ void Presenter::SetBackbuffer(SurfaceInfo info)
       (m_backbuffer_width != (int)info.width || m_backbuffer_height != (int)info.height);
   m_backbuffer_width = info.width;
   m_backbuffer_height = info.height;
-  m_backbuffer_scale = info.scale;
+  m_backbuffer_scale = m_ui_only && m_ui_scale > 0 ? m_ui_scale : info.scale;
   m_backbuffer_format = info.format;
   if (m_onscreen_ui)
-    m_onscreen_ui->SetScale(info.scale);
+    m_onscreen_ui->SetScale(m_backbuffer_scale);
 
   OnBackbufferSet(size_changed, is_first);
 }
 
 void Presenter::OnBackbufferSet(bool size_changed, bool is_first_set)
 {
+  if (m_ui_only)
+    return;
   UpdateDrawRectangle();
 
   // Automatically update the resolution scale if the window size changed,

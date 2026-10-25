@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "VideoCommon/BigPicture/Runtime.h"
+#include "VideoCommon/BigPicture/StandaloneSession.h"
 
 #include "Common/BigPicture/PresentationState.h"
 #include "Common/ScopeGuard.h"
@@ -15,6 +16,8 @@ namespace VideoCommon::BigPicture
 {
 void Wakeup()
 {
+  if (WakeStandalone())
+    return;
   auto& system = Core::System::GetInstance();
   auto& state = ::BigPicture::GetPresentationState();
   if (!state.CanWake() ||

@@ -184,13 +184,14 @@ TEST(MainWindowUiTest, FormOwnsTheStaticMenuHierarchy)
            QStringLiteral("actionToolsExportWiiSaves"), QStringLiteral("menuConnectWiiRemotes")}));
   EXPECT_EQ(
       MenuActionNames(ui.menuView),
-      QStringList(
-          {QStringLiteral("actionViewShowLog"), QStringLiteral("actionViewShowLogConfiguration"),
-           QStringLiteral("actionViewShowToolbar"), QStringLiteral("actionViewLockWidgets"),
-           QStringLiteral("actionViewList"), QStringLiteral("actionViewGrid"),
-           QStringLiteral("menuListColumns"), QStringLiteral("menuShowPlatforms"),
-           QStringLiteral("menuShowRegions"), QStringLiteral("actionViewShowGameCount"),
-           QStringLiteral("actionViewPurgeGameListCache"), QStringLiteral("actionViewSearch")}));
+      QStringList({QStringLiteral("actionViewBigPicture"), QStringLiteral("actionViewShowLog"),
+                   QStringLiteral("actionViewShowLogConfiguration"),
+                   QStringLiteral("actionViewShowToolbar"), QStringLiteral("actionViewLockWidgets"),
+                   QStringLiteral("actionViewList"), QStringLiteral("actionViewGrid"),
+                   QStringLiteral("menuListColumns"), QStringLiteral("menuShowPlatforms"),
+                   QStringLiteral("menuShowRegions"), QStringLiteral("actionViewShowGameCount"),
+                   QStringLiteral("actionViewPurgeGameListCache"),
+                   QStringLiteral("actionViewSearch")}));
   EXPECT_EQ(
       MenuActionNames(ui.menuHelp),
       QStringList({QStringLiteral("actionHelpWebsite"), QStringLiteral("actionHelpDocumentation"),

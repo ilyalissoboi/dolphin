@@ -6,6 +6,7 @@
 #include <thread>
 
 #include <QObject>
+#include <QString>
 
 #include "Common/CommonTypes.h"
 #include "Common/Flag.h"
@@ -22,7 +23,7 @@ public:
   void Stop();
 signals:
   void BigPictureAction(int action, quint64 generation, quint64 input_epoch, int slot = 0,
-                        quint64 confirmation_id = 0);
+                        quint64 confirmation_id = 0, QString path = {});
   void BigPictureOptions(bool swap, double scale, double safe_area, quint64 generation,
                          quint64 input_epoch);
   void Open();
