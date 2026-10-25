@@ -143,4 +143,21 @@ TEST_F(BigPictureInGameMenuTest, FailedAndDispatchedResultsHaveDistinctPresentat
   menu = Build();
   EXPECT_NE(menu.page.description.find("Requested"), std::string::npos);
 }
+TEST_F(BigPictureInGameMenuTest, IdleLandingOffersBootAndNativeHandoffsWithoutGameActions)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Library};
+  snapshot.host.launch_path = "selected-game.iso";
+  snapshot.host.launch_title = "Selected title";
+  const auto menu = Build();
+  ASSERT_TRUE(menu.Activate({"boot"}));
+  EXPECT_EQ(menu.Activate({"boot"})->path, "selected-game.iso");
+  EXPECT_EQ(menu.Activate({"boot"})->action, Action::Boot);
+  EXPECT_EQ(menu.Activate({"desktop"})->action, Action::ReturnToDesktop);
+  EXPECT_EQ(menu.Activate({"open-game"})->action, Action::OpenGame);
+  EXPECT_EQ(menu.Activate({"exit"})->action, Action::Exit);
+  EXPECT_FALSE(menu.Activate({"save"}));
+  EXPECT_FALSE(menu.Activate({"resume"}));
+}
 }  // namespace

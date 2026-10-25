@@ -63,6 +63,7 @@ public:
 
   void InstallUpdateManually();
   void SetPreferredViewChecked(bool list);
+  void SetBigPictureActive(bool active);
 
 signals:
   // File
@@ -76,6 +77,7 @@ signals:
 
   // Emulation
   void Play();
+  void EnterBigPicture();
   void Pause();
   void Stop();
   void Reset();
@@ -256,6 +258,7 @@ private:
   QAction* m_stop_action;
   QAction* m_reset_action;
   QAction* m_fullscreen_action;
+  bool m_big_picture_active = false;
   QAction* m_frame_advance_action;
   QAction* m_screenshot_action;
   QAction* m_boot_sysmenu;

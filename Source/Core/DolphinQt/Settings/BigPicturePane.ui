@@ -12,6 +12,13 @@
   </property>
   <layout class="QVBoxLayout" name="rootLayout">
    <item>
+    <widget class="QCheckBox" name="startBigPictureCheckBox">
+     <property name="text">
+      <string>Start Dolphin in Big Picture mode</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="menuInputGroup">
      <property name="title">
       <string>Menu Input</string>
@@ -219,6 +226,7 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>startBigPictureCheckBox</tabstop>
   <tabstop>configureController1Button</tabstop>
   <tabstop>configureController2Button</tabstop>
   <tabstop>configureController3Button</tabstop>

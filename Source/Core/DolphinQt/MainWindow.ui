@@ -225,6 +225,8 @@
      <addaction name="actionViewHideAllRegions"/>
      <addaction name="separator"/>
     </widget>
+    <addaction name="actionViewBigPicture"/>
+    <addaction name="separator"/>
     <addaction name="actionViewShowLog"/>
     <addaction name="actionViewShowLogConfiguration"/>
     <addaction name="actionViewShowToolbar"/>
@@ -633,6 +635,11 @@
   <action name="actionToolsExportWiiSaves">
    <property name="text">
     <string>Export All &amp;Wii Saves</string>
+   </property>
+  </action>
+  <action name="actionViewBigPicture">
+   <property name="text">
+    <string>Big Picture</string>
    </property>
   </action>
   <action name="actionViewShowLog">

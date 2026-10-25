@@ -103,6 +103,8 @@ struct NavigationText
   std::string desktop_settings_help;
   std::string desktop_disc_help;
   std::string stop_help;
+  std::string standalone_help;
+  std::string confirm_exit_idle;
 };
 
 struct NavigationRequest
@@ -113,5 +115,6 @@ struct NavigationRequest
   std::uint64_t input_epoch = 0;
   int slot = 0;
   std::uint64_t confirmation_id = 0;
+  std::string path;
 };
 }  // namespace BigPicture

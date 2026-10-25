@@ -195,6 +195,18 @@ bool VideoBackend::FillBackendInfo(GLContext* context)
 
 bool VideoBackend::Initialize(const WindowSystemInfo& wsi)
 {
+  m_ui_only = false;
+  return InitializeInternal(wsi);
+}
+
+bool VideoBackend::InitializeUI(const WindowSystemInfo& wsi)
+{
+  m_ui_only = true;
+  return InitializeInternal(wsi);
+}
+
+bool VideoBackend::InitializeInternal(const WindowSystemInfo& wsi)
+{
   std::unique_ptr<GLContext> main_gl_context =
       GLContext::Create(wsi, g_Config.stereo_mode == StereoMode::QuadBuffer, true,
                         Config::Get(Config::GFX_PREFER_GLES));
@@ -209,6 +221,8 @@ bool VideoBackend::Initialize(const WindowSystemInfo& wsi)
   g_sampler_cache = std::make_unique<SamplerCache>();
 
   auto vertex_manager = std::make_unique<VertexManager>();
+  if (m_ui_only)
+    return InitializeUIShared(std::move(gfx), std::move(vertex_manager));
   auto perf_query = GetPerfQuery(gfx->IsGLES());
   auto bounding_box = std::make_unique<OGLBoundingBox>();
 
@@ -218,9 +232,11 @@ bool VideoBackend::Initialize(const WindowSystemInfo& wsi)
 
 void VideoBackend::Shutdown()
 {
-  ShutdownShared();
+  // Shader programs and streaming buffers must be destroyed while the GL context is alive.
+  ShutdownShared(true);
 
   ProgramShaderCache::Shutdown();
   g_sampler_cache.reset();
+  g_gfx.reset();
 }
 }  // namespace OGL

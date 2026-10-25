@@ -69,9 +69,10 @@ void BigPictureHost::RequestBack()
 
 void BigPictureHost::RequestAction(std::uint64_t generation, BigPicture::Action action,
                                    std::optional<std::uint64_t> input_epoch, int slot,
-                                   std::uint64_t confirmation_id)
+                                   std::uint64_t confirmation_id, std::string path)
 {
-  Submit({generation, m_next_id.fetch_add(1), action, {}, slot, confirmation_id}, input_epoch);
+  Submit({generation, m_next_id.fetch_add(1), action, std::move(path), slot, confirmation_id},
+         input_epoch);
 }
 
 void BigPictureHost::InvalidatePauseOwnership()
@@ -159,4 +160,24 @@ void BigPictureHost::FinishStopToDesktop()
   // until the outer dispatch publishes its completed state instead of submitting reentrantly.
   m_finish_stop_to_desktop = true;
   Refresh();
+}
+
+void BigPictureHost::PrepareForBoot()
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  const auto snapshot = m_controller.GetSnapshot();
+  if (!snapshot->pending || snapshot->pending->action != BigPicture::Action::Boot)
+  {
+    InvalidateSession();
+    m_controller.Submit({m_controller.GetSnapshot()->generation, m_next_id.fetch_add(1),
+                         BigPicture::Action::ReturnToDesktop});
+    Publish();
+  }
+}
+
+void BigPictureHost::InvalidatePresentation()
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  m_controller.InvalidatePresentation();
+  Publish();
 }

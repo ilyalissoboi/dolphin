@@ -49,6 +49,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
                        command.action == Action::Exit      ? text.confirm_exit :
                        command.action == Action::SaveState ? text.confirm_overwrite :
                                                              text.confirm_stop;
+    if (command.action == Action::Exit && snapshot.host.lifecycle == Lifecycle::Idle)
+      page.description = text.confirm_exit_idle;
     if (command.action == Action::SaveState && command.slot >= 1 &&
         command.slot <= static_cast<int>(STATE_SLOT_COUNT))
       page.description += "\n" + text.slot_labels[command.slot - 1];
@@ -127,6 +129,23 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     }
     add("desktop-settings", Action::DesktopSettings, text.desktop_settings_help);
     add("back", Action::Back);
+  }
+  else if (snapshot.mode == Mode::Library)
+  {
+    page.id = "standalone";
+    page.title = text.title;
+    page.description = text.standalone_help;
+    if (!snapshot.host.launch_path.empty())
+    {
+      add("boot", Action::Boot, snapshot.host.launch_title);
+      if (auto it = menu.requests.find("boot"); it != menu.requests.end())
+        it->second.path = snapshot.host.launch_path;
+    }
+    add("open-game", Action::OpenGame);
+    add("preferences", Action::Settings);
+    add("fullscreen", Action::Fullscreen);
+    add("desktop", Action::ReturnToDesktop);
+    add("exit", Action::Exit);
   }
   else
   {

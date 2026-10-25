@@ -31,6 +31,7 @@
 
 #include "Core/Boot/Boot.h"
 #include "Core/Config/MainSettings.h"
+#include "Core/Config/UISettings.h"
 #include "Core/Core.h"
 #include "Core/DolphinAnalytics.h"
 #include "Core/HW/GCMemcard/MemcardSync.h"
@@ -125,6 +126,7 @@ static bool QtMsgAlertHandler(const char* caption, const char* text, bool yes_no
 #endif
 
 int main(int argc, char* argv[])
+try
 {
 #ifdef _WIN32
   const HANDLE stdout_handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
@@ -312,8 +314,11 @@ int main(int argc, char* argv[])
       // Memory card sync starts in the background, from the settings.
       MemcardSync::Initialize();
 
-      MainWindow win{Core::System::GetInstance(), std::move(boot),
-                     static_cast<const char*>(options.get("movie"))};
+      MainWindow win{
+          Core::System::GetInstance(), std::move(boot),
+          static_cast<const char*>(options.get("movie")),
+          !Settings::Instance().IsBatchModeEnabled() &&
+              (options.is_set("big_picture") || Config::Get(Config::MAIN_START_BIG_PICTURE))};
 
       if (open_controller_settings)
       {
@@ -359,6 +364,11 @@ int main(int argc, char* argv[])
   Host::GetInstance()->deleteLater();
 
   return retval;
+}
+catch (int status)
+{
+  // cpp-optparse reports invalid arguments by throwing the intended process exit status.
+  return status;
 }
 
 #ifdef _WIN32

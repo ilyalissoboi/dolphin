@@ -25,6 +25,9 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
            transitioning ? UnavailableReason::Busy :
                            UnavailableReason::NoGame;
   case Action::Exit:
+    if (state.lifecycle == Lifecycle::Idle)
+      return UnavailableReason::None;
+    [[fallthrough]];
   case Action::Stop:
     if (state.stop_requires_desktop)
       return UnavailableReason::DesktopRequired;
@@ -49,11 +52,18 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
   case Action::SaveState:
   case Action::SaveStates:
   case Action::Screenshot:
-  case Action::DesktopSettings:
   case Action::RefreshStates:
     return active        ? UnavailableReason::None :
            transitioning ? UnavailableReason::Busy :
                            UnavailableReason::NoGame;
+  case Action::DesktopSettings:
+    return transitioning ? UnavailableReason::Busy : UnavailableReason::None;
+  case Action::OpenGame:
+    if (state.netplay)
+      return UnavailableReason::NetPlay;
+    return state.lifecycle == Lifecycle::Idle ? UnavailableReason::None :
+           transitioning                      ? UnavailableReason::Busy :
+                                                UnavailableReason::GameActive;
   case Action::Count:
     return UnavailableReason::InvalidArgument;
   default:
@@ -133,6 +143,12 @@ void Controller::InvalidateSession()
   Publish();
 }
 
+void Controller::InvalidatePresentation()
+{
+  ++m_state.generation;
+  Publish();
+}
+
 void Controller::Refresh()
 {
   if (m_dispatching)
@@ -158,6 +174,7 @@ void Controller::Refresh()
       {
         Finish({command, ResultStatus::Succeeded});
         ++m_state.generation;
+        m_state.mode = Mode::Desktop;
         SetRoot();
       }
       else if (m_state.host.lifecycle == Lifecycle::Idle)

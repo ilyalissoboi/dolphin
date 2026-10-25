@@ -29,13 +29,15 @@ public:
   void RequestBack();
   void RequestAction(std::uint64_t generation, BigPicture::Action action,
                      std::optional<std::uint64_t> input_epoch = std::nullopt, int slot = 0,
-                     std::uint64_t confirmation_id = 0);
+                     std::uint64_t confirmation_id = 0, std::string path = {});
   void InvalidatePauseOwnership();
   std::shared_ptr<const BigPicture::Snapshot> GetSnapshot() const;
   void Refresh();
   void InvalidateSession();
-  // Until the standalone renderer exists, a completed stop returns to the native game list.
+  // Complete a native desktop handoff after any pending stop has settled.
   void FinishStopToDesktop();
+  void PrepareForBoot();
+  void InvalidatePresentation();
 
 private:
   BigPicture::HostState ReadState() const override;

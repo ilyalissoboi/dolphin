@@ -466,7 +466,8 @@ void Gfx::OnConfigChanged(u32 bits)
 
 void Gfx::ExecuteCommandList(bool wait_for_completion)
 {
-  PerfQuery::GetInstance()->ResolveQueries();
+  if (g_perf_query)
+    PerfQuery::GetInstance()->ResolveQueries();
   g_dx_context->ExecuteCommandList(wait_for_completion);
   m_dirty_bits = DirtyState_All;
 }

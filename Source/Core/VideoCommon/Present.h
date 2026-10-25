@@ -32,7 +32,7 @@ class Presenter
 public:
   using ClearColor = std::array<float, 4>;
 
-  Presenter();
+  explicit Presenter(bool ui_only = false);
   virtual ~Presenter();
 
   void ViSwap(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u64 ticks,
@@ -45,6 +45,9 @@ public:
   void ClearLastXfbId() { m_last_xfb_id = std::numeric_limits<u64>::max(); }
 
   bool Initialize();
+  bool InitializeUI();
+  bool PresentUI();
+  void SetUIScale(float scale);
 
   void ConfigChanged(u32 changed_bits);
 
@@ -113,6 +116,8 @@ public:
   const MathUtil::Rectangle<int>& GetTargetRectangle() const { return m_target_rectangle; }
 
 private:
+  bool m_ui_only = false;
+  float m_ui_scale = 0;
   // Fetches the XFB texture from the texture cache.
   // Returns true the contents have changed since last time
   bool FetchXFB(u32 xfb_addr, u32 fb_width, u32 fb_stride, u32 fb_height, u64 ticks);
