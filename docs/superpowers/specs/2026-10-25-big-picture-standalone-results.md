@@ -88,7 +88,7 @@ checks verify production rendering, navigation routing and lifecycle behavior, n
 controller input or native focus correctness. Linux X11/Wayland, macOS Metal/OpenGL, real
 controller reconnect, monitor/DPI changes and device-loss hardware cases remain release checks.
 Core-specific boot alerts still use existing error handling; complete controller-facing error
-routing and release hardening remain slice 9.
+routing and release hardening remain slice 10.
 
 The final test build excludes the temporary probe hook. Dependency junctions used to access the
 existing pinned dependency checkout are removed after verification.

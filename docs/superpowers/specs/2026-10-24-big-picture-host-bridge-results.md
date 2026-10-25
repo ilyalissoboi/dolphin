@@ -37,7 +37,7 @@
   shutdown timeout still use the existing path.
 
 Save/load APIs currently return `void` and queue work internally. Their result is deliberately
-`Dispatched`, not `Succeeded`; accurate asynchronous state I/O completion is slice 9. Existing
+`Dispatched`, not `Succeeded`; accurate asynchronous state I/O completion is slice 10. Existing
 boot warnings/errors and mandatory achievement warnings still use Qt dialogs until the in-game
 presentation work. Opening/closing this logical menu does not itself change guest pause state;
 pause ownership, rendering and input capture remain slice 2. There is no user-visible Big Picture
