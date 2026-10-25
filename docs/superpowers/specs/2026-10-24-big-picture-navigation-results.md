@@ -18,9 +18,10 @@ unfinished. XInput's Default mapping supplies Back + Start, D-pad/left-stick dir
 A/B and shoulders; other devices use the existing mapping UI without assuming a Guide button.
 
 Config → Big Picture provides Configure buttons for each of four binding sets; Options → Big
-Picture Input remains a shortcut to the same Qt mapping pages. The first page also owns the
-shared confirm/back swap, interface scale and safe-area preferences. These values round-trip
-through the same input configuration as the menu's preference controls.
+Picture Input remains a shortcut to the same Qt mapping pages. The general Big Picture category
+also owns the shared confirm/back swap, interface scale and safe-area controls. These values
+round-trip through the existing input configuration as the in-game menu's preference controls;
+their storage is unchanged, so previously saved preferences carry over.
 
 Each binding set has independent threshold hysteresis and release retention. Disconnect,
 reconnect, focus changes and capture epochs clear old presses and require release before reuse.
@@ -94,7 +95,7 @@ Qt 6.8.3. Optional emusync is disabled, as in the preceding slices.
   selection without depending on a particular machine's installed fonts.
 
 All **1,602 core tests passed**, with the same two environment-dependent shader-preset tests
-skipped; all **205 Qt tests passed**. This slice adds 24 core tests and three Qt tests. Source-string
+skipped; all **207 Qt tests passed**. This slice adds 24 core tests and five Qt tests. Source-string
 extraction with the repository's gettext keywords passed, including the new mapping/menu labels.
 The new Configuration category uses a Designer form; no translation catalog was changed.
 Formatting and `git diff --check` passed.
@@ -154,10 +155,12 @@ physical DInput mouse testing remains part of the hardware matrix. The owner tim
 above were recorded on 2026-10-24.
 
 The general Configuration window now includes a Big Picture category. Its four Configure buttons
-open the same cached binding/profile editors as the Options shortcut, and its guidance identifies
-Controller 1 as the shared preference editor. A Qt regression test verifies that each button
-requests the matching input editor. The Windows application was rebuilt and all 205 Qt tests
-passed after this UI change.
+open the same cached binding/profile editors as the Options shortcut. Shared Menu Preferences
+controls now live directly in this category, and the Controller 1 editor contains only navigation
+bindings. The pane reloads preferences when shown or when Configuration regains focus, including
+changes made through the in-game menu. Qt regression tests verify editor routing, existing-value
+loading, persistence without changing bindings, and refresh on show/activation. The Windows
+application was rebuilt and all 207 Qt tests passed after these UI changes.
 
 ## Trying the slice
 
@@ -167,7 +170,9 @@ passed after this UI change.
    afterward. Check that all four Configure buttons open the corresponding editor and that
    Options → Big Picture Input still opens the same editors.
 2. Start a game, release the opening chord after opening the menu, and navigate between Menu
-   Preferences and the root. Change each preference and check it in the first Qt binding page.
+   Preferences and the root. Change each preference and check it in Config → Big Picture. Change
+   the values there, reopen Configuration, and verify persistence and the in-game values. Check
+   that Controller 1 no longer contains a Menu Preferences group.
 3. Close while originally running and while originally paused. The implicit close preserves the
    host's existing pause-ownership rules. Check focus loss and controller reconnect while held.
 

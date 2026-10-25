@@ -131,14 +131,72 @@
      <property name="title">
       <string>Menu Preferences</string>
      </property>
-     <layout class="QVBoxLayout" name="preferencesLayout">
-      <item>
-       <widget class="QLabel" name="preferencesDescriptionLabel">
+     <layout class="QFormLayout" name="preferencesLayout">
+      <item row="0" column="0" colspan="2">
+       <widget class="QCheckBox" name="swapConfirmBackCheckBox">
         <property name="text">
-         <string>Open Controller 1 to configure shared menu preferences: confirm/back swapping, interface scale, and safe area.</string>
+         <string>Swap Confirm and Back</string>
         </property>
-        <property name="wordWrap">
-         <bool>true</bool>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="interfaceScaleLabel">
+        <property name="text">
+         <string>Interface Scale:</string>
+        </property>
+        <property name="buddy">
+         <cstring>interfaceScaleSpinBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QDoubleSpinBox" name="interfaceScaleSpinBox">
+        <property name="suffix">
+         <string>%</string>
+        </property>
+        <property name="decimals">
+         <number>2</number>
+        </property>
+        <property name="minimum">
+         <double>75.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>150.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>100.000000000000000</double>
+        </property>
+        <property name="keyboardTracking">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="safeAreaLabel">
+        <property name="text">
+         <string>Safe Area:</string>
+        </property>
+        <property name="buddy">
+         <cstring>safeAreaSpinBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="safeAreaSpinBox">
+        <property name="suffix">
+         <string>%</string>
+        </property>
+        <property name="decimals">
+         <number>2</number>
+        </property>
+        <property name="maximum">
+         <double>15.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>5.000000000000000</double>
+        </property>
+        <property name="keyboardTracking">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
@@ -165,6 +223,9 @@
   <tabstop>configureController2Button</tabstop>
   <tabstop>configureController3Button</tabstop>
   <tabstop>configureController4Button</tabstop>
+  <tabstop>swapConfirmBackCheckBox</tabstop>
+  <tabstop>interfaceScaleSpinBox</tabstop>
+  <tabstop>safeAreaSpinBox</tabstop>
  </tabstops>
  <resources/>
  <connections/>

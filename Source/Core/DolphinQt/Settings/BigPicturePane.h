@@ -22,6 +22,13 @@ public:
 signals:
   void ConfigureInput(int controller);
 
+protected:
+  void showEvent(QShowEvent* event) override;
+  bool eventFilter(QObject* object, QEvent* event) override;
+
 private:
+  void LoadSettings();
+  void SaveSettings();
+
   std::unique_ptr<Ui::BigPicturePane> m_ui;
 };

@@ -13,9 +13,6 @@ BigPictureMapping::BigPictureMapping(MappingWindow* window) : MappingWidget(wind
   ui.setupUi(this);
   auto* controller = BigPictureInput::GetController(GetPort());
   ui.groupLayout->addWidget(CreateGroupBox(tr("Navigation"), controller->GetButtons()), 0, 0);
-  if (GetPort() == 0)
-    ui.groupLayout->addWidget(CreateGroupBox(tr("Menu Preferences"), controller->GetOptionsGroup()),
-                              0, 1);
 }
 
 InputConfig* BigPictureMapping::GetConfig()
