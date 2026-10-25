@@ -622,6 +622,10 @@ void MenuBar::AddOptionsMenu()
   m_controllers_action = m_ui.actionOptionsControllers;
   connect(m_controllers_action, &QAction::triggered, this, &MenuBar::ConfigureControllers);
   connect(m_ui.actionOptionsHotkeys, &QAction::triggered, this, &MenuBar::ConfigureHotkeys);
+  auto* menu_input = options_menu->addMenu(tr("Big Picture Input"));
+  for (int port = 0; port < 4; ++port)
+    connect(menu_input->addAction(tr("Controller %1").arg(port + 1)), &QAction::triggered, this,
+            [this, port] { emit ConfigureBigPicture(port); });
   connect(m_ui.actionOptionsFreeLook, &QAction::triggered, this, &MenuBar::ConfigureFreelook);
 
   // Debugging mode only

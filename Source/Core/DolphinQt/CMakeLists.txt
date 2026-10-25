@@ -198,6 +198,8 @@ add_executable(dolphin-emu
   Config/LogConfigWidget.h
   Config/LogWidget.cpp
   Config/LogWidget.h
+  Config/Mapping/BigPictureMapping.cpp
+  Config/Mapping/BigPictureMapping.h
   Config/Mapping/FreeLookGeneral.cpp
   Config/Mapping/FreeLookGeneral.h
   Config/Mapping/FreeLookRotation.cpp
@@ -449,6 +451,7 @@ add_executable(dolphin-emu
   QtUtils/ImageConverter.cpp
   QtUtils/ImageConverter.h
   QtUtils/ImGuiKeyEvent.h
+  QtUtils/MenuFontFallbacks.h
   QtUtils/NonAutodismissibleMenu.cpp
   QtUtils/NonAutodismissibleMenu.h
   QtUtils/NonDefaultQPushButton.cpp
@@ -485,6 +488,9 @@ add_executable(dolphin-emu
   Settings/AudioPane.cpp
   Settings/AudioPane.h
   Settings/AudioPane.ui
+  Settings/BigPicturePane.cpp
+  Settings/BigPicturePane.h
+  Settings/BigPicturePane.ui
   Settings/BroadbandAdapterSettingsDialog.cpp
   Settings/BroadbandAdapterSettingsDialog.h
   Settings/GameCubePane.cpp

@@ -28,6 +28,7 @@
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SI/SI_DeviceAMBaseboard.h"
 
+#include "DolphinQt/Config/Mapping/BigPictureMapping.h"
 #include "DolphinQt/Config/Mapping/FreeLookGeneral.h"
 #include "DolphinQt/Config/Mapping/FreeLookRotation.h"
 #include "DolphinQt/Config/Mapping/GBAPadEmu.h"
@@ -424,6 +425,11 @@ void MappingWindow::SetMappingType(MappingWindow::Type type)
     ShowExtensionMotionTabs(false);
     break;
   }
+  case Type::MAPPING_BIG_PICTURE:
+    widget = new BigPictureMapping(this);
+    AddWidget(tr("Navigation"), widget);
+    setWindowTitle(tr("Big Picture Input %1").arg(GetPort() + 1));
+    break;
   case Type::MAPPING_HOTKEYS:
   {
     widget = new HotkeyGeneral(this);

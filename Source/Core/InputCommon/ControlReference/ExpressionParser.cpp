@@ -466,6 +466,11 @@ public:
   {
     return lhs->IsAnyInputActive() || rhs->IsAnyInputActive();
   }
+  void ClearHotkeySuppressions() override
+  {
+    lhs->ClearHotkeySuppressions();
+    rhs->ClearHotkeySuppressions();
+  }
 
   void UpdateReferences(ControlEnvironment& env) override
   {
@@ -607,6 +612,12 @@ public:
 
   void SetValue(ControlState) override {}
 
+  void ClearHotkeySuppressions() override
+  {
+    m_suppressor = {};
+    m_is_blocked = true;
+  }
+
   int CountNumControls() const override
   {
     int result = 0;
@@ -665,6 +676,11 @@ public:
 
   int CountNumControls() const override { return GetActiveChild()->CountNumControls(); }
   bool IsAnyInputActive() const override { return GetActiveChild()->IsAnyInputActive(); }
+  void ClearHotkeySuppressions() override
+  {
+    m_lhs->ClearHotkeySuppressions();
+    m_rhs->ClearHotkeySuppressions();
+  }
   void UpdateReferences(ControlEnvironment& env) override
   {
     m_lhs->UpdateReferences(env);

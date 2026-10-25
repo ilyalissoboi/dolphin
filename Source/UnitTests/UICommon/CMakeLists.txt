@@ -1,2 +1,3 @@
 add_dolphin_test(BigPictureControllerTest BigPictureControllerTest.cpp)
 add_dolphin_test(BigPictureInputTest BigPictureInputTest.cpp)
+add_dolphin_test(BigPictureBindingsTest BigPictureBindingsTest.cpp)

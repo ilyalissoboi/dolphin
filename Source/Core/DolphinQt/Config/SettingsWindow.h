@@ -64,6 +64,7 @@ enum class SettingsWindowPaneIndex : int
   Graphics,
   Controllers,
   Interface,
+  BigPicture,
   OnScreenDisplay,
   Audio,
   Paths,
@@ -83,6 +84,9 @@ public:
   void SelectPane(SettingsWindowPaneIndex);
 
   void closeEvent(QCloseEvent* event) override;
+
+signals:
+  void ConfigureBigPictureInput(int controller);
 
 private:
   void UpdateCategoryIcons();

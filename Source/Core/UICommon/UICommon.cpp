@@ -40,6 +40,7 @@
 #include "Core/System.h"
 #include "Core/WiiRoot.h"
 
+#include "InputCommon/BigPictureInput.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/GCAdapter.h"
 
@@ -189,6 +190,7 @@ void InitControllers(const WindowSystemInfo& wsi)
   Keyboard::Initialize();
   Wiimote::Initialize(Wiimote::InitializeMode::DO_NOT_WAIT_FOR_WIIMOTES);
   HotkeyManagerEmu::Initialize();
+  BigPictureInput::Initialize();
   FreeLook::Initialize();
 }
 
@@ -199,6 +201,7 @@ void ShutdownControllers()
   Keyboard::Shutdown();
   Wiimote::Shutdown();
   HotkeyManagerEmu::Shutdown();
+  BigPictureInput::Shutdown();
   FreeLook::Shutdown();
 
   g_controller_interface.Shutdown();

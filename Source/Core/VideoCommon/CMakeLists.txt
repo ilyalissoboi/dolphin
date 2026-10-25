@@ -40,6 +40,8 @@ add_library(videocommon
   AsyncShaderCompiler.h
   BigPicture/Runtime.cpp
   BigPicture/Runtime.h
+  BigPicture/Navigation.cpp
+  BigPicture/Navigation.h
   BoundingBox.cpp
   BoundingBox.h
   BPFunctions.cpp

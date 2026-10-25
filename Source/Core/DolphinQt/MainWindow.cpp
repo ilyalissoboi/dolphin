@@ -15,6 +15,7 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QStackedWidget>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QStyleHints>
 #include <QTimer>
@@ -118,6 +119,7 @@
 #include "DolphinQt/NetPlay/NetPlaySetupDialog.h"
 #include "DolphinQt/QtUtils/DolphinFileDialog.h"
 #include "DolphinQt/QtUtils/FileOpenEventFilter.h"
+#include "DolphinQt/QtUtils/MenuFontFallbacks.h"
 #include "DolphinQt/QtUtils/ModalMessageBox.h"
 #include "DolphinQt/QtUtils/ParallelProgressDialog.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
@@ -134,6 +136,7 @@
 #include "DolphinQt/TAS/WiiTASInputWindow.h"
 #include "DolphinQt/ToolBar.h"
 #include "DolphinQt/WiiUpdate.h"
+#include "InputCommon/BigPictureInput.h"
 #include "VideoCommon/BigPicture/Runtime.h"
 #ifdef _WIN32
 #include "DolphinQt/resource.h"
@@ -521,6 +524,16 @@ void MainWindow::InitControllers()
     return;
 
   UICommon::InitControllers(::GetWindowSystemInfo(windowHandle()));
+  BigPicture::GetPresentationState().SetMenuFontPaths(QtUtils::FindMenuFontFallbacks(
+      QStandardPaths::standardLocations(QStandardPaths::FontsLocation)));
+
+  BigPicture::GetPresentationState().SetNavigationText(
+      {tr("Big Picture").toStdString(), tr("Menu Preferences").toStdString(),
+       tr("Close Menu").toStdString(), tr("Swap Confirm and Back").toStdString(),
+       tr("Interface Scale").toStdString(), tr("Safe Area").toStdString(), tr("Back").toStdString(),
+       tr("Select").toStdString(), tr("Previous Page").toStdString(), tr("Next Page").toStdString(),
+       tr("On").toStdString(), tr("Off").toStdString(),
+       tr("Enter: Select   Esc: Back   Page Up/Down: Previous/Next Page").toStdString()});
 
   m_hotkey_scheduler = new HotkeyScheduler();
   m_hotkey_scheduler->Start();
@@ -694,6 +707,7 @@ void MainWindow::ConnectMenuBar()
   connect(m_menu_bar, &MenuBar::ConfigureAudio, this, &MainWindow::ShowAudioWindow);
   connect(m_menu_bar, &MenuBar::ConfigureControllers, this, &MainWindow::ShowControllersWindow);
   connect(m_menu_bar, &MenuBar::ConfigureHotkeys, this, &MainWindow::ShowHotkeyDialog);
+  connect(m_menu_bar, &MenuBar::ConfigureBigPicture, this, &MainWindow::ShowBigPictureInputDialog);
   connect(m_menu_bar, &MenuBar::ConfigureFreelook, this, &MainWindow::ShowFreeLookWindow);
 
   // Tools
@@ -751,6 +765,23 @@ void MainWindow::ConnectMenuBar()
 
 void MainWindow::ConnectHotkeys()
 {
+  connect(m_hotkey_scheduler, &HotkeyScheduler::BigPictureAction, this,
+          [this](int action, quint64 generation, quint64 input_epoch) {
+            m_big_picture_host->RequestAction(generation, static_cast<BigPicture::Action>(action),
+                                              input_epoch);
+          });
+  connect(
+      m_hotkey_scheduler, &HotkeyScheduler::BigPictureOptions, this,
+      [this](bool swap, double scale, double safe_area, quint64 generation, quint64 input_epoch) {
+        const auto snapshot = m_big_picture_host->GetSnapshot();
+        if (snapshot->generation != generation || snapshot->mode == BigPicture::Mode::Desktop ||
+            !BigPicture::GetPresentationState().IsInputCurrent(input_epoch))
+          return;
+        BigPictureInput::SetOptions(
+            {swap, static_cast<float>(scale), static_cast<float>(safe_area)});
+        BigPicture::GetPresentationState().RequestFrames();
+        VideoCommon::BigPicture::Wakeup();
+      });
   connect(m_hotkey_scheduler, &HotkeyScheduler::Open, this, &MainWindow::Open);
   connect(m_hotkey_scheduler, &HotkeyScheduler::ChangeDisc, this, &MainWindow::ChangeDisc);
   connect(m_hotkey_scheduler, &HotkeyScheduler::EjectDisc, this, &MainWindow::EjectDisc);
@@ -869,8 +900,6 @@ void MainWindow::ConnectRenderWidget()
     if (m_render_widget->isFullScreen())
       SetFullScreenResolution(focus);
   });
-  connect(m_render_widget, &RenderWidget::MenuBack, m_big_picture_host,
-          &BigPictureHost::RequestBack);
 }
 
 void MainWindow::ConnectHost()
@@ -1558,6 +1587,8 @@ void MainWindow::ShowSettingsWindow()
     }
 #endif
     m_settings_window = new SettingsWindow(this);
+    connect(m_settings_window, &SettingsWindow::ConfigureBigPictureInput, this,
+            &MainWindow::ShowBigPictureInputDialog);
     InstallHotkeyFilter(m_settings_window);
   }
 
@@ -1601,6 +1632,21 @@ void MainWindow::ShowHotkeyDialog()
   m_hotkey_window->show();
   m_hotkey_window->raise();
   m_hotkey_window->activateWindow();
+}
+
+void MainWindow::ShowBigPictureInputDialog(int controller)
+{
+  if (controller < 0 || controller >= static_cast<int>(m_big_picture_input_windows.size()))
+    return;
+  auto*& window = m_big_picture_input_windows[controller];
+  if (!window)
+  {
+    window = new MappingWindow(this, MappingWindow::Type::MAPPING_BIG_PICTURE, controller);
+    InstallHotkeyFilter(window);
+  }
+  window->show();
+  window->raise();
+  window->activateWindow();
 }
 
 void MainWindow::ShowGraphicsWindow()

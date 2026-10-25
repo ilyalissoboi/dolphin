@@ -153,6 +153,55 @@ TEST_F(BigPictureInputTest, RelativeMotionAccumulatedDuringMenuDoesNotReachGamep
   EXPECT_EQ(motion.GetValue(), 3);
 }
 
+TEST_F(BigPictureInputTest,
+       CompanionRelativeSamplingPreservesOtherReadersAndAvoidsDoubleConsumption)
+{
+  ciface::RelativeInputState<int> motion;
+  for (auto channel : {ciface::InputChannel::FreeLook, ciface::InputChannel::BigPicture,
+                       ciface::InputChannel::Host, ciface::InputChannel::SerialInterface})
+  {
+    ControllerInterface::SetCurrentInputChannel(channel);
+    motion.Update();
+  }
+  motion.Move(10);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::FreeLook);
+  motion.Update(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 10);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 10);
+  motion.Move(3);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::Host);
+  motion.Update();
+  EXPECT_EQ(motion.GetValue(), 13);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 10);  // A host update must not overwrite the menu's sample.
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::FreeLook);
+  motion.Update(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 3);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::SerialInterface);
+  motion.Update(ciface::InputChannel::SerialInterface);
+  EXPECT_EQ(motion.GetValue(), 13);  // The duplicate channel must not consume its delta twice.
+}
+
+TEST_F(BigPictureInputTest, CompanionRelativeSamplingDropsMotionAcrossCaptureEpochs)
+{
+  ciface::RelativeInputState<int> motion;
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::FreeLook);
+  motion.Update(ciface::InputChannel::BigPicture);
+  motion.Move(30);
+  Open();
+  motion.Update(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 0);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 0);
+  motion.Move(4);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::FreeLook);
+  motion.Update(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 4);
+  ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::BigPicture);
+  EXPECT_EQ(motion.GetValue(), 4);
+}
+
 TEST_F(BigPictureInputTest, NativeAdapterPreservesOriginAndBlocksHeldButtonsUntilRelease)
 {
   GCAdapterInputGate gate;

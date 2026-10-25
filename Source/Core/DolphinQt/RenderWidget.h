@@ -26,7 +26,6 @@ public:
 
 signals:
   void EscapePressed();
-  void MenuBack();
   void Closed();
   void HandleChanged(void* handle);
   void StateChanged(bool fullscreen);

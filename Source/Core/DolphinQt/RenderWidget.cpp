@@ -401,7 +401,7 @@ bool RenderWidget::event(QEvent* event)
     {
       if (BigPicture::GetPresentationState().IsModal())
       {
-        emit MenuBack();
+        // The render owner consumes the queued Escape once, alongside controller Back.
         return true;
       }
       if (!BigPicture::GetPresentationState().GetCapture().keyboard)

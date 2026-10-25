@@ -41,6 +41,12 @@ int ControlReference::BoundCount() const
     return 0;
 }
 
+void ControlReference::ClearHotkeySuppressions()
+{
+  if (m_parsed_expression)
+    m_parsed_expression->ClearHotkeySuppressions();
+}
+
 ParseStatus ControlReference::GetParseStatus() const
 {
   return m_parse_status;
