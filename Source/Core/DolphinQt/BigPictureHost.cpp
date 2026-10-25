@@ -68,9 +68,10 @@ void BigPictureHost::RequestBack()
 }
 
 void BigPictureHost::RequestAction(std::uint64_t generation, BigPicture::Action action,
-                                   std::optional<std::uint64_t> input_epoch)
+                                   std::optional<std::uint64_t> input_epoch, int slot,
+                                   std::uint64_t confirmation_id)
 {
-  Submit({generation, m_next_id.fetch_add(1), action}, input_epoch);
+  Submit({generation, m_next_id.fetch_add(1), action, {}, slot, confirmation_id}, input_epoch);
 }
 
 void BigPictureHost::InvalidatePauseOwnership()
@@ -89,6 +90,14 @@ std::shared_ptr<const BigPicture::Snapshot> BigPictureHost::GetSnapshot() const
 void BigPictureHost::Publish()
 {
   auto snapshot = m_controller.GetSnapshot();
+  if (m_finish_stop_to_desktop && snapshot->host.lifecycle == BigPicture::Lifecycle::Idle &&
+      !snapshot->pending)
+  {
+    m_finish_stop_to_desktop = false;
+    m_controller.Submit(
+        {snapshot->generation, m_next_id.fetch_add(1), BigPicture::Action::ReturnToDesktop});
+    snapshot = m_controller.GetSnapshot();
+  }
   // Capture starts before requesting a pause, and stops before resuming. No snapshot mutex
   // is held while touching core state or waking a graphics owner.
   if (m_publish)
@@ -141,4 +150,13 @@ void BigPictureHost::InvalidateSession()
   Q_ASSERT(QThread::currentThread() == thread());
   m_controller.InvalidateSession();
   Publish();
+}
+
+void BigPictureHost::FinishStopToDesktop()
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  // A synchronous stop callback can arrive inside Execute. Leave the mode change pending
+  // until the outer dispatch publishes its completed state instead of submitting reentrantly.
+  m_finish_stop_to_desktop = true;
+  Refresh();
 }

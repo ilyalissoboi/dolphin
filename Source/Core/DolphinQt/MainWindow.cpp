@@ -57,6 +57,7 @@
 #include "Core/Config/NetplaySettings.h"
 #include "Core/Config/UISettings.h"
 #include "Core/Config/WiimoteSettings.h"
+#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/FreeLookManager.h"
 #include "Core/HW/CPU.h"
@@ -312,6 +313,13 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         state.netplay = NetPlay::IsNetPlayRunning();
         state.hardcore = AchievementManager::GetInstance().IsHardcoreModeActive();
         state.pause_revision = m_system.GetCPU().GetPauseRevision();
+        state.game_title = SConfig::GetInstance().GetTitleDescription();
+        state.can_change_disc = m_big_picture_disc_game;
+        state.state_slots_ready = m_big_picture_state_slots_ready;
+        state.state_slots = m_big_picture_state_slots;
+#ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
+        state.stop_requires_desktop = AchievementManager::GetInstance().CheckForModifications();
+#endif
         return state;
       },
       [this](const BigPicture::Command& command) -> BigPicture::Result {
@@ -331,17 +339,60 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
                                ResultStatus::Succeeded :
                                ResultStatus::Failed};
         case Action::Stop:
+        case Action::Exit:
+          if (command.action == Action::Exit)
+            m_exit_requested = true;
           if (!RequestStopWithConfirmation(true))
+          {
+            if (command.action == Action::Exit)
+              m_exit_requested = false;
             return {command, ResultStatus::Cancelled};
+          }
           break;
         case Action::Reset:
           Reset();
           break;
         case Action::SaveState:
+          if (State::GetSlotInfo(command.slot).exists && command.confirmation_id != command.id)
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                    tr("This slot changed. Refresh the slots and confirm the overwrite.")
+                        .toStdString()};
           StateSaveSlotAt(command.slot);
           break;
         case Action::LoadState:
+          if (!State::GetSlotInfo(command.slot).readable)
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::EmptySlot,
+                    tr("This slot is empty or unreadable. Refresh the slots and choose another.")
+                        .toStdString()};
           StateLoadSlotAt(command.slot);
+          break;
+        case Action::RefreshStates:
+          RefreshBigPictureStateSlots();
+          return {command, ResultStatus::Succeeded};
+        case Action::Screenshot:
+          ScreenShot();
+          break;
+        case Action::DesktopSettings:
+          QTimer::singleShot(0, this, [this, generation = command.generation] {
+            if (LeaveBigPictureForDesktop(generation))
+              ShowSettingsWindow();
+          });
+          break;
+        case Action::ChangeDisc:
+          // Let the dispatch finish before entering a native dialog's nested event loop.
+          // Session/policy checks after selection reject a dialog left open across stop/boot.
+          QTimer::singleShot(0, this, [this, generation = command.generation] {
+            if (!LeaveBigPictureForDesktop(generation))
+              return;
+            const auto paths = StringListToStdVector(PromptFileNames());
+            const auto snapshot = m_big_picture_host->GetSnapshot();
+            if (paths.empty() || snapshot->generation != generation ||
+                BigPicture::GetAvailability(Action::ChangeDisc, snapshot->host) !=
+                    BigPicture::UnavailableReason::None ||
+                NetPlay::IsNetPlayRunning() || !Core::IsRunning(m_system))
+              return;
+            m_system.GetDVDInterface().ChangeDisc(Core::CPUThreadGuard{m_system}, paths);
+          });
           break;
         default:
           return {command, ResultStatus::Unavailable,
@@ -527,13 +578,76 @@ void MainWindow::InitControllers()
   BigPicture::GetPresentationState().SetMenuFontPaths(QtUtils::FindMenuFontFallbacks(
       QStandardPaths::standardLocations(QStandardPaths::FontsLocation)));
 
-  BigPicture::GetPresentationState().SetNavigationText(
-      {tr("Big Picture").toStdString(), tr("Menu Preferences").toStdString(),
-       tr("Close Menu").toStdString(), tr("Swap Confirm and Back").toStdString(),
-       tr("Interface Scale").toStdString(), tr("Safe Area").toStdString(), tr("Back").toStdString(),
-       tr("Select").toStdString(), tr("Previous Page").toStdString(), tr("Next Page").toStdString(),
-       tr("On").toStdString(), tr("Off").toStdString(),
-       tr("Enter: Select   Esc: Back   Page Up/Down: Previous/Next Page").toStdString()});
+  BigPicture::NavigationText menu_text{
+      tr("Big Picture").toStdString(),
+      tr("Menu Preferences").toStdString(),
+      tr("Close Menu").toStdString(),
+      tr("Swap Confirm and Back").toStdString(),
+      tr("Interface Scale").toStdString(),
+      tr("Safe Area").toStdString(),
+      tr("Back").toStdString(),
+      tr("Select").toStdString(),
+      tr("Previous Page").toStdString(),
+      tr("Next Page").toStdString(),
+      tr("On").toStdString(),
+      tr("Off").toStdString(),
+      tr("Enter: Select   Esc: Back   Page Up/Down: Previous/Next Page").toStdString()};
+  menu_text.actions = {tr("Open Menu").toStdString(),
+                       tr("Back").toStdString(),
+                       tr("Settings").toStdString(),
+                       tr("Save State").toStdString(),
+                       tr("Load State").toStdString(),
+                       tr("Return to Desktop").toStdString(),
+                       tr("Start Game").toStdString(),
+                       tr("Resume").toStdString(),
+                       tr("Stop Emulation").toStdString(),
+                       tr("Reset").toStdString(),
+                       tr("Save State").toStdString(),
+                       tr("Load State").toStdString(),
+                       tr("Confirm").toStdString(),
+                       tr("Cancel").toStdString(),
+                       tr("Screenshot").toStdString(),
+                       tr("Change Disc (Desktop)").toStdString(),
+                       tr("Advanced Settings (Desktop)").toStdString(),
+                       tr("Refresh Slots").toStdString(),
+                       tr("Exit Dolphin").toStdString()};
+  menu_text.reasons = {
+      std::string{},
+      tr("An operation is in progress.").toStdString(),
+      tr("No game is running.").toStdString(),
+      tr("A game is already running.").toStdString(),
+      tr("Unavailable during NetPlay.").toStdString(),
+      tr("Unavailable in hardcore mode.").toStdString(),
+      tr("Unavailable here.").toStdString(),
+      tr("Available when running a disc game.").toStdString(),
+      tr("Return to the desktop to review unsaved achievement modifications.").toStdString(),
+      tr("This slot is empty or unreadable.").toStdString()};
+  for (std::size_t slot = 0; slot < menu_text.slot_labels.size(); ++slot)
+    menu_text.slot_labels[slot] = tr("Slot %1").arg(slot + 1).toStdString();
+  menu_text.confirm = tr("Confirm").toStdString();
+  menu_text.cancel = tr("Cancel").toStdString();
+  menu_text.confirm_stop =
+      tr("Stop the current emulation? Unsaved progress will be lost.").toStdString();
+  menu_text.confirm_reset =
+      tr("Reset the current game? Unsaved progress will be lost.").toStdString();
+  menu_text.confirm_exit =
+      tr("Stop emulation and exit Dolphin? Unsaved progress will be lost.").toStdString();
+  menu_text.confirm_overwrite = tr("Overwrite this save-state slot?").toStdString();
+  menu_text.error = tr("Operation Failed").toStdString();
+  menu_text.requested = tr("Request sent. Watch the on-screen message for the result. Screenshots "
+                           "finish on the next game frame.")
+                            .toStdString();
+  menu_text.loading_slots =
+      tr("Open or refresh this browser to read slot information.").toStdString();
+  menu_text.empty_slot = tr("Empty").toStdString();
+  menu_text.unknown_slot = tr("Unreadable state header").toStdString();
+  menu_text.state_browser_help = tr("Choose a slot. Refresh Slots updates saved dates. Older or "
+                                    "incompatible states may not load.")
+                                     .toStdString();
+  menu_text.desktop_settings_help = tr("Open desktop Configuration.").toStdString();
+  menu_text.desktop_disc_help = tr("Choose a disc using the desktop file picker.").toStdString();
+  menu_text.stop_help = tr("Return to the desktop game list.").toStdString();
+  BigPicture::GetPresentationState().SetNavigationText(std::move(menu_text));
 
   m_hotkey_scheduler = new HotkeyScheduler();
   m_hotkey_scheduler->Start();
@@ -763,12 +877,48 @@ void MainWindow::ConnectMenuBar()
   connect(this, &MainWindow::RecordingStatusChanged, m_menu_bar, &MenuBar::RecordingStatusChanged);
 }
 
+bool MainWindow::LeaveBigPictureForDesktop(std::uint64_t generation)
+{
+  if (m_big_picture_host->GetSnapshot()->generation != generation)
+    return false;
+  // A desktop handoff leaves a local game paused. In NetPlay the menu never owned a pause.
+  m_big_picture_host->InvalidatePauseOwnership();
+  m_big_picture_host->RequestAction(generation, BigPicture::Action::ReturnToDesktop);
+  if (m_render_widget->isFullScreen())
+    FullScreen();
+  show();
+  raise();
+  activateWindow();
+  return true;
+}
+
+void MainWindow::RefreshBigPictureStateSlots()
+{
+  static_assert(BigPicture::STATE_SLOT_COUNT == State::NUM_STATES);
+  if (!Core::IsRunning(m_system))
+    return;
+  for (std::size_t slot = 0; slot < m_big_picture_state_slots.size(); ++slot)
+  {
+    const auto info = State::GetSlotInfo(static_cast<u32>(slot + 1));
+    m_big_picture_state_slots[slot] = {info.exists, info.readable, info.description};
+  }
+  m_big_picture_state_slots_ready = true;
+}
+
 void MainWindow::ConnectHotkeys()
 {
   connect(m_hotkey_scheduler, &HotkeyScheduler::BigPictureAction, this,
-          [this](int action, quint64 generation, quint64 input_epoch) {
-            m_big_picture_host->RequestAction(generation, static_cast<BigPicture::Action>(action),
-                                              input_epoch);
+          [this](int action_value, quint64 generation, quint64 input_epoch, int slot,
+                 quint64 confirmation_id) {
+            const auto action = static_cast<BigPicture::Action>(action_value);
+            if ((action == BigPicture::Action::SaveStates ||
+                 action == BigPicture::Action::LoadStates) &&
+                generation == m_big_picture_host->GetSnapshot()->generation &&
+                BigPicture::GetPresentationState().IsInputCurrent(input_epoch) &&
+                Core::IsRunning(m_system))
+              RefreshBigPictureStateSlots();
+            m_big_picture_host->RequestAction(generation, action, input_epoch, slot,
+                                              confirmation_id);
           });
   connect(
       m_hotkey_scheduler, &HotkeyScheduler::BigPictureOptions, this,
@@ -1122,9 +1272,11 @@ void MainWindow::TogglePause()
 
 void MainWindow::OnStopComplete()
 {
+  m_big_picture_state_slots_ready = false;
+  m_big_picture_state_slots = {};
   m_graceful_shutdown_timer->stop();
   m_stop_requested = false;
-  m_big_picture_host->Refresh();
+  m_big_picture_host->FinishStopToDesktop();
   HideRenderWidget(!m_exit_requested, m_exit_requested);
 #ifdef USE_DISCORD_PRESENCE
   if (!m_netplay_dialog->isVisible())
@@ -1427,6 +1579,10 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
   ShowRenderWidget();
 
   // Boot up, show an error if it fails to load the game.
+  m_big_picture_state_slots_ready = false;
+  m_big_picture_state_slots = {};
+  m_big_picture_disc_game =
+      parameters && std::holds_alternative<BootParameters::Disc>(parameters->parameters);
   m_big_picture_host->InvalidateSession();
   if (!BootManager::BootCore(m_system, std::move(parameters),
                              ::GetWindowSystemInfo(m_render_widget->windowHandle())))

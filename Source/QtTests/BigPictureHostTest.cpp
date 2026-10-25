@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <thread>
+#include <vector>
 
 #include <QCoreApplication>
 #include <QThread>
@@ -200,5 +201,133 @@ TEST(BigPictureHostTest, InterveningFocusOrPauseCannotAcquireMenuPauseOwnership)
     QCoreApplication::processEvents();
     EXPECT_EQ(resumes, 0);
   }
+}
+TEST(BigPictureHostTest, QueuedSlotAndConfirmationPayloadsReachTheMatchingHostAction)
+{
+  HostState state{Lifecycle::Paused};
+  state.state_slots_ready = true;
+  state.state_slots[9].occupied = true;
+  std::vector<Command> executed;
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        executed.push_back(command);
+        return Result{command, ResultStatus::Dispatched};
+      });
+  const auto generation = host.GetSnapshot()->generation;
+  host.RequestAction(generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(generation, Action::SaveStates);
+  QCoreApplication::processEvents();
+  host.RequestAction(generation, Action::SaveState, {}, 10);
+  QCoreApplication::processEvents();
+  ASSERT_TRUE(host.GetSnapshot()->confirmation);
+  const auto request_id = host.GetSnapshot()->confirmation->id;
+  host.RequestAction(generation, Action::Confirm, {}, 0, request_id + 1);
+  QCoreApplication::processEvents();
+  EXPECT_TRUE(executed.empty());
+  host.RequestAction(generation, Action::Confirm, {}, 0, request_id);
+  QCoreApplication::processEvents();
+  ASSERT_EQ(executed.size(), 1u);
+  EXPECT_EQ(executed[0].action, Action::SaveState);
+  EXPECT_EQ(executed[0].slot, 10);
+  EXPECT_EQ(executed[0].confirmation_id, request_id);
+}
+
+TEST(BigPictureHostTest, LoadInvalidatesImplicitResumeButExplicitResumeRemainsAvailable)
+{
+  HostState state{Lifecycle::Running};
+  int resumes = 0;
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        if (command.action == Action::LoadState)
+          ++state.pause_revision;
+        if (command.action == Action::Resume)
+        {
+          state.lifecycle = Lifecycle::Running;
+          ++resumes;
+          return Result{command, ResultStatus::Succeeded};
+        }
+        return Result{command, ResultStatus::Dispatched};
+      },
+      [&](bool pause) {
+        state.lifecycle = pause ? Lifecycle::Paused : Lifecycle::Running;
+        ++state.pause_revision;
+        if (!pause)
+          ++resumes;
+      });
+  const auto generation = host.GetSnapshot()->generation;
+  host.RequestAction(generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(generation, Action::LoadStates);
+  QCoreApplication::processEvents();
+  host.RequestAction(generation, Action::LoadState, {}, 1);
+  QCoreApplication::processEvents();
+  host.RequestBack();
+  QCoreApplication::processEvents();
+  host.RequestBack();
+  QCoreApplication::processEvents();
+  EXPECT_EQ(state.lifecycle, Lifecycle::Paused);
+  EXPECT_EQ(resumes, 0);
+  host.RequestAction(generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(generation, Action::Resume);
+  QCoreApplication::processEvents();
+  EXPECT_EQ(state.lifecycle, Lifecycle::Running);
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  EXPECT_EQ(resumes, 1);
+}
+TEST(BigPictureHostTest, StopToNativeLibraryDoesNotAutomaticallyOpenTheMenuOnTheNextBoot)
+{
+  HostState state{Lifecycle::Running};
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        if (command.action == Action::Stop)
+          state.lifecycle = Lifecycle::Stopping;
+        return Result{command, ResultStatus::Dispatched};
+      });
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Stop);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Confirm, {}, 0,
+                     host.GetSnapshot()->confirmation->id);
+  QCoreApplication::processEvents();
+  state.lifecycle = Lifecycle::Idle;
+  host.FinishStopToDesktop();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  state.lifecycle = Lifecycle::Booting;
+  host.InvalidateSession();
+  state.lifecycle = Lifecycle::Running;
+  host.Refresh();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  EXPECT_TRUE(host.GetSnapshot()->screens.empty());
+}
+TEST(BigPictureHostTest, SynchronousStopCompletionReturnsToDesktopAfterDispatchUnwinds)
+{
+  HostState state{Lifecycle::Running};
+  BigPictureHost* current = nullptr;
+  BigPictureHost host(
+      nullptr, [&] { return state; },
+      [&](const Command& command) {
+        if (command.action == Action::Stop)
+        {
+          state.lifecycle = Lifecycle::Idle;
+          current->FinishStopToDesktop();
+        }
+        return Result{command, ResultStatus::Dispatched};
+      });
+  current = &host;
+  host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Stop);
+  QCoreApplication::processEvents();
+  host.RequestAction(host.GetSnapshot()->generation, Action::Confirm, {}, 0,
+                     host.GetSnapshot()->confirmation->id);
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  EXPECT_FALSE(host.GetSnapshot()->pending);
 }
 }  // namespace

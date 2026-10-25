@@ -74,9 +74,15 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   auto& memory = m_memory[page.id];
   const auto previous_focus = memory.item;
-  const bool entering = m_current_page != page.id || m_layout_width != layout.size.x ||
-                        m_layout_height != layout.size.y || m_layout_scale != scale;
+  const bool entering = m_current_page != page.id || m_focus_revision != page.focus_revision ||
+                        m_layout_width != layout.size.x || m_layout_height != layout.size.y ||
+                        m_layout_scale != scale;
   m_current_page = page.id;
+  m_focus_revision = page.focus_revision;
+  // Destructive dialogs always start at their safe default, including another request using
+  // the same page. Reuse one memory entry rather than accumulating entries per command ID.
+  if (entering && page.dialog)
+    memory = {};
   m_layout_width = layout.size.x;
   m_layout_height = layout.size.y;
   m_layout_scale = scale;

@@ -21,7 +21,8 @@ public:
   void Start();
   void Stop();
 signals:
-  void BigPictureAction(int action, quint64 generation, quint64 input_epoch);
+  void BigPictureAction(int action, quint64 generation, quint64 input_epoch, int slot = 0,
+                        quint64 confirmation_id = 0);
   void BigPictureOptions(bool swap, double scale, double safe_area, quint64 generation,
                          quint64 input_epoch);
   void Open();

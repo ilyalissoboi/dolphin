@@ -16,6 +16,21 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
       state.lifecycle == Lifecycle::Booting || state.lifecycle == Lifecycle::Stopping;
   switch (action)
   {
+  case Action::ChangeDisc:
+    if (state.netplay)
+      return UnavailableReason::NetPlay;
+    if (!state.can_change_disc)
+      return UnavailableReason::DiscUnavailable;
+    return active        ? UnavailableReason::None :
+           transitioning ? UnavailableReason::Busy :
+                           UnavailableReason::NoGame;
+  case Action::Exit:
+  case Action::Stop:
+    if (state.stop_requires_desktop)
+      return UnavailableReason::DesktopRequired;
+    return active        ? UnavailableReason::None :
+           transitioning ? UnavailableReason::Busy :
+                           UnavailableReason::NoGame;
   case Action::Boot:
     if (state.netplay)
       return UnavailableReason::NetPlay;
@@ -31,9 +46,11 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
     if ((action == Action::LoadState || action == Action::LoadStates) && state.hardcore)
       return UnavailableReason::Hardcore;
     [[fallthrough]];
-  case Action::Stop:
   case Action::SaveState:
   case Action::SaveStates:
+  case Action::Screenshot:
+  case Action::DesktopSettings:
+  case Action::RefreshStates:
     return active        ? UnavailableReason::None :
            transitioning ? UnavailableReason::Busy :
                            UnavailableReason::NoGame;
@@ -104,7 +121,8 @@ void Controller::InvalidateSession()
   if (m_state.pending)
   {
     const auto command = *m_state.pending;
-    if (command.action == Action::Stop && m_host.ReadState().lifecycle == Lifecycle::Idle)
+    if ((command.action == Action::Stop || command.action == Action::Exit) &&
+        m_host.ReadState().lifecycle == Lifecycle::Idle)
       Finish({command, ResultStatus::Succeeded});
     else
       Finish({command, ResultStatus::Stale});
@@ -152,7 +170,8 @@ void Controller::Refresh()
         Finish({command, ResultStatus::Stale});
       }
     }
-    else if (command.action == Action::Stop && m_state.host.lifecycle == Lifecycle::Idle)
+    else if ((command.action == Action::Stop || command.action == Action::Exit) &&
+             m_state.host.lifecycle == Lifecycle::Idle)
     {
       Finish({command, ResultStatus::Succeeded});
     }
@@ -176,7 +195,8 @@ void Controller::Dispatch(const Command& command)
   // Boot/stop acknowledgments are not completion. State I/O currently has void APIs; keep
   // their honest Dispatched status until core completion reporting is implemented in slice 9.
   if (result.status == ResultStatus::Dispatched &&
-      (command.action == Action::Boot || command.action == Action::Stop))
+      (command.action == Action::Boot || command.action == Action::Stop ||
+       command.action == Action::Exit))
   {
     result.status = ResultStatus::Pending;
     m_state.result = result;
@@ -236,7 +256,7 @@ void Controller::Submit(const Command& command)
   // action; all other operations remain blocked until Back/Cancel dismisses it.
   if (m_state.confirmation)
   {
-    const auto confirmed = *m_state.confirmation;
+    auto confirmed = *m_state.confirmation;
     if (command.action == Action::Confirm)
     {
       if (command.confirmation_id != confirmed.id)
@@ -247,7 +267,10 @@ void Controller::Submit(const Command& command)
       }
       const auto current_reason = GetAvailability(confirmed.action, m_state.host);
       if (current_reason == UnavailableReason::None)
+      {
+        confirmed.confirmation_id = confirmed.id;
         Dispatch(confirmed);
+      }
       else
       {
         m_state.confirmation.reset();
@@ -314,6 +337,7 @@ void Controller::Submit(const Command& command)
     break;
   case Action::Stop:
   case Action::Reset:
+  case Action::Exit:
     if (m_state.mode == Mode::Desktop)
     {
       m_state.result =
@@ -324,6 +348,22 @@ void Controller::Submit(const Command& command)
     m_state.confirmation = command;
     m_state.screens.push_back(Screen::Confirmation);
     break;
+  case Action::SaveState:
+    if (m_state.host.state_slots_ready && m_state.host.state_slots[command.slot - 1].occupied)
+    {
+      if (m_state.mode == Mode::Desktop)
+      {
+        m_state.result =
+            Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+        Publish();
+        return;
+      }
+      m_state.confirmation = command;
+      m_state.screens.push_back(Screen::Confirmation);
+      break;
+    }
+    Dispatch(command);
+    return;
   case Action::Confirm:
     m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
     Publish();

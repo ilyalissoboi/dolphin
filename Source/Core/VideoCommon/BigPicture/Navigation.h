@@ -31,6 +31,7 @@ struct MenuPage
   std::string default_focus;
   int columns = 1;
   bool dialog = false;
+  std::uint64_t focus_revision = 0;
 };
 
 struct MenuResult
@@ -74,6 +75,7 @@ private:
   float m_layout_width = 0;
   float m_layout_height = 0;
   float m_layout_scale = 0;
+  std::uint64_t m_focus_revision = 0;
 };
 
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is

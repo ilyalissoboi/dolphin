@@ -52,6 +52,11 @@ enum class Action
   LoadState,
   Confirm,
   Cancel,
+  Screenshot,
+  ChangeDisc,
+  DesktopSettings,
+  RefreshStates,
+  Exit,
   Count
 };
 enum class UnavailableReason
@@ -62,7 +67,11 @@ enum class UnavailableReason
   GameActive,
   NetPlay,
   Hardcore,
-  InvalidArgument
+  InvalidArgument,
+  DiscUnavailable,
+  DesktopRequired,
+  EmptySlot,
+  Count
 };
 enum class ResultStatus
 {
@@ -97,12 +106,26 @@ struct Result
   std::string message;
 };
 
+constexpr std::size_t STATE_SLOT_COUNT = 10;
+
+struct StateSlot
+{
+  bool occupied = false;
+  bool readable = false;
+  std::string description;
+};
+
 struct HostState
 {
   Lifecycle lifecycle = Lifecycle::Idle;
   bool netplay = false;
   bool hardcore = false;
   std::uint64_t pause_revision = 0;
+  std::string game_title;
+  bool can_change_disc = false;
+  bool stop_requires_desktop = false;
+  bool state_slots_ready = false;
+  std::array<StateSlot, STATE_SLOT_COUNT> state_slots;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

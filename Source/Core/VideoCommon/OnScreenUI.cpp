@@ -9,6 +9,7 @@
 #include "Common/FileUtil.h"
 #include "Common/Profiler.h"
 #include "Common/Timer.h"
+#include "VideoCommon/BigPicture/InGameMenu.h"
 
 #include "Core/AchievementManager.h"
 #include "Core/Config/AchievementSettings.h"
@@ -701,25 +702,7 @@ void OnScreenUI::DrawNavigation()
   if (text.title.empty())
     return;
   auto options = m_navigation.options;
-  const bool preferences =
-      !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::Settings;
-  BigPicture::MenuPage page;
-  page.id = preferences ? "preferences" : "root";
-  page.title = preferences ? text.preferences : text.title;
-  if (preferences)
-  {
-    page.items = {
-        {"swap", text.swap, options.swap_confirm_back ? text.on : text.off},
-        {"scale", text.scale, std::to_string(static_cast<int>(options.scale * 100)) + "%"},
-        {"safe_area", text.safe_area,
-         std::to_string(static_cast<int>(options.safe_area * 100)) + "%"}};
-  }
-  else
-  {
-    page.columns = 2;
-    page.items = {{"preferences", text.preferences}, {"close", text.close}};
-    page.default_focus = "close";
-  }
+  const auto menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
   const auto prompt = [&](::BigPicture::NavButton button, const std::string& label) {
     const auto& binding = m_navigation.bindings[static_cast<std::size_t>(button)];
     return !m_navigation_keyboard && !binding.empty() && binding.size() <= 24 ?
@@ -736,24 +719,11 @@ void OnScreenUI::DrawNavigation()
                                       "   " + prompt(back, text.back) + "   " +
                                       prompt(::BigPicture::NavButton::Previous, text.previous) +
                                       "   " + prompt(::BigPicture::NavButton::Next, text.next);
-  const auto result = m_navigation_toolkit.Draw(page, options, prompts, m_menu_font);
-  if (result.back || result.activated == "close")
-    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Back},
-                                   m_input_epoch);
-  else if (result.activated == "preferences")
-    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Settings},
-                                   m_input_epoch);
-  else if (result.activated)
-  {
-    if (*result.activated == "swap")
-      options.swap_confirm_back = !options.swap_confirm_back;
-    else if (*result.activated == "scale")
-      options.scale = options.scale >= 1.5f ? 0.75f : options.scale + 0.25f;
-    else if (*result.activated == "safe_area")
-      options.safe_area = options.safe_area >= 0.149f ? 0 : options.safe_area + 0.05f;
-    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Back, options},
-                                   m_input_epoch);
-  }
+  ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImGui::GetIO().DisplaySize,
+                                                IM_COL32(0, 0, 0, 160));
+  const auto result = m_navigation_toolkit.Draw(menu.page, options, prompts, m_menu_font);
+  if (const auto request = menu.Activate(result))
+    presentation.RequestNavigation(*request, m_input_epoch);
 }
 
 void OnScreenUI::SetKey(u32 key, bool is_down, const char* chars)

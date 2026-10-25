@@ -330,4 +330,68 @@ TEST_F(BigPictureControllerTest, OldDialogCannotConfirmANewerDestructiveRequest)
   ASSERT_TRUE(controller.GetSnapshot()->confirmation);
   EXPECT_EQ(controller.GetSnapshot()->confirmation->action, Action::Stop);
 }
+TEST_F(BigPictureControllerTest, OccupiedSlotsRequireMatchingCancelableOverwriteConfirmation)
+{
+  InGame();
+  host.state.state_slots_ready = true;
+  host.state.state_slots[9].occupied = true;
+  Send(Action::SaveStates);
+  Send(Action::SaveState, 10);
+  ASSERT_TRUE(controller.GetSnapshot()->confirmation);
+  EXPECT_EQ(controller.GetSnapshot()->confirmation->slot, 10);
+  EXPECT_TRUE(host.executed.empty());
+  Send(Action::Cancel);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::SaveStates);
+  Send(Action::SaveState, 10);
+  Send(Action::Confirm);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed[0].slot, 10);
+  EXPECT_EQ(host.executed[0].confirmation_id, host.executed[0].id);
+  Send(Action::ReturnToDesktop);
+  Send(Action::SaveState, 10);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  EXPECT_FALSE(controller.GetSnapshot()->confirmation);
+  EXPECT_EQ(host.executed.size(), 1u);
+}
+
+TEST_F(BigPictureControllerTest, ExitWaitsForGracefulStopAndRechecksDesktopOnlyPolicy)
+{
+  InGame();
+  Send(Action::Exit);
+  host.state.stop_requires_desktop = true;
+  Send(Action::Confirm);
+  EXPECT_TRUE(host.executed.empty());
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::DesktopRequired);
+  host.state.stop_requires_desktop = false;
+  host.execute = [this](const Command& command) {
+    host.state.lifecycle = Lifecycle::Stopping;
+    return Result{command, ResultStatus::Dispatched};
+  };
+  Send(Action::Exit);
+  Send(Action::Confirm);
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->pending->action, Action::Exit);
+  host.state.lifecycle = Lifecycle::Idle;
+  controller.Refresh();
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+}
+
+TEST_F(BigPictureControllerTest, DiscAndScreenshotPoliciesAreRecheckedWhenDispatched)
+{
+  InGame();
+  Send(Action::ChangeDisc);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::DiscUnavailable);
+  host.state.can_change_disc = true;
+  host.state.netplay = true;
+  Send(Action::ChangeDisc);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::NetPlay);
+  Send(Action::Screenshot);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed[0].action, Action::Screenshot);
+  host.state.lifecycle = Lifecycle::Stopping;
+  Send(Action::Screenshot);
+  EXPECT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Busy);
+}
 }  // namespace
