@@ -85,6 +85,24 @@ struct NavigationText
   std::string on;
   std::string off;
   std::string keyboard_prompts;
+  std::array<std::string, static_cast<std::size_t>(Action::Count)> actions;
+  std::array<std::string, static_cast<std::size_t>(UnavailableReason::Count)> reasons;
+  std::array<std::string, STATE_SLOT_COUNT> slot_labels;
+  std::string confirm;
+  std::string cancel;
+  std::string confirm_stop;
+  std::string confirm_reset;
+  std::string confirm_exit;
+  std::string confirm_overwrite;
+  std::string error;
+  std::string requested;
+  std::string loading_slots;
+  std::string empty_slot;
+  std::string unknown_slot;
+  std::string state_browser_help;
+  std::string desktop_settings_help;
+  std::string desktop_disc_help;
+  std::string stop_help;
 };
 
 struct NavigationRequest
@@ -93,5 +111,7 @@ struct NavigationRequest
   Action action = Action::Back;
   std::optional<NavigationOptions> options;
   std::uint64_t input_epoch = 0;
+  int slot = 0;
+  std::uint64_t confirmation_id = 0;
 };
 }  // namespace BigPicture

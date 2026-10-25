@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slices 0–3 complete, next open slice 4
+**Status:** Implementation in progress; slices 0–4 complete, next open slice 5
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -200,7 +200,7 @@ rendering; mutations go through the host settings service and publish fresh snap
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
 new set of files. Slices 1–4 produce the first usable in-game release; 5–9 complete core Big Picture.
 
-**Progress, 2026-10-24:** Slices 0–3 are complete; see the
+**Progress, 2026-10-25:** Slices 0–4 are complete; see the
 [lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
 runtime measurements, retained fixes and the ownership design, and the
 [state/host-bridge results](../specs/2026-10-24-big-picture-host-bridge-results.md) for the command,
@@ -208,8 +208,10 @@ snapshot, confirmation and lifecycle tests, and the
 [paused presentation/capture results](../specs/2026-10-24-big-picture-paused-capture-results.md)
 for owner scheduling, lock exclusion, capture and pause ownership, and the
 [navigation results](../specs/2026-10-24-big-picture-navigation-results.md) for configurable menu
-input, controller/keyboard navigation, focus/scroll restoration, text/fonts and native captures.
-Slice 4 is the next open slice.
+input, controller/keyboard navigation, focus/scroll restoration, text/fonts and native captures,
+and the [in-game menu results](../specs/2026-10-25-big-picture-in-game-results.md) for action wiring,
+Cancel-first confirmations, the ten-slot browser, desktop handoffs and real save/load flows.
+Slice 5 is the next open slice.
 Standalone frontend startup remains slice 5; platform/hardware release checks remain required.
 
 | Slice | Work and primary touchpoints | Completion gate |

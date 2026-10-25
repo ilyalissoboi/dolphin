@@ -168,7 +168,7 @@ void HotkeyScheduler::Run()
       else
       {
         emit BigPictureAction(static_cast<int>(request.action), request.generation,
-                              request.input_epoch);
+                              request.input_epoch, request.slot, request.confirmation_id);
       }
     }
     if (toggle)

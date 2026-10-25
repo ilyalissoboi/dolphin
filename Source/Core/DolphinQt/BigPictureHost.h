@@ -28,11 +28,14 @@ public:
   void Submit(BigPicture::Command command, std::optional<std::uint64_t> input_epoch = std::nullopt);
   void RequestBack();
   void RequestAction(std::uint64_t generation, BigPicture::Action action,
-                     std::optional<std::uint64_t> input_epoch = std::nullopt);
+                     std::optional<std::uint64_t> input_epoch = std::nullopt, int slot = 0,
+                     std::uint64_t confirmation_id = 0);
   void InvalidatePauseOwnership();
   std::shared_ptr<const BigPicture::Snapshot> GetSnapshot() const;
   void Refresh();
   void InvalidateSession();
+  // Until the standalone renderer exists, a completed stop returns to the native game list.
+  void FinishStopToDesktop();
 
 private:
   BigPicture::HostState ReadState() const override;
@@ -49,6 +52,7 @@ private:
   std::atomic<std::uint64_t> m_next_id{1};
   bool m_menu_was_open = false;
   bool m_owns_pause = false;
+  bool m_finish_stop_to_desktop = false;
   std::uint64_t m_pause_generation = 0;
   std::uint64_t m_pause_revision = 0;
   std::uint64_t m_pause_invalidation = 0;

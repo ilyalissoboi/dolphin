@@ -11,6 +11,8 @@
 #include <optional>
 #include <string>
 
+#include "Common/BigPicture/Contracts.h"
+
 #ifdef USE_RETRO_ACHIEVEMENTS
 #include "Common/Config/Config.h"
 #endif  // USE_RETRO_ACHIEVEMENTS
@@ -158,6 +160,8 @@ private:
   void ShutdownControllers();
 
   void InitCoreCallbacks();
+  void RefreshBigPictureStateSlots();
+  bool LeaveBigPictureForDesktop(std::uint64_t generation);
 
   enum class ScanForSecondDisc
   {
@@ -244,6 +248,9 @@ private:
   Core::System& m_system;
   std::unique_ptr<Ui::MainWindow> m_ui;
   BigPictureHost* m_big_picture_host = nullptr;
+  std::array<BigPicture::StateSlot, BigPicture::STATE_SLOT_COUNT> m_big_picture_state_slots;
+  bool m_big_picture_state_slots_ready = false;
+  bool m_big_picture_disc_game = false;
 
 #ifdef HAVE_XRANDR
   std::unique_ptr<X11Utils::XRRConfiguration> m_xrr_config;

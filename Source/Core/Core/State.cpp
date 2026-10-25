@@ -4,6 +4,7 @@
 #include "Core/State.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <locale>
 #include <map>
@@ -649,6 +650,25 @@ u64 GetUnixTimeOfSlot(u32 slot)
   constexpr u64 MS_PER_SEC = 1000;
   return static_cast<u64>(header.legacy_header.time * MS_PER_SEC) +
          (DOUBLE_TIME_OFFSET * MS_PER_SEC);
+}
+
+SlotInfo GetSlotInfo(u32 slot)
+{
+  std::lock_guard lk{s_state_saves_in_progress};
+  const auto filename = MakeStateFilename(slot);
+  if (!File::Exists(filename))
+    return {};
+  StateHeader header;
+  if (!ReadHeader(filename, header))
+    return {true, false, {}};
+  // Corrupt timestamps must not reach the floating-point to time_t conversion. The menu only
+  // needs a display date here; payload and version validation remain in the normal loader.
+  const double unix_time = header.legacy_header.time + DOUBLE_TIME_OFFSET;
+  if (!std::isfinite(unix_time) || unix_time < 0 || unix_time > 253402300799.0)
+    return {true, false, {}};
+  auto description = SystemTimeAsDoubleToString(header.legacy_header.time);
+  const bool readable = !description.empty();
+  return {true, readable, std::move(description)};
 }
 
 static bool DecompressLZ4(Common::UniqueBuffer<u8>& raw_buffer, u64 size, File::IOFile& f)
