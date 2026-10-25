@@ -19,6 +19,13 @@ namespace BigPictureInput
 {
 constexpr int CONTROLLER_COUNT = 4;
 
+struct MenuInput
+{
+  BigPicture::NavValues values{};
+  bool connected = false;
+  bool has_navigation = false;
+};
+
 class MenuController final : public ControllerEmu::EmulatedController
 {
 public:
@@ -30,6 +37,8 @@ public:
   ControllerEmu::ControlGroup* GetOptionsGroup() const;
   BigPicture::NavigationOptions GetOptions() const;
   void SetOptions(BigPicture::NavigationOptions options);
+  // Caller holds the controller state lock, as for all input-reference evaluation.
+  MenuInput ReadInput(bool enabled, bool modal);
 
 private:
   int m_index;

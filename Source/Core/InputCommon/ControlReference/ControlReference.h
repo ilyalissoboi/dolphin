@@ -46,6 +46,8 @@ public:
   int BoundCount() const;
   ciface::ExpressionParser::ParseStatus GetParseStatus() const;
   void UpdateReference(ciface::ExpressionParser::ControlEnvironment& env);
+  // Caller holds the controller state lock. This does not evaluate the binding.
+  void ClearHotkeySuppressions();
   std::string GetExpression() const;
 
   // Returns a human-readable error description when the given expression is invalid.

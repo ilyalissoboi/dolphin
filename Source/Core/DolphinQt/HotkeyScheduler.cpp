@@ -150,9 +150,9 @@ void HotkeyScheduler::Run()
     Common::SleepCurrentThread(5);
 
     // Menu input has its own channel and must precede guest-affecting hotkeys/FreeLook.
-    // Reuse the existing backend sample; the menu reader temporarily switches its channel.
+    // Share the existing sample with both relative-input readers before either evaluates bindings.
     g_controller_interface.SetCurrentInputChannel(ciface::InputChannel::FreeLook);
-    g_controller_interface.UpdateInput();
+    g_controller_interface.UpdateInput(ciface::InputChannel::BigPicture);
     auto& presentation = BigPicture::GetPresentationState();
     const auto input_epoch = presentation.GetFrameInputEpoch();
     const bool toggle = BigPictureInput::Poll(

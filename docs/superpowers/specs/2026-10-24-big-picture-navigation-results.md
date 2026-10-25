@@ -92,8 +92,8 @@ Qt 6.8.3. Optional emusync is disabled, as in the preceding slices.
 - Qt tests check installed-font discovery, duplicate roots, missing families and bounded source
   selection without depending on a particular machine's installed fonts.
 
-All **1,594 core tests passed**, with the same two environment-dependent shader-preset tests
-skipped; all **204 Qt tests passed**. This slice adds 16 core tests and two Qt tests. Source-string
+All **1,602 core tests passed**, with the same two environment-dependent shader-preset tests
+skipped; all **204 Qt tests passed**. This slice adds 24 core tests and two Qt tests. Source-string
 extraction with the repository's gettext keywords passed, including the new mapping/menu labels.
 No Designer form or translation catalog was changed. Formatting and `git diff --check` passed.
 
@@ -125,6 +125,31 @@ expression references, hotplug callbacks, capture queue and production `OnScreen
 It does not claim physical-controller validation. The real-game probe uses the existing local
 test game and separate muted profiles; it does not modify the game or the user's Dolphin profile.
 Temporary dependency links and the CMake probe hook are removed after validation.
+
+## Review follow-up, 2026-10-25
+
+Inactive navigation and preference bindings now release their own hotkey suppressions. Cleanup
+walks the complete expression tree without evaluating functions or assignments, and preserves
+suppressions owned by other bindings. Disabled polling also clears the Open Menu chord's
+suppression and uses cached preference values. This prevents a held navigation chord from
+leaving a gameplay key suppressed after closing or losing focus.
+
+The existing FreeLook backend sample now also publishes accumulated relative motion to the
+Big Picture channel before menu references are read. The companion channel is scoped to that
+update; other readers retain their own accumulated motion. DInput's relative-mouse state uses
+this explicit companion channel, without an additional hardware poll.
+
+Eight review regression tests cover chord release on exit, nested/stateful expressions, shared
+suppression ownership, disabled polling and preferences, a real menu reference bound to a
+relative axis, independent reader accumulation, duplicate-channel consumption and capture-epoch
+resets. The application and both full suites were rebuilt and passed after these fixes.
+
+The excluded 720p D3D11 probe also passed through the production controller-interface update:
+the menu binding and FreeLook both received the injected relative motion, exactly one device
+sample was taken, and the companion channel was cleared afterward. The navigation, swap,
+reconnect and close checks still passed with zero alerts. This uses a virtual relative axis;
+physical DInput mouse testing remains part of the hardware matrix. The owner timing samples
+above were recorded on 2026-10-24.
 
 ## Trying the slice
 

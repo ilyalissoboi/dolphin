@@ -95,6 +95,36 @@ InputConfig* GetConfig()
 {
   return &s_config;
 }
+
+MenuInput MenuController::ReadInput(bool enabled, bool modal)
+{
+  if (!enabled || !modal)
+  {
+    for (const auto& setting : m_options->numeric_settings)
+      setting->GetInputReference().ClearHotkeySuppressions();
+  }
+  MenuInput input;
+  for (std::size_t i = 0; i < input.values.size(); ++i)
+  {
+    const auto& reference = m_buttons->controls[i]->control_ref;
+    if (!enabled || (i != 0 && !modal))
+    {
+      // Chord expressions own global suppressions. Release them when we stop polling
+      // the binding, without advancing stateful expressions while navigation is inactive.
+      reference->ClearHotkeySuppressions();
+    }
+    if (i != 0 && !modal)
+      continue;
+    if (reference->BoundCount() > 0)
+    {
+      input.connected = true;
+      input.has_navigation |= i != 0;
+      if (enabled)
+        input.values[i] = reference->State();
+    }
+  }
+  return input;
+}
 MenuController* GetController(int index)
 {
   return static_cast<MenuController*>(s_config.GetController(index));
@@ -141,7 +171,7 @@ bool Poll(bool enabled, bool modal)
   const auto previous_channel = ControllerInterface::GetCurrentInputChannel();
   const bool previous_gate = ControlReference::GetInputGate();
   ControllerInterface::SetCurrentInputChannel(ciface::InputChannel::BigPicture);
-  ControlReference::SetInputGate(true);
+  ControlReference::SetInputGate(enabled);
   Common::ScopeGuard restore([&] {
     ControllerInterface::SetCurrentInputChannel(previous_channel);
     ControlReference::SetInputGate(previous_gate);
@@ -156,24 +186,10 @@ bool Poll(bool enabled, bool modal)
   for (int port = 0; port < CONTROLLER_COUNT; ++port)
   {
     auto* controller = GetController(port);
-    const auto* buttons = controller->GetButtons();
-    BigPicture::NavValues values{};
-    bool connected = false;
-    for (std::size_t i = 0; i < values.size(); ++i)
-    {
-      if (i != 0 && !modal)
-        continue;
-      const auto& reference = buttons->controls[i]->control_ref;
-      if (reference->BoundCount() > 0)
-      {
-        connected = true;
-        has_navigation |= i != 0;
-        if (i == 0 || modal)
-          values[i] = reference->State();
-      }
-    }
-    for (const auto& change :
-         s_filters[port].Update(values, connected, enabled, presentation.GetInputEpoch()))
+    const auto input = controller->ReadInput(enabled, modal);
+    has_navigation |= input.has_navigation;
+    for (const auto& change : s_filters[port].Update(input.values, input.connected, enabled,
+                                                     presentation.GetInputEpoch()))
     {
       const auto button = static_cast<std::size_t>(change.button);
       if (change.down)
