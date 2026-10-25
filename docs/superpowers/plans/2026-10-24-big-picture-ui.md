@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slices 0–4 complete, next open slice 5
+**Status:** Implementation in progress; slices 0–5 complete, next open slice 6
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -41,10 +41,19 @@ PCSX2 explicitly enables idle graphics work; GooseStation continues presentation
 execution. Both remember whether opening the menu caused the pause. These are architectural
 requirements for Dolphin, not just visual styling examples.
 
+For visual unification (slice 9), the layout and style target is the local
+[`ilyalissoboi/pcsx2` fork](https://github.com/ilyalissoboi/pcsx2), inspected at
+`adca25d5995fbec3dbabbc061518d332a5ea935b` in `E:/work/pcsx2` on 2026-10-25.
+Its [screen composition](https://github.com/ilyalissoboi/pcsx2/blob/adca25d5995fbec3dbabbc061518d332a5ea935b/pcsx2/ImGui/FullscreenUI.cpp),
+[layout metrics and controls](https://github.com/ilyalissoboi/pcsx2/blob/adca25d5995fbec3dbabbc061518d332a5ea935b/pcsx2/ImGui/ImGuiFullscreen.h),
+and [themes, focus styling and footer](https://github.com/ilyalissoboi/pcsx2/blob/adca25d5995fbec3dbabbc061518d332a5ea935b/pcsx2/ImGui/ImGuiFullscreen.cpp)
+define the reference. Preserve the earlier architectural inspection above; record the actual
+reference revision and comparison captures when implementing the visual slice.
+
 Implement these behaviors with Dolphin's APIs and independently authored code and assets.
 Preserve Dolphin's existing GPL-2.0-or-later contribution baseline. The inspected PCSX2 files
 declare GPL-3.0+; GooseStation files have GPL-3.0 or alternative-license headers. Treat the forks
-as behavioral references, without transplanting their implementation. Source any glyph fonts
+as behavioral and visual references, without transplanting their implementation. Source any glyph fonts
 independently and include their license and attribution.
 
 ## 2. What already exists, and what is actually missing
@@ -198,7 +207,7 @@ rendering; mutations go through the host settings service and publish fresh snap
 ## 5. Delivery sequence
 
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
-new set of files. Slices 1–4 produce the first usable in-game release; 5–9 complete core Big Picture.
+new set of files. Slices 1–4 produce the first usable in-game release; 5–10 complete core Big Picture.
 
 **Progress, 2026-10-25:** Slices 0–5 are complete; see the
 [lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
@@ -213,7 +222,9 @@ and the [in-game menu results](../specs/2026-10-25-big-picture-in-game-results.m
 Cancel-first confirmations, the ten-slot browser, desktop handoffs and real save/load flows,
 and the [standalone runtime results](../specs/2026-10-25-big-picture-standalone-results.md) for
 cold startup, graphics ownership handoffs, desktop return and backend recovery.
-Slice 6 is the next open slice; platform/hardware release checks remain required.
+Slice 6 is the next open slice. Slice 9 unifies the completed menu surfaces to the local PCSX2
+fork's layout and style; final state-browser/release hardening moves to slice 10.
+Platform/hardware release checks remain required.
 
 | Slice | Work and primary touchpoints | Completion gate |
 |---|---|---|
@@ -226,11 +237,41 @@ Slice 6 is the next open slice; platform/hardware release checks remain required
 | 6. Library and controller-only setup | Adapt existing game model/tracker; publish path-keyed snapshots; grid/list, filters, tags, sorting and selection restoration; async decoded covers with GPU upload/eviction; empty state, folder browser, text keyboard, refresh and disc picker | Add folder → scan → select → boot → stop → select next game entirely by controller. Removing a selected game or completing a scan does not move focus unpredictably |
 | 7. Shared settings foundation | Extend/extract registry and typed operations; explicit supported catalog bootstrap; Qt adapters and descriptor parity checks; preserve layer/fallback semantics | Settings work on cold Big Picture startup without opening Qt settings. Tests prove mapped values, transformed ranges, overrides, reset and dynamic options |
 | 8. Common settings and controller profiles | Interface/audio/display/post-processing pages, controller device/profile selection; global and per-game context; inherited indicators, disabled reasons and restart handling | Changes round-trip through desktop and Big Picture using the same stored values. Per-game edits never modify global values; incompatible changes remain blocked |
-| 9. State browser and release hardening | Async state metadata refresh/results; empty/corrupt/incompatible slots and overwrite confirmation; optional PNG sidecars captured from game output; translations, assets, packaging and platform verification | All release scenarios below pass. Failed saves/loads report accurately, pause ownership remains correct, and missing sidecars never prevent loading |
+| 9. Visual appearance and menu unification | Match the local PCSX2 fork's layout and style across Big Picture through shared screen composition, themes, typography, spacing, rows/cards, focus states, dialogs and controller-prompt footer; update `VideoCommon/BigPicture` and `OnScreenUI` | Side-by-side reference review covers landing/library, pause, settings, state slots, dialogs and setup pickers at 720p/1080p/4K and ultrawide. Menus share the same visual rules; controller focus, capture and pause behavior remain correct |
+| 10. State browser and release hardening | Async state metadata refresh/results; empty/corrupt/incompatible slots and overwrite confirmation; optional PNG sidecars captured from game output; translations, assets, packaging and platform verification | All release scenarios below pass. Failed saves/loads report accurately, pause ownership remains correct, and missing sidecars never prevent loading. New state-browser surfaces use slice 9's shared layout and style |
 
 Dependencies: `0 → 1 → 2 → 3 → 4`; `5 → 6` follows the ownership model proven in 0–2;
-`1 → 7 → 8`; finish with 9. A pause-menu milestone may ship before 5, but it is not completion
+`1 → 7 → 8`; `6, 8 → 9 → 10`. A pause-menu milestone may ship before 5, but it is not completion
 of the standalone Big Picture request. Do not block that milestone on exhaustive settings parity.
+
+### Slice 9: PCSX2 visual alignment
+
+Place this slice after library/controller-only setup and common settings, so the visual pass
+can unify all major menu types, and before final hardening, so release testing exercises the
+finished appearance. Screens introduced in slices 6 and 8 should use the shared toolkit and
+the PCSX2 reference from the outset; slice 9 resolves accumulated inconsistencies and completes
+the cross-screen visual review. Slice 10's state-browser additions inherit the same primitives.
+
+- Match the reference's screen structure: landing header and menu composition, library grid/list
+  with navigation header and game details, pause overlay with title/cover information, settings
+  category navigation, and a consistent bottom strip for contextual controller/keyboard prompts.
+  Adapt the content and actions to Dolphin's supported features and GameCube/Wii metadata.
+- Centralize the theme palette, font hierarchy, spacing, padding, row/card dimensions, borders,
+  rounding, overlay opacity and focus/hover/disabled states. Use the reference's 1280×720 design
+  coordinate system as the comparison baseline, scaled through Dolphin's existing menu scale,
+  DPI and safe-area preferences. Keep diagnostic OSD font sizing independent.
+- Apply those rules to the landing screen, library and empty state, pause menu, global/per-game
+  settings, controller profiles, save/load slots, confirmation/error dialogs, file/folder/disc
+  pickers and on-screen keyboard. Shared components own the visual rules so individual pages
+  do not accumulate separate styles.
+- Produce equivalent PCSX2 and Dolphin captures and review them side by side at 720p, 1080p,
+  4K and an ultrawide aspect ratio. Record the reference theme, revision, display scale and
+  intentional adaptations. Check long/non-Latin text, missing covers, empty/busy/error states,
+  contrast, clipping, scrolling, focus visibility and device-specific prompts.
+- Verify keyboard/controller navigation, confirm/back swapping, focus/selection restoration,
+  modal capture, pre-existing pause ownership and repeated library → game → menu → stop flows
+  after the visual changes. Completion requires user review of the appearance and behavior;
+  screenshot comparison supplements the existing state/input regression checks.
 
 ## 6. Validation and release criteria
 

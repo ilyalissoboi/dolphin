@@ -54,7 +54,7 @@ restrictions, disc availability and busy lifecycle states appear as disabled rea
 State I/O still uses the existing void core APIs. The menu honestly reports that a request was
 sent, rather than claiming completion; Dolphin's normal messages report subsequent results.
 Asynchronous metadata, complete save/load completion/error routing, corrupt/incompatible
-payload handling and optional previews remain slice 9. Metadata refresh can wait for a pending
+payload handling and optional previews remain slice 10. Metadata refresh can wait for a pending
 save to finish; no background state-metadata worker is introduced in this slice.
 
 ## Validation
