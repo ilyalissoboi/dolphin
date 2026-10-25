@@ -23,6 +23,7 @@
 #include "VideoCommon/AbstractPipeline.h"
 #include "VideoCommon/AbstractShader.h"
 #include "VideoCommon/AbstractStagingTexture.h"
+#include "VideoCommon/AbstractTexture.h"
 #include "VideoCommon/FramebufferShaderGen.h"
 #include "VideoCommon/NetPlayChatUI.h"
 #include "VideoCommon/NetPlayGolfUI.h"
@@ -38,6 +39,7 @@
 #include <mutex>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <implot.h>
 
 namespace VideoCommon
@@ -707,6 +709,13 @@ void OnScreenUI::DrawNavigation()
     return;
   auto options = m_navigation.options;
   const auto menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
+  ++m_cover_frame;
+  m_cover_uploads = 0;
+  if (snapshot->host.library && m_cover_revision != snapshot->host.library->catalog_revision)
+  {
+    m_cover_textures.clear();
+    m_cover_revision = snapshot->host.library->catalog_revision;
+  }
   const auto prompt = [&](::BigPicture::NavButton button, const std::string& label) {
     const auto& binding = m_navigation.bindings[static_cast<std::size_t>(button)];
     return !m_navigation_keyboard && !binding.empty() && binding.size() <= 24 ?
@@ -717,17 +726,105 @@ void OnScreenUI::DrawNavigation()
       options.swap_confirm_back ? ::BigPicture::NavButton::Back : ::BigPicture::NavButton::Confirm;
   const auto back =
       options.swap_confirm_back ? ::BigPicture::NavButton::Confirm : ::BigPicture::NavButton::Back;
-  const std::string prompts = m_navigation_keyboard ?
-                                  text.keyboard_prompts :
-                                  m_navigation.device + "   " + prompt(confirm, text.select) +
-                                      "   " + prompt(back, text.back) + "   " +
-                                      prompt(::BigPicture::NavButton::Previous, text.previous) +
-                                      "   " + prompt(::BigPicture::NavButton::Next, text.next);
+  const bool text_input =
+      !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
+  const std::string prompts =
+      m_navigation_keyboard ? (text_input ? text.library_keyboard_prompts : text.keyboard_prompts) :
+                              m_navigation.device + "   " + prompt(confirm, text.select) + "   " +
+                                  prompt(back, text.back) + "   " +
+                                  prompt(::BigPicture::NavButton::Previous, text.previous) + "   " +
+                                  prompt(::BigPicture::NavButton::Next, text.next);
   ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImGui::GetIO().DisplaySize,
                                                 IM_COL32(0, 0, 0, 160));
-  const auto result = m_navigation_toolkit.Draw(menu.page, options, prompts, m_menu_font);
-  if (const auto request = menu.Activate(result))
-    presentation.RequestNavigation(*request, m_input_epoch);
+  const auto result = m_navigation_toolkit.Draw(
+      menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
+        return snapshot->host.library ? GetLibraryCover(*snapshot->host.library, path) :
+                                        ImTextureID{};
+      });
+  if (snapshot->host.library && menu.page.id == "library" && result.focused.starts_with("game:") &&
+      result.focused.substr(5) != snapshot->host.library->selected_path)
+  {
+    ::BigPicture::NavigationRequest request{snapshot->generation, ::BigPicture::Action::Library};
+    request.library_operation = ::BigPicture::LibraryOperation::Select;
+    request.path = result.focused.substr(5);
+    presentation.RequestNavigation(std::move(request), m_input_epoch);
+  }
+  bool typed_activation = false;
+  if (text_input)
+  {
+    const auto send = [&](::BigPicture::LibraryOperation operation, std::string value = {}) {
+      ::BigPicture::NavigationRequest request{snapshot->generation, ::BigPicture::Action::Library};
+      request.library_operation = operation;
+      request.path = std::move(value);
+      presentation.RequestNavigation(std::move(request), m_input_epoch);
+    };
+    for (const auto c : ImGui::GetIO().InputQueueCharacters)
+    {
+      if (c < 32)
+        continue;
+      char buffer[5];
+      ImTextCharToUtf8(buffer, c);
+      send(::BigPicture::LibraryOperation::TextKey, buffer);
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
+      send(::BigPicture::LibraryOperation::TextErase);
+    const bool enter = ImGui::IsKeyPressed(ImGuiKey_Enter, false) ||
+                       ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false);
+    if (m_navigation_keyboard && enter)
+      send(::BigPicture::LibraryOperation::TextDone);
+    // Physical Space inserts text and Enter submits. Neither should also activate the
+    // currently focused on-screen key. Controller Confirm still selects keys normally.
+    typed_activation = m_navigation_keyboard && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
+  }
+  if (!typed_activation)
+    if (const auto request = menu.Activate(result))
+      presentation.RequestNavigation(*request, m_input_epoch);
+}
+
+ImTextureID OnScreenUI::GetLibraryCover(const ::BigPicture::LibrarySnapshot& library,
+                                        const std::string& path)
+{
+  if (!m_cover_textures.contains(path) && m_cover_textures.size() >= 32)
+  {
+    auto oldest = std::ranges::min_element(m_cover_textures, {},
+                                           [](const auto& item) { return item.second.last_frame; });
+    // Draw data retains texture pointers until DrawImGui; never evict a texture used this frame.
+    if (oldest->second.last_frame == m_cover_frame)
+      return {};
+    m_cover_textures.erase(oldest);
+  }
+  auto& cached = m_cover_textures[path];
+  cached.last_frame = m_cover_frame;
+  const u64 now = Common::Timer::NowUs();
+  if (!library.missing_covers.contains(path) &&
+      (cached.last_request_us == 0 || now - cached.last_request_us >= 1000000))
+  {
+    const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
+    ::BigPicture::NavigationRequest request{snapshot->generation, ::BigPicture::Action::Library};
+    request.library_operation = ::BigPicture::LibraryOperation::Cover;
+    request.library_revision = library.catalog_revision;
+    request.path = path;
+    ::BigPicture::GetPresentationState().RequestNavigation(std::move(request), m_input_epoch);
+    cached.last_request_us = now;
+  }
+  const auto it = library.covers.find(path);
+  if (!cached.texture && m_cover_uploads < 2 && it != library.covers.end())
+  {
+    const auto& image = *it->second;
+    if (image.width && image.height && image.width <= 256 && image.height <= 384 &&
+        image.rgba.size() == static_cast<std::size_t>(image.width) * image.height * 4)
+    {
+      ++m_cover_uploads;
+      TextureConfig config;
+      config.width = image.width;
+      config.height = image.height;
+      cached.texture = g_gfx->CreateTexture(config, "Big Picture cover");
+      if (cached.texture)
+        cached.texture->Load(0, image.width, image.height, image.width, image.rgba.data(),
+                             image.rgba.size());
+    }
+  }
+  return reinterpret_cast<ImTextureID>(cached.texture.get());
 }
 
 void OnScreenUI::SetKey(u32 key, bool is_down, const char* chars)

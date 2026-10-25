@@ -15,6 +15,7 @@ add_library(common
   Assembler/GekkoParser.h
   Assert.h
   BigPicture/Contracts.h
+  BigPicture/Library.h
   BigPicture/Navigation.cpp
   BigPicture/Navigation.h
   BigPicture/PresentationState.cpp

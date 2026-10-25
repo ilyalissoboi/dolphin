@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "VideoCommon/BigPicture/InGameMenu.h"
+#include "VideoCommon/BigPicture/LibraryMenu.h"
 
 #include <string_view>
 #include <utility>
@@ -39,6 +40,9 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     menu.requests.emplace("back", NavigationRequest{snapshot.generation, Action::Back});
 
   const auto screen = snapshot.screens.empty() ? Screen::Pause : snapshot.screens.back();
+  if (snapshot.host.library && (screen == Screen::Library || screen == Screen::LibraryOptions ||
+                                screen == Screen::FilePicker || screen == Screen::TextInput))
+    return BuildLibraryMenu(snapshot, text);
   if (screen == Screen::Confirmation && snapshot.confirmation)
   {
     const auto& command = *snapshot.confirmation;
@@ -158,6 +162,12 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("load", Action::LoadStates);
     add("preferences", Action::Settings);
     add("disc", Action::ChangeDisc, text.desktop_disc_help);
+    if (snapshot.host.library && menu.requests.contains("disc"))
+    {
+      menu.requests["disc"].action = Action::Library;
+      menu.requests["disc"].library_operation = LibraryOperation::OpenDisc;
+      page.items.back().detail.clear();
+    }
     add("reset", Action::Reset);
     add("screenshot", Action::Screenshot);
     add("stop", Action::Stop, text.stop_help);
@@ -168,9 +178,11 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   if (snapshot.result && (snapshot.result->status == ResultStatus::Dispatched ||
                           snapshot.result->status == ResultStatus::Unavailable))
   {
-    const auto detail = snapshot.result->status == ResultStatus::Dispatched ?
-                            text.requested :
-                            reason_text(snapshot.result->reason);
+    const auto detail =
+        snapshot.result->status == ResultStatus::Dispatched ?
+            (snapshot.result->command.action == Action::ChangeDisc ? text.disc_change_requested :
+                                                                     text.requested) :
+            reason_text(snapshot.result->reason);
     if (!detail.empty())
       page.description += "\n" + detail;
   }

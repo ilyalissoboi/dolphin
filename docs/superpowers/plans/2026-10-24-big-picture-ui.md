@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slices 0–5 complete, next open slice 6
+**Status:** Implementation in progress; slices 0–6 complete, next open slice 7
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -166,6 +166,13 @@ and graphics globals. Cancel/drain jobs and release textures before teardown; st
 carry a session generation and be ignored after a transition. Backend changes while idle rebuild
 the UI session and recover to desktop on failure.
 
+Preserve the Qt presentation widget and its native window across those handoffs. Graphics APIs
+use a native child retained while compatible and recreated after the old owner drains when
+backend/stereo requirements change; input stays attached to the persistent widget.
+Boot/stop must not hide or reparent that widget, select the desktop
+game list, or leave fullscreen. The PCSX2 transition comparison is recorded in the slice 6
+results; Dolphin retains its explicit device-resource teardown at this stage.
+
 When a game is paused, schedule UI-only presents on the graphics owner, redrawing the retained
 XFB without ticking the guest. In single-core mode this owner must be able to service UI work
 while CPU execution is paused. Distinguish a guest pause from a full graphics access lock:
@@ -209,7 +216,7 @@ rendering; mutations go through the host settings service and publish fresh snap
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
 new set of files. Slices 1–4 produce the first usable in-game release; 5–10 complete core Big Picture.
 
-**Progress, 2026-10-25:** Slices 0–5 are complete; see the
+**Progress, 2026-10-25:** Slices 0–6 are complete; see the
 [lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
 runtime measurements, retained fixes and the ownership design, and the
 [state/host-bridge results](../specs/2026-10-24-big-picture-host-bridge-results.md) for the command,
@@ -221,8 +228,10 @@ input, controller/keyboard navigation, focus/scroll restoration, text/fonts and 
 and the [in-game menu results](../specs/2026-10-25-big-picture-in-game-results.md) for action wiring,
 Cancel-first confirmations, the ten-slot browser, desktop handoffs and real save/load flows,
 and the [standalone runtime results](../specs/2026-10-25-big-picture-standalone-results.md) for
-cold startup, graphics ownership handoffs, desktop return and backend recovery.
-Slice 6 is the next open slice. Slice 9 unifies the completed menu surfaces to the local PCSX2
+cold startup, graphics ownership handoffs, desktop return and backend recovery,
+and the [library/setup results](../specs/2026-10-25-big-picture-library-results.md) for the shared
+catalog, grid/list, search/filters, bounded covers, controller setup and paused disc picker.
+Slice 7 is the next open slice. Slice 9 unifies the completed menu surfaces to the local PCSX2
 fork's layout and style; final state-browser/release hardening moves to slice 10.
 Platform/hardware release checks remain required.
 

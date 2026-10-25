@@ -394,4 +394,81 @@ TEST_F(BigPictureControllerTest, DiscAndScreenshotPoliciesAreRecheckedWhenDispat
   EXPECT_EQ(host.executed.size(), 1u);
   EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Busy);
 }
+TEST_F(BigPictureControllerTest, LibrarySetupAndKeyboardPreserveNestedBackAndRejectOutOfContextText)
+{
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  Send(Action::OpenMenu);
+  const auto send = [&](LibraryOperation operation) {
+    auto command = Make(Action::Library);
+    command.library_operation = operation;
+    controller.Submit(command);
+  };
+  send(LibraryOperation::AddFolder);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  send(LibraryOperation::EditPath);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::TextInput);
+  send(LibraryOperation::TextDone);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Library);
+  const auto executions = host.executed.size();
+  send(LibraryOperation::TextKey);
+  EXPECT_EQ(host.executed.size(), executions);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  send(LibraryOperation::Options);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::LibraryOptions);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Library);
+}
+
+TEST_F(BigPictureControllerTest, PickerBootFromAnObsoleteListingCannotExecute)
+{
+  Send(Action::OpenMenu);
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->picker_revision = 8;
+  host.state.library = library;
+  auto command = Make(Action::Boot, 0, "game.iso");
+  command.library_revision = 7;
+  controller.Submit(command);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Stale);
+  EXPECT_TRUE(host.executed.empty());
+}
+
+TEST_F(BigPictureControllerTest, ControllerDiscPickerKeepsPauseAndRechecksNetPlay)
+{
+  InGame(Lifecycle::Paused);
+  host.state.can_change_disc = true;
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  auto open = Make(Action::Library);
+  open.library_operation = LibraryOperation::OpenDisc;
+  controller.Submit(open);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  EXPECT_EQ(host.state.lifecycle, Lifecycle::Paused);
+  host.state.netplay = true;
+  Send(Action::ChangeDisc, 0, "other.iso");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::NetPlay);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  host.state.netplay = false;
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Dispatched}; };
+  Send(Action::ChangeDisc, 0, "other.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Dispatched);
+  EXPECT_EQ(host.state.lifecycle, Lifecycle::Paused);
+}
+
+TEST_F(BigPictureControllerTest, SystemBootUsesTheSameAsynchronousLifecycleAsGameBoot)
+{
+  Send(Action::OpenMenu);
+  host.execute = [&](const Command& command) {
+    host.state.lifecycle = Lifecycle::Booting;
+    return Result{command, ResultStatus::Dispatched};
+  };
+  Send(Action::BootIPL, 1);
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->pending->action, Action::BootIPL);
+  host.state.lifecycle = Lifecycle::Running;
+  controller.Refresh();
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Desktop);
+}
 }  // namespace
