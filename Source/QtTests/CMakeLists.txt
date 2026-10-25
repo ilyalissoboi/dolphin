@@ -4,6 +4,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ApplicationThemeTest.cpp
   AudioPaneUiTest.cpp
   BigPictureHostTest.cpp
+  BigPicturePaneTest.cpp
   ImGuiKeyEventTest.cpp
   MenuFontFallbacksTest.cpp
   QtTestsMain.cpp
@@ -48,6 +49,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   WiiPaneUiTest.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureHost.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/BigPicturePane.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameCount.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/GameList/CoverManager.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/NetPlay/ClickBlurLabel.cpp
@@ -116,6 +118,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GeneralPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/GameCubePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/AudioPane.ui
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/BigPicturePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/InterfacePane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/OnScreenDisplayPane.ui
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/Settings/PathPane.ui

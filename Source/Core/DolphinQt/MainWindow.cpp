@@ -1587,6 +1587,8 @@ void MainWindow::ShowSettingsWindow()
     }
 #endif
     m_settings_window = new SettingsWindow(this);
+    connect(m_settings_window, &SettingsWindow::ConfigureBigPictureInput, this,
+            &MainWindow::ShowBigPictureInputDialog);
     InstallHotkeyFilter(m_settings_window);
   }
 

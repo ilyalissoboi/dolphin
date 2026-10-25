@@ -36,6 +36,7 @@
 #include "DolphinQt/Settings.h"
 #include "DolphinQt/Settings/AdvancedPane.h"
 #include "DolphinQt/Settings/AudioPane.h"
+#include "DolphinQt/Settings/BigPicturePane.h"
 #include "DolphinQt/Settings/GameCubePane.h"
 #include "DolphinQt/Settings/GeneralPane.h"
 #include "DolphinQt/Settings/InterfacePane.h"
@@ -291,10 +292,20 @@ namespace
 {
 constexpr int SETTINGS_CATEGORY_ICON_SIZE = 32;
 
-constexpr std::array<std::string_view, 12> SETTINGS_CATEGORY_ICON_NAMES = {
-    "Settings_General",         "Settings_Graphics", "Settings_Controllers", "Settings_Interface",
-    "Settings_OnScreenDisplay", "Settings_Audio",    "Settings_Paths",       "Settings_GameCube",
-    "Settings_MemoryCardSync",  "Settings_Wii",      "Settings_Triforce",    "Settings_Advanced",
+constexpr std::array<std::string_view, 13> SETTINGS_CATEGORY_ICON_NAMES = {
+    "Settings_General",
+    "Settings_Graphics",
+    "Settings_Controllers",
+    "Settings_Interface",
+    "Settings_OnScreenDisplay",
+    "Settings_OnScreenDisplay",
+    "Settings_Audio",
+    "Settings_Paths",
+    "Settings_GameCube",
+    "Settings_MemoryCardSync",
+    "Settings_Wii",
+    "Settings_Triforce",
+    "Settings_Advanced",
 };
 static_assert(std::to_underlying(SettingsWindowPaneIndex::Advanced) + 1 ==
               static_cast<int>(SETTINGS_CATEGORY_ICON_NAMES.size()));
@@ -358,6 +369,14 @@ SettingsWindow::SettingsWindow(MainWindow* parent) : StackedSettingsWindow{paren
       GetSettingsCategoryIcon(SettingsWindowPaneIndex::Interface, palette()),
       tr("<strong>Interface Settings</strong><hr>Control Dolphin's appearance, language, prompts, "
          "hotkeys, and window behavior."));
+  auto* const big_picture = new BigPicturePane;
+  connect(big_picture, &BigPicturePane::ConfigureInput, this,
+          &SettingsWindow::ConfigureBigPictureInput);
+  AddWrappedPane(
+      big_picture, tr("Big Picture"),
+      GetSettingsCategoryIcon(SettingsWindowPaneIndex::BigPicture, palette()),
+      tr("<strong>Big Picture Settings</strong><hr>Configure menu input, device profiles, "
+         "confirm/back swapping, interface scale, and safe area."));
   AddWrappedPane(
       new OnScreenDisplayPane, tr("On-Screen Display"),
       GetSettingsCategoryIcon(SettingsWindowPaneIndex::OnScreenDisplay, palette()),

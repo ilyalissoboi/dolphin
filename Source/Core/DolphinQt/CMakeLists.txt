@@ -488,6 +488,9 @@ add_executable(dolphin-emu
   Settings/AudioPane.cpp
   Settings/AudioPane.h
   Settings/AudioPane.ui
+  Settings/BigPicturePane.cpp
+  Settings/BigPicturePane.h
+  Settings/BigPicturePane.ui
   Settings/BroadbandAdapterSettingsDialog.cpp
   Settings/BroadbandAdapterSettingsDialog.h
   Settings/GameCubePane.cpp

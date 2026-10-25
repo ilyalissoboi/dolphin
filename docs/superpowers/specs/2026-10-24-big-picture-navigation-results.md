@@ -17,9 +17,10 @@ references are evaluated. Keyboard entry remains unbound by default while the in
 unfinished. XInput's Default mapping supplies Back + Start, D-pad/left-stick directions,
 A/B and shoulders; other devices use the existing mapping UI without assuming a Guide button.
 
-Options → Big Picture Input opens the Qt mapping page for each of four binding sets. The first
-page also owns the shared confirm/back swap, interface scale and safe-area preferences. These
-values round-trip through the same input configuration as the menu's preference controls.
+Config → Big Picture provides Configure buttons for each of four binding sets; Options → Big
+Picture Input remains a shortcut to the same Qt mapping pages. The first page also owns the
+shared confirm/back swap, interface scale and safe-area preferences. These values round-trip
+through the same input configuration as the menu's preference controls.
 
 Each binding set has independent threshold hysteresis and release retention. Disconnect,
 reconnect, focus changes and capture epochs clear old presses and require release before reuse.
@@ -93,9 +94,10 @@ Qt 6.8.3. Optional emusync is disabled, as in the preceding slices.
   selection without depending on a particular machine's installed fonts.
 
 All **1,602 core tests passed**, with the same two environment-dependent shader-preset tests
-skipped; all **204 Qt tests passed**. This slice adds 24 core tests and two Qt tests. Source-string
+skipped; all **205 Qt tests passed**. This slice adds 24 core tests and three Qt tests. Source-string
 extraction with the repository's gettext keywords passed, including the new mapping/menu labels.
-No Designer form or translation catalog was changed. Formatting and `git diff --check` passed.
+The new Configuration category uses a Designer form; no translation catalog was changed.
+Formatting and `git diff --check` passed.
 
 The virtual-controller D3D11 probe passed at **1280 × 720, 1920 × 1080 and 3840 × 2160**. Each run
 confirmed that the opening chord fired once, preferences opened, confirm/back swapping applied,
@@ -151,11 +153,19 @@ reconnect and close checks still passed with zero alerts. This uses a virtual re
 physical DInput mouse testing remains part of the hardware matrix. The owner timing samples
 above were recorded on 2026-10-24.
 
+The general Configuration window now includes a Big Picture category. Its four Configure buttons
+open the same cached binding/profile editors as the Options shortcut, and its guidance identifies
+Controller 1 as the shared preference editor. A Qt regression test verifies that each button
+requests the matching input editor. The Windows application was rebuilt and all 205 Qt tests
+passed after this UI change.
+
 ## Trying the slice
 
-1. In Options → Big Picture Input → Controller 1, select a device and map Open Menu. Map directions,
-   Confirm, Back and page controls for a controller. Native keyboard navigation needs only the
-   Open Menu binding; it uses arrows, Enter/keypad Enter, Escape and Page Up/Down afterward.
+1. In Config → Big Picture, select Configure for Controller 1, choose a device and map Open Menu.
+   Map directions, Confirm, Back and page controls for a controller. Native keyboard navigation
+   needs only the Open Menu binding; it uses arrows, Enter/keypad Enter, Escape and Page Up/Down
+   afterward. Check that all four Configure buttons open the corresponding editor and that
+   Options → Big Picture Input still opens the same editors.
 2. Start a game, release the opening chord after opening the menu, and navigate between Menu
    Preferences and the root. Change each preference and check it in the first Qt binding page.
 3. Close while originally running and while originally paused. The implicit close preserves the
