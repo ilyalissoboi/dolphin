@@ -134,5 +134,6 @@ struct NavigationRequest
   std::string path;
   LibraryOperation library_operation = LibraryOperation::None;
   std::uint64_t library_revision = 0;
+  std::optional<Common::Settings::Request> setting;
 };
 }  // namespace BigPicture

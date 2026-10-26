@@ -27,6 +27,8 @@ public:
   ~BigPictureHost() override;
   void Submit(BigPicture::Command command, std::optional<std::uint64_t> input_epoch = std::nullopt);
   void RequestBack();
+  void RequestSetting(std::uint64_t generation, Common::Settings::Request request,
+                      std::optional<std::uint64_t> input_epoch = std::nullopt);
   void
   RequestAction(std::uint64_t generation, BigPicture::Action action,
                 std::optional<std::uint64_t> input_epoch = std::nullopt, int slot = 0,

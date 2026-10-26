@@ -159,7 +159,11 @@ void HotkeyScheduler::Run()
         HotkeyManagerEmu::IsEnabled() && Host_RendererHasFocus(), presentation.IsModal());
     for (const auto& request : presentation.TakeNavigationRequests())
     {
-      if (request.options)
+      if (request.setting)
+      {
+        emit BigPictureSetting(*request.setting, request.generation, request.input_epoch);
+      }
+      else if (request.options)
       {
         const auto& options = *request.options;
         emit BigPictureOptions(options.swap_confirm_back, options.scale, options.safe_area,

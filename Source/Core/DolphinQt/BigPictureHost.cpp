@@ -78,6 +78,14 @@ void BigPictureHost::RequestAction(std::uint64_t generation, BigPicture::Action 
          input_epoch);
 }
 
+void BigPictureHost::RequestSetting(std::uint64_t generation, Common::Settings::Request request,
+                                    std::optional<std::uint64_t> input_epoch)
+{
+  BigPicture::Command command{generation, m_next_id.fetch_add(1), BigPicture::Action::EditSetting};
+  command.setting = std::move(request);
+  Submit(std::move(command), input_epoch);
+}
+
 void BigPictureHost::InvalidatePauseOwnership()
 {
   Q_ASSERT(QThread::currentThread() == thread());

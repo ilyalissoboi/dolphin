@@ -59,6 +59,7 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
            transitioning ? UnavailableReason::Busy :
                            UnavailableReason::NoGame;
   case Action::DesktopSettings:
+  case Action::EditSetting:
   case Action::Library:
     return transitioning ? UnavailableReason::Busy : UnavailableReason::None;
   case Action::OpenGame:
@@ -303,6 +304,15 @@ void Controller::Submit(const Command& command)
   if ((command.action == Action::Boot && command.path.empty()) ||
       ((command.action == Action::SaveState || command.action == Action::LoadState) &&
        (command.slot < 1 || command.slot > 10)))
+  {
+    m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+    Publish();
+    return;
+  }
+
+  if (command.action == Action::EditSetting &&
+      (!command.setting || m_state.mode == Mode::Desktop || m_state.screens.empty() ||
+       m_state.screens.back() != Screen::Settings))
   {
     m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
     Publish();
