@@ -21,6 +21,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ConfigComplexBindingTest.cpp
   ConfigSettingRegistryTest.cpp
   SharedSettingsTest.cpp
+  BigPictureSettingsTest.cpp
   ControllersUiTest.cpp
   CoverManagerTest.cpp
   EmulationStatusWidgetTest.cpp
@@ -53,6 +54,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/EmulationStatusWidget.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureHost.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureLibrary.cpp
+  ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureSettings.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureTextInput.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/QtUtils/RenderSurfaceHost.cpp
   ${CMAKE_SOURCE_DIR}/Source/Core/DolphinQt/BigPictureGraphicsConfig.cpp

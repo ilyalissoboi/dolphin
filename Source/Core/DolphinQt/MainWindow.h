@@ -23,10 +23,7 @@
 #include "DolphinQt/FIFO/FIFOPlayerWindow.h"
 
 class QMenu;
-namespace UICommon::Settings
-{
-class Service;
-}
+class BigPictureSettings;
 class QStackedWidget;
 class QString;
 class QTimer;
@@ -277,7 +274,7 @@ private:
   Core::System& m_system;
   std::unique_ptr<Ui::MainWindow> m_ui;
   BigPictureHost* m_big_picture_host = nullptr;
-  std::unique_ptr<UICommon::Settings::Service> m_big_picture_settings;
+  std::unique_ptr<BigPictureSettings> m_big_picture_settings;
   bool m_settings_post_processing = false;
   BigPictureLibrary* m_big_picture_library = nullptr;
   QPointer<BigPictureTextInput> m_big_picture_text_input;

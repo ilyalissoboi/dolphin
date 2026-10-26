@@ -60,6 +60,7 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
                            UnavailableReason::NoGame;
   case Action::DesktopSettings:
   case Action::EditSetting:
+  case Action::SettingsMenu:
   case Action::Library:
     return transitioning ? UnavailableReason::Busy : UnavailableReason::None;
   case Action::OpenGame:
@@ -256,6 +257,8 @@ void Controller::Dispatch(const Command& command)
           break;
         }
       }
+      if (command.action == Action::Settings)
+        push(Screen::Settings);
     }
     if (command.action == Action::ChangeDisc && !command.path.empty() &&
         (m_state.result->status == ResultStatus::Succeeded ||
@@ -312,6 +315,15 @@ void Controller::Submit(const Command& command)
 
   if (command.action == Action::EditSetting &&
       (!command.setting || m_state.mode == Mode::Desktop || m_state.screens.empty() ||
+       m_state.screens.back() != Screen::Settings))
+  {
+    m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+    Publish();
+    return;
+  }
+
+  if (command.action == Action::SettingsMenu &&
+      (!command.settings_menu || m_state.mode == Mode::Desktop || m_state.screens.empty() ||
        m_state.screens.back() != Screen::Settings))
   {
     m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
@@ -434,6 +446,12 @@ void Controller::Submit(const Command& command)
     SetRoot();
     break;
   case Action::Settings:
+    if (m_state.host.settings_menu && m_state.mode != Mode::Desktop)
+    {
+      Dispatch(command);
+      return;
+    }
+    [[fallthrough]];
   case Action::SaveStates:
   case Action::LoadStates:
     if (m_state.mode == Mode::Desktop)

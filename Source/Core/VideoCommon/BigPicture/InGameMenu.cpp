@@ -3,6 +3,7 @@
 
 #include "VideoCommon/BigPicture/InGameMenu.h"
 #include "VideoCommon/BigPicture/LibraryMenu.h"
+#include "VideoCommon/BigPicture/SettingsMenu.h"
 
 #include <string_view>
 #include <utility>
@@ -113,6 +114,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   }
   else if (screen == Screen::Settings)
   {
+    if (snapshot.host.settings_menu)
+      return BuildSettingsMenu(snapshot, text, options);
     page.id = "preferences";
     page.title = text.preferences;
     page.items = {

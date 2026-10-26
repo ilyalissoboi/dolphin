@@ -50,14 +50,13 @@
 #include "Common/ScopeGuard.h"
 #include "Common/Version.h"
 #include "Common/WindowSystemInfo.h"
-#include "DolphinQt/Config/Binder/SharedSettings.h"
-#include "UICommon/Settings/Service.h"
 
 #include "Core/AchievementManager.h"
 #include "Core/Boot/Boot.h"
 #include "Core/BootManager.h"
 #include "Core/CommonTitles.h"
 #include "Core/Config/AchievementSettings.h"
+#include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/NetplaySettings.h"
 #include "Core/Config/UISettings.h"
@@ -93,6 +92,7 @@
 #include "DolphinQt/Achievements/AchievementsWindow.h"
 #include "DolphinQt/BigPictureHost.h"
 #include "DolphinQt/BigPictureLibrary.h"
+#include "DolphinQt/BigPictureSettings.h"
 #include "DolphinQt/BigPictureTextInput.h"
 #include "DolphinQt/CheatsManager.h"
 #include "DolphinQt/Config/FreeLookWindow.h"
@@ -296,7 +296,10 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
 
   CreateComponents();
   m_big_picture_requested = start_big_picture && !Settings::Instance().IsBatchModeEnabled();
-  m_big_picture_settings = std::make_unique<UICommon::Settings::Service>();
+  m_big_picture_settings = std::make_unique<BigPictureSettings>(this, [this] {
+    if (m_big_picture_host && !m_shutting_down)
+      m_big_picture_host->Refresh();
+  });
 
   m_big_picture_library = new BigPictureLibrary(
       this,
@@ -356,6 +359,8 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         environment.netplay = state.netplay;
         environment.hardcore = state.hardcore;
         environment.post_processing = m_settings_post_processing;
+        environment.movie = m_system.GetMovie().IsMovieActive();
+        environment.max_efb_scale = Config::Get(Config::GFX_MAX_EFB_SCALE);
         for (const auto& backend : VideoBackendBase::GetAvailableBackends())
           if (backend->SupportsUI())
             environment.graphics_backends.push_back(
@@ -366,8 +371,26 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         for (const auto& backend : audio_backends)
           environment.audio_backends.push_back({backend, backend});
         m_big_picture_settings->SetEnvironment(std::move(environment));
-        state.settings =
-            ConfigWidget::TranslateSettingsSnapshot(*m_big_picture_settings->ReadSnapshot());
+        BigPictureSettings::Game settings_game;
+        if (state.lifecycle == BigPicture::Lifecycle::Running ||
+            state.lifecycle == BigPicture::Lifecycle::Paused)
+        {
+          const auto& config = SConfig::GetInstance();
+          settings_game = {config.GetGameID(), config.GetRevision(), config.GetTitleName(), true};
+        }
+        else if (state.lifecycle == BigPicture::Lifecycle::Idle)
+        {
+          const auto library =
+              m_big_picture_library ? m_big_picture_library->GetSnapshot() : nullptr;
+          auto game = library ? m_game_list->FindGame(library->selected_path) : nullptr;
+          if (!game)
+            game = m_game_list->GetSelectedGame();
+          if (game)
+            settings_game = {game->GetGameID(), game->GetRevision(), game->GetLongName(), false};
+        }
+        m_big_picture_settings->SetGame(std::move(settings_game));
+        state.settings = m_big_picture_settings->ReadSnapshot();
+        state.settings_menu = m_big_picture_settings->ReadMenu();
         state.pause_revision = m_system.GetCPU().GetPauseRevision();
         state.game_title = SConfig::GetInstance().GetTitleDescription();
         state.can_change_disc = m_big_picture_disc_game;
@@ -407,6 +430,28 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           return {command, ResultStatus::Unavailable, BigPicture::UnavailableReason::Busy};
         switch (command.action)
         {
+        case Action::Settings:
+          m_big_picture_settings->Open();
+          return {command, ResultStatus::Succeeded};
+        case Action::SettingsMenu:
+        {
+          if (!command.settings_menu)
+            return {command, ResultStatus::Unavailable,
+                    BigPicture::UnavailableReason::InvalidArgument};
+          const auto status = m_big_picture_settings->Execute(*command.settings_menu);
+          using Common::Settings::Status;
+          if (status == Status::InvalidValue)
+            return {
+                command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                tr("The selected profile is missing or invalid. Refresh the page and try again.")
+                    .toStdString()};
+          return {command,
+                  status == Status::Success ? ResultStatus::Succeeded :
+                  status == Status::Stale   ? ResultStatus::Stale :
+                                              ResultStatus::Unavailable,
+                  status == Status::Success ? BigPicture::UnavailableReason::None :
+                                              BigPicture::UnavailableReason::InvalidArgument};
+        }
         case Action::EditSetting:
         {
           if (!command.setting)
@@ -638,6 +683,8 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
   });
   m_library_timer->start();
   connect(&Settings::Instance(), &Settings::ConfigChanged, m_big_picture_host,
+          &BigPictureHost::Refresh);
+  connect(&Settings::Instance(), &Settings::DevicesChanged, m_big_picture_host,
           &BigPictureHost::Refresh);
   m_standalone_timer = new QTimer(this);
   m_standalone_timer->setInterval(16);
@@ -1243,6 +1290,12 @@ void MainWindow::EnterBigPicture()
   PrepareBigPictureSurface();
   ShowRenderWidget(true);
   m_render_widget->setWindowTitle(tr("Dolphin Big Picture"));
+  // A desktop menu closes after its action runs and can restore focus to the old game-list
+  // control. Move keyboard input to the persistent menu shell after that popup has closed.
+  QTimer::singleShot(0, m_render_widget, [this] {
+    if (m_big_picture_requested && m_render_widget->isVisible())
+      m_render_widget->setFocus(Qt::OtherFocusReason);
+  });
   if (m_rendering_to_main)
     setWindowTitle(tr("Dolphin Big Picture"));
   if (!m_rendering_to_main && m_render_widget_geometry.isEmpty())
@@ -1515,6 +1568,11 @@ void MainWindow::ConnectHotkeys()
                 static_cast<BigPicture::LibraryOperation>(library_operation), library_revision);
           });
   qRegisterMetaType<Common::Settings::Request>();
+  qRegisterMetaType<BigPicture::SettingsRequest>();
+  connect(m_hotkey_scheduler, &HotkeyScheduler::BigPictureSettingsMenu, this,
+          [this](BigPicture::SettingsRequest request, quint64 generation, quint64 input_epoch) {
+            m_big_picture_host->RequestSettingsMenu(generation, std::move(request), input_epoch);
+          });
   connect(m_hotkey_scheduler, &HotkeyScheduler::BigPictureSetting, this,
           [this](Common::Settings::Request request, quint64 generation, quint64 input_epoch) {
             m_big_picture_host->RequestSetting(generation, std::move(request), input_epoch);

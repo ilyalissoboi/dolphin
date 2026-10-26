@@ -139,6 +139,8 @@ std::string Service::Unavailable(const Entry& entry) const
     return _trans("Wait for the game transition to finish.");
   if (m_environment.netplay && !entry.descriptor.netplay_safe)
     return _trans("Settings changes are unavailable during NetPlay.");
+  if (m_environment.movie && !entry.descriptor.netplay_safe)
+    return _trans("This setting cannot be changed during movie recording or playback.");
   if (m_environment.hardcore && !entry.descriptor.hardcore_safe)
     return _trans("This setting cannot be changed in Hardcore Mode.");
   if (entry.descriptor.policy == ApplyPolicy::IdleOnly && m_environment.emulating)

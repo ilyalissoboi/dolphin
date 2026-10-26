@@ -93,6 +93,15 @@ void BigPictureHost::InvalidatePauseOwnership()
   ++m_pause_invalidation;
 }
 
+void BigPictureHost::RequestSettingsMenu(std::uint64_t generation,
+                                         BigPicture::SettingsRequest request,
+                                         std::optional<std::uint64_t> input_epoch)
+{
+  BigPicture::Command command{generation, m_next_id.fetch_add(1), BigPicture::Action::SettingsMenu};
+  command.settings_menu = std::move(request);
+  Submit(std::move(command), input_epoch);
+}
+
 std::shared_ptr<const BigPicture::Snapshot> BigPictureHost::GetSnapshot() const
 {
   std::lock_guard lock(m_snapshot_mutex);

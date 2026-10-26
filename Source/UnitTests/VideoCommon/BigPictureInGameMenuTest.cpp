@@ -1,6 +1,8 @@
 // Copyright 2026 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 #include <imgui.h>
 
@@ -53,6 +55,45 @@ TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitCloseSeparat
   EXPECT_EQ(menu.Activate({"screenshot"})->action, Action::Screenshot);
   EXPECT_FALSE(menu.Activate({"disc"}));
   EXPECT_EQ(menu.page.items[4].detail, "Not a disc game");
+}
+
+TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)
+{
+  snapshot.screens.push_back(Screen::Settings);
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-test";
+  view->title = "Audio";
+  view->back = SettingsRequest{22, SettingsOperation::Back};
+  SettingsRow row{"volume", "37%"};
+  row.edit = Common::Settings::Request{45, "audio.volume", Common::Settings::Operation::Set, 37};
+  view->rows.push_back(row);
+  row.id = "disabled";
+  row.enabled = false;
+  view->rows.push_back(row);
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  ASSERT_TRUE(menu.Activate({"volume"}));
+  EXPECT_EQ(menu.Activate({"volume"})->action, Action::EditSetting);
+  EXPECT_EQ(menu.Activate({"volume"})->setting->revision, 45u);
+  EXPECT_EQ(menu.Activate({"volume"})->setting->value, Common::Settings::Value(37));
+  EXPECT_FALSE(menu.Activate({"disabled"}));
+  ASSERT_TRUE(menu.Activate({{}, true})->settings_menu);
+  EXPECT_EQ(menu.Activate({{}, true})->settings_menu->operation, SettingsOperation::Back);
+  snapshot.pending = Command{snapshot.generation, 123, Action::EditSetting};
+  EXPECT_TRUE(Build().requests.empty());
+}
+
+TEST_F(BigPictureInGameMenuTest, SharedSettingsRootClosesWhileInterfaceRetainsMenuPreferences)
+{
+  snapshot.screens.push_back(Screen::Settings);
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-interface";
+  view->preferences = true;
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
+  ASSERT_TRUE(menu.Activate({"swap"})->options);
+  EXPECT_TRUE(menu.Activate({"swap"})->options->swap_confirm_back);
 }
 
 TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnreadableLoads)
@@ -174,12 +215,18 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_EQ(menu.page.default_focus, "game:two.iso");
   EXPECT_EQ(menu.Activate({"game:two.iso"})->path, "two.iso");
   EXPECT_EQ(menu.Activate({"add-folder"})->library_operation, LibraryOperation::AddFolder);
-  EXPECT_EQ(menu.page.toolbar.size(), 4u);
+  EXPECT_EQ(menu.page.toolbar.size(), 5u);
+  ASSERT_TRUE(menu.Activate({"settings"}));
+  EXPECT_EQ(menu.Activate({"settings"})->action, Action::Settings);
   library->selected_path.clear();
   library->games.pop_back();
   menu = Build();
   EXPECT_EQ(menu.page.default_focus, "refresh");
   EXPECT_FALSE(menu.Activate({"game:two.iso"}));
+  snapshot.screens.push_back(Screen::LibraryOptions);
+  menu = Build();
+  EXPECT_TRUE(std::ranges::none_of(
+      menu.requests, [](const auto& entry) { return entry.second.action == Action::Settings; }));
 }
 
 TEST_F(BigPictureInGameMenuTest, PickerUsesRevisionAndDistinguishesFolderNavigationFromDiscChanges)
