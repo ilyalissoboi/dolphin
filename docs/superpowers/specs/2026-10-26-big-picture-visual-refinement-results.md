@@ -97,9 +97,10 @@ Equivalent native PCSX2/Dolphin comparison captures and user appearance approval
 by the plan. The local reference build was inspected in source; an attempted hidden launch did
 not provide a targetable comparison window. Do not count that as a completed visual comparison.
 
-This pass implements the Dark reference palette. Additional PCSX2 theme choices, richer game
-metadata/iconography, save-state thumbnails and the full reference settings catalog remain
-parity work; they are not claimed to be blocked by Dolphin's core. State metadata/completion
+This initial pass implements the Dark reference palette. The
+[appearance follow-up](2026-10-26-big-picture-appearance-parity-results.md) adds the other theme
+families, menu icons and richer game metadata. Save-state thumbnails and the full reference
+settings catalog remain parity work; they are not claimed to be blocked by Dolphin's core. State metadata/completion
 hardening and optional thumbnail sidecars remain slice 10 work. PlayStation-specific actions
 and settings are adapted to Dolphin's existing GameCube/Wii capabilities.
 

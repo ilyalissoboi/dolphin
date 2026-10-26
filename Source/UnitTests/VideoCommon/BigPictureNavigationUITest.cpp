@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <array>
+#include <cmath>
 
 #include <gtest/gtest.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include "VideoCommon/BigPicture/Navigation.h"
+#include "VideoCommon/BigPicture/Style.h"
 
 namespace
 {
@@ -31,10 +34,10 @@ protected:
   }
   void TearDown() override { ImGui::DestroyContext(context); }
 
-  MenuResult Frame(const MenuPage& page)
+  MenuResult Frame(const MenuPage& page, ::BigPicture::NavigationOptions options = {})
   {
     ImGui::NewFrame();
-    auto result = toolkit.Draw(page, {}, "Select / Back");
+    auto result = toolkit.Draw(page, options, "Select / Back");
     ImGui::Render();
     return result;
   }
@@ -354,5 +357,74 @@ TEST_F(BigPictureNavigationUITest, FullscreenStylesDoNotLeakIntoDiagnosticOverla
     EXPECT_EQ(after.Colors[i].z, original.Colors[i].z);
     EXPECT_EQ(after.Colors[i].w, original.Colors[i].w);
   }
+}
+
+TEST_F(BigPictureNavigationUITest, LiveThemeChangesPreserveSelectionAndActivation)
+{
+  MenuPage page{"themes", "Appearance", {}, {{"first", "First"}, {"second", "Second"}}};
+  page.items[0].icon = MenuIcon::Theme;
+  page.items[1].icon = MenuIcon::Settings;
+  Settle(page);
+  Press(page, ImGuiKey_GamepadDpadDown);
+  for (const auto& choice : ::BigPicture::THEME_CHOICES)
+  {
+    page.theme = choice.id;
+    Settle(page);
+    EXPECT_EQ(toolkit.GetMemory(page.id).item, "second");
+    EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "second");
+  }
+  page.theme = "FutureTheme";
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "second");
+}
+
+TEST_F(BigPictureNavigationUITest, CardsRemainRevealableAtMaximumScaleAndSafeArea)
+{
+  MenuPage page{"overscan",       "Library",
+                "Selected games", {{"game", "A long translated game title", "GameCube | NTSC-U"}},
+                "game",           4};
+  page.artwork = true;
+  page.toolbar = {{"search", "Search"},          {"filters", "View and filters"},
+                  {"view", "List view"},         {"settings", "Settings"},
+                  {"folder", "Add game folder"}, {"refresh", "Refresh"}};
+  for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    toolkit.Reset();
+    for (int frame = 0; frame < 6; ++frame)
+      Frame(page, {false, 1.5f, 0.15f});
+    ASSERT_NE(GImGui->NavWindow, nullptr);
+    auto* window = GImGui->NavWindow;
+    const auto selected = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+    EXPECT_LE(selected.GetHeight(), window->InnerRect.GetHeight() + 2);
+    EXPECT_GE(selected.Min.y, window->InnerRect.Min.y - 2);
+    EXPECT_LE(selected.Max.y, window->InnerRect.Max.y + 2);
+  }
+}
+
+TEST(BigPictureThemeTest, EveryThemeKeepsNormalHeaderAndSelectionTextReadable)
+{
+  const auto luminance = [](ImVec4 color) {
+    const auto linear = [](float c) {
+      return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+    };
+    return 0.2126f * linear(color.x) + 0.7152f * linear(color.y) + 0.0722f * linear(color.z);
+  };
+  const auto contrast = [&](ImVec4 a, ImVec4 b) {
+    const float x = luminance(a), y = luminance(b);
+    return (std::max(x, y) + 0.05f) / (std::min(x, y) + 0.05f);
+  };
+  for (const auto& choice : ::BigPicture::THEME_CHOICES)
+  {
+    SCOPED_TRACE(choice.id);
+    const auto& palette = Style::GetPalette(choice.id);
+    EXPECT_GE(contrast(palette.text, palette.background), 4.5f);
+    EXPECT_GE(contrast(palette.secondary, palette.background), 4.5f);
+    EXPECT_GE(contrast(palette.text, palette.panel), 4.5f);
+    EXPECT_GE(contrast(palette.header_text, palette.header), 4.5f);
+    EXPECT_GE(contrast(palette.card_secondary, palette.header), 4.5f);
+    EXPECT_GE(contrast(palette.selected_text, palette.selected), 4.5f);
+  }
+  EXPECT_FLOAT_EQ(Style::GetPalette("FutureTheme").background.x, Style::DARK.background.x);
 }
 }  // namespace

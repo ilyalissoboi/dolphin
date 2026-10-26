@@ -118,6 +118,21 @@ TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnre
   EXPECT_EQ(menu.Activate({"slot-1"})->action, Action::SaveState);
 }
 
+TEST_F(BigPictureInGameMenuTest, GlobalThemeReachesPauseLibraryAndSettingsPages)
+{
+  snapshot.host.menu_theme = "Light";
+  EXPECT_EQ(Build().page.theme, "Light");
+  snapshot.screens = {Screen::LoadStates};
+  EXPECT_EQ(Build().page.theme, "Light");
+  snapshot.host.settings_menu = std::make_shared<SettingsMenuSnapshot>();
+  snapshot.screens = {Screen::Settings};
+  EXPECT_EQ(Build().page.theme, "Light");
+  snapshot.host.library = std::make_shared<LibrarySnapshot>();
+  snapshot.screens = {Screen::Library};
+  snapshot.mode = Mode::Library;
+  EXPECT_EQ(Build().page.theme, "Light");
+}
+
 TEST_F(BigPictureInGameMenuTest, PolicyChangesRemovePreviouslyAvailableLoadCommands)
 {
   snapshot.screens.push_back(Screen::LoadStates);

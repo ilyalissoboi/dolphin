@@ -14,15 +14,31 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   using namespace ::BigPicture;
   const auto& view = *snapshot.host.settings_menu;
   InGameMenu menu;
+  menu.page.theme = snapshot.host.menu_theme;
   menu.page.id = view.id;
   menu.page.title = view.title;
   menu.page.description = view.description;
   menu.page.default_focus = view.default_focus;
   menu.page.overlay = snapshot.mode == Mode::InGame;
   const auto add = [&](const SettingsRow& row, bool toolbar) {
-    (toolbar ? menu.page.toolbar : menu.page.items)
-        .push_back(
-            {row.id, row.label, row.detail, row.enabled && !snapshot.pending, {}, row.active});
+    auto& item = (toolbar ? menu.page.toolbar : menu.page.items)
+                     .emplace_back(row.id, row.label, row.detail, row.enabled && !snapshot.pending,
+                                   std::string{}, row.active);
+    if (row.id == "Audio" || row.id.starts_with("audio."))
+      item.icon = MenuIcon::Audio;
+    else if (row.id == "Display" || row.id == "global" || row.id.starts_with("display."))
+      item.icon = MenuIcon::Display;
+    else if (row.id == "Interface" || row.id.starts_with("interface."))
+      item.icon = MenuIcon::Theme;
+    else if (row.id == "PostProcessing")
+      item.icon = MenuIcon::Filter;
+    else if (row.id == "game")
+      item.icon = MenuIcon::Disc;
+    else if (row.navigation && row.navigation->operation >= SettingsOperation::Controllers &&
+             row.navigation->operation <= SettingsOperation::ClearProfile)
+      item.icon = MenuIcon::Controller;
+    else if (row.edit && row.edit->id == "interface.big_picture_theme")
+      item.icon = MenuIcon::Theme;
     if (!row.enabled || snapshot.pending)
       return;
     NavigationRequest request{snapshot.generation, Action::SettingsMenu};
@@ -66,10 +82,12 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   if (!snapshot.pending)
   {
     menu.page.items.push_back({"back", text.back});
+    menu.page.items.back().icon = MenuIcon::Back;
     menu.requests.emplace("back", std::move(back));
     menu.page.items.push_back({"desktop-settings",
                                text.actions[static_cast<size_t>(Action::DesktopSettings)],
                                text.desktop_settings_help});
+    menu.page.items.back().icon = MenuIcon::Settings;
     menu.requests.emplace("desktop-settings",
                           NavigationRequest{snapshot.generation, Action::DesktopSettings});
   }

@@ -55,6 +55,7 @@ struct LibraryGame
   std::vector<std::string> tags;
   std::uint64_t played_ms = 0;
   std::uint64_t size = 0;
+  std::string details;
 };
 
 struct LibraryImage

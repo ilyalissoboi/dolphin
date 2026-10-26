@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include "Common/BigPicture/Theme.h"
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/UISettings.h"
@@ -81,7 +82,7 @@ protected:
 TEST_F(SettingsServiceTest, CatalogIsCompleteBeforeAnyWidgetsOrRendererExist)
 {
   const auto snapshot = service->ReadSnapshot();
-  EXPECT_EQ(snapshot->settings.size(), 15u);
+  EXPECT_EQ(snapshot->settings.size(), 16u);
   std::set<std::string> ids;
   for (const auto& state : snapshot->settings)
   {
@@ -95,6 +96,35 @@ TEST_F(SettingsServiceTest, CatalogIsCompleteBeforeAnyWidgetsOrRendererExist)
             ToValue(Config::MAIN_AUDIO_VOLUME.GetDefaultValue()));
   EXPECT_FALSE(Read("interface.start_big_picture").descriptor.per_game);
   EXPECT_TRUE(Read("display.vsync").descriptor.per_game);
+}
+
+TEST_F(SettingsServiceTest, ThemeChoicesPersistGloballyAndPreserveUnknownStoredValues)
+{
+  ASSERT_TRUE(service->SetContext({EditTarget::Base}));
+  for (const auto& choice : BigPicture::THEME_CHOICES)
+  {
+    ASSERT_EQ(Set("interface.big_picture_theme", std::string(choice.id)).status, Status::Success);
+    EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), choice.id);
+  }
+  ASSERT_TRUE(service->Save());
+  Config::Layer reloaded(std::make_unique<MemoryLoader>(Config::LayerType::Base, saved));
+  reloaded.Load();
+  EXPECT_EQ(reloaded.Get(Config::MAIN_BIG_PICTURE_THEME), "DolphinBlue");
+  EXPECT_EQ(Set("interface.big_picture_theme", std::string("InvalidTheme")).status,
+            Status::InvalidValue);
+  Config::SetBase(Config::MAIN_BIG_PICTURE_THEME, "FutureTheme");
+  EXPECT_FALSE(Read("interface.big_picture_theme").value_available);
+  EXPECT_EQ(Read("interface.big_picture_theme").value, Value(std::string("FutureTheme")));
+  auto local = std::make_shared<Config::Layer>(Config::LayerType::LocalGame);
+  ASSERT_TRUE(service->SetContext({EditTarget::Game, local}));
+  EXPECT_EQ(Set("interface.big_picture_theme", std::string("Light")).status,
+            Status::UnsupportedContext);
+  EXPECT_FALSE(local->Exists(Config::MAIN_BIG_PICTURE_THEME.GetLocation()));
+  EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "FutureTheme");
+  ASSERT_TRUE(service->SetContext({EditTarget::Base}));
+  EXPECT_EQ(Set("interface.big_picture_theme", false, Operation::ResetDefault).status,
+            Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "Dark");
 }
 
 TEST_F(SettingsServiceTest, TypedValuesAndMappedChoicesAreStoredInsteadOfIndexes)
@@ -242,7 +272,10 @@ TEST_F(SettingsServiceTest, DynamicOptionsPreserveUnknownValuesAndInvalidateRequ
   EXPECT_EQ(Set("display.backend", std::string("D3D")).status, Status::InvalidValue);
   EXPECT_EQ(Set("display.backend", std::string("Vulkan")).status, Status::Success);
   EXPECT_TRUE(Read("display.backend").value_available);
-  EXPECT_EQ(old->settings[4].descriptor.choices.size(), 2u);
+  const auto previous = std::ranges::find_if(
+      old->settings, [](const State& state) { return state.descriptor.id == "display.backend"; });
+  ASSERT_NE(previous, old->settings.end());
+  EXPECT_EQ(previous->descriptor.choices.size(), 2u);
 }
 
 TEST_F(SettingsServiceTest, InternalResolutionUsesStoredScaleAndRetainsUnavailableValues)
@@ -266,7 +299,10 @@ TEST_F(SettingsServiceTest, ConfigChangesInvalidateRequestsAndPreservePublishedS
   Config::SetBase(Config::MAIN_AUDIO_VOLUME, 23);
   EXPECT_EQ(service->Apply({old->revision, "audio.volume", Operation::Set, 77}).status,
             Status::Stale);
-  EXPECT_EQ(old->settings[1].value, value);
+  const auto previous = std::ranges::find_if(
+      old->settings, [](const State& state) { return state.descriptor.id == "audio.volume"; });
+  ASSERT_NE(previous, old->settings.end());
+  EXPECT_EQ(previous->value, value);
   EXPECT_EQ(Read("audio.volume").value, Value(23));
 }
 

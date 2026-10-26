@@ -23,6 +23,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   using namespace ::BigPicture;
   InGameMenu menu;
   auto& page = menu.page;
+  page.theme = snapshot.host.menu_theme;
   page.overlay = snapshot.mode == Mode::InGame;
   const auto label = [&](Action action) -> const std::string& {
     return text.actions[static_cast<std::size_t>(action)];
@@ -35,7 +36,13 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     const auto reason = snapshot.availability[static_cast<std::size_t>(action)];
     const bool enabled = reason == UnavailableReason::None;
     (toolbar ? page.toolbar : page.items)
-        .push_back({id, label(action), enabled ? std::move(detail) : reason_text(reason), enabled});
+        .push_back({id,
+                    label(action),
+                    enabled ? std::move(detail) : reason_text(reason),
+                    enabled,
+                    {},
+                    false,
+                    GetActionIcon(action)});
     if (enabled)
       menu.requests.emplace(std::move(id), NavigationRequest{snapshot.generation, action});
   };
@@ -105,6 +112,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
                           !state.readable                   ? text.unknown_slot :
                                                               state.description;
       page.items.push_back({id, text.slot_labels[slot], detail, enabled});
+      page.items.back().icon = GetActionIcon(action);
       if (enabled)
       {
         NavigationRequest request{snapshot.generation, action};
@@ -183,6 +191,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("stop", Action::Stop, text.stop_help);
     add("exit", Action::Exit);
     page.items.push_back({"close", text.close});
+    page.items.back().icon = MenuIcon::Back;
     menu.requests.emplace("close", NavigationRequest{snapshot.generation, Action::Back});
   }
   if (snapshot.result && (snapshot.result->status == ResultStatus::Dispatched ||

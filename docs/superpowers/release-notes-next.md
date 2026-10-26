@@ -35,6 +35,17 @@ menu uses a narrow action column and running-game title/cover header. Save/load 
 four-column cards, and settings retains category navigation with active category and
 global/game context indicators. These layouts retain the menu scale and safe-area preferences.
 
+Big Picture appearance can now be changed live from either its Interface settings or the
+desktop Big Picture pane. Eleven theme families include Light, AMOLED and Dolphin Blue;
+unknown stored theme names are preserved and render with the Dark fallback. Menus include
+drawn action/category icons and checkmarks for current setting values. Library details show
+platform, region, game ID, play time, size, path and tags. At large menu scales, artwork shrinks
+to keep focused cards readable inside safe-area margins.
+
+Windows file replacement now briefly retries transient sharing/access locks, preventing
+temporary reader locks from immediately producing a blocking configuration/FST save alert.
+Persistent failures still report failure and leave the original files intact.
+
 Settings is a top-level Big Picture entry, separate from Library Options. It includes
 interface/menu preferences, volume and audio backend,
 graphics backend, internal resolution, aspect ratio, VSync, integer scaling and a folder-based

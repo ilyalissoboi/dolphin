@@ -12,6 +12,7 @@
 #include <imgui.h>
 
 #include "Common/BigPicture/Navigation.h"
+#include "VideoCommon/BigPicture/Icons.h"
 
 namespace VideoCommon::BigPicture
 {
@@ -31,6 +32,8 @@ struct MenuItem
   bool enabled = true;
   std::string image_key;
   bool active = false;
+  MenuIcon icon = MenuIcon::None;
+  std::string preview_detail;
 };
 
 struct MenuPage
@@ -51,6 +54,7 @@ struct MenuPage
   // Header metadata is separate from the scrollable explanation/status text.
   MenuItem context;
   bool overlay = false;
+  std::string theme = "Dark";
 };
 
 struct MenuResult

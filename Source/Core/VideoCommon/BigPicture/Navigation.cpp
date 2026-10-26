@@ -18,19 +18,20 @@ ImU32 Color(const ImVec4& color)
   return ImGui::GetColorU32(color);
 }
 
-void DrawCover(ImDrawList* draw, ImVec2 min, ImVec2 size, ImTextureID texture, float scale)
+void DrawCover(ImDrawList* draw, ImVec2 min, ImVec2 size, ImTextureID texture, float scale,
+               const Style::Palette& palette)
 {
   const ImVec2 max(min.x + size.x, min.y + size.y);
   if (texture)
     draw->AddImage(texture, min, max);
   else
   {
-    draw->AddRectFilled(min, max, Color(Style::DARK.header), Style::ROUNDING * scale);
+    draw->AddRectFilled(min, max, Color(palette.header), Style::ROUNDING * scale);
     // A neutral disc motif also works before asynchronous cover loading completes.
     const ImVec2 center(min.x + size.x * 0.5f, min.y + size.y * 0.5f);
     const float radius = std::min(size.x, size.y) * 0.28f;
-    draw->AddCircle(center, radius, Color(Style::DARK.secondary), 32, 2 * scale);
-    draw->AddCircle(center, radius * 0.18f, Color(Style::DARK.secondary), 16, 2 * scale);
+    draw->AddCircle(center, radius, Color(palette.header_text), 32, 2 * scale);
+    draw->AddCircle(center, radius * 0.18f, Color(palette.header_text), 16, 2 * scale);
   }
 }
 }  // namespace
@@ -153,7 +154,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
       m_restore_frames = 0;
   }
 
-  const auto& palette = Style::DARK;
+  const auto& palette = Style::GetPalette(page.theme);
   const float padding = Style::PADDING * scale;
   const float gap = Style::GAP * scale;
   const float title_size = Style::TITLE_SIZE * scale;
@@ -164,9 +165,10 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
                             !page.items.empty() && layout.size.x >= 850 * scale;
   auto* background = ImGui::GetBackgroundDrawList();
   const ImVec2 display = ImGui::GetIO().DisplaySize;
-  background->AddRectFilled(ImVec2(0, 0), display,
-                            pause || page.overlay || page.dialog ? IM_COL32(25, 25, 25, 200) :
-                                                                   Color(palette.background));
+  auto backdrop = palette.background;
+  if (pause || page.overlay || page.dialog)
+    backdrop.w = 0.80f;
+  background->AddRectFilled(ImVec2(0, 0), display, Color(backdrop));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
   ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
@@ -176,7 +178,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.focus);
   ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.selected);
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.selected);
   ImGui::PushStyleColor(ImGuiCol_Border, palette.hover);
   ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.panel);
@@ -216,7 +218,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
               ImVec2(60 * scale, 90 * scale),
               image && !page.context.image_key.empty() ? image(page.context.image_key) :
                                                          ImTextureID{},
-              scale);
+              scale, palette);
     const ImVec2 text_min(layout.position.x + padding + 80 * scale, layout.position.y + gap);
     window_draw->PushClipRect(text_min, header_max, true);
     window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), text_min, Color(palette.text),
@@ -225,7 +227,11 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
     window_draw->PopClipRect();
   }
   else
+  {
+    ImGui::PushStyleColor(ImGuiCol_Text, palette.header_text);
     ImGui::TextUnformatted(page.title.c_str());
+    ImGui::PopStyleColor();
+  }
   ImGui::SetCursorPos(ImVec2(padding, header_height + gap));
   if (!page.toolbar.empty())
   {
@@ -235,11 +241,14 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
         page.toolbar.size();
     float toolbar_height = Style::SHORT_ROW_HEIGHT * scale;
     for (const auto& item : page.toolbar)
-      toolbar_height =
-          std::max(toolbar_height, ImGui::CalcTextSize(item.label.c_str(), nullptr, false,
-                                                       std::max(scale, toolbar_width - gap * 2))
-                                           .y +
-                                       gap * 2);
+    {
+      const float icon_width = item.icon == MenuIcon::None ? 0 : 24 * scale;
+      toolbar_height = std::max(
+          toolbar_height, ImGui::CalcTextSize(item.label.c_str(), nullptr, false,
+                                              std::max(scale, toolbar_width - gap * 2 - icon_width))
+                                  .y +
+                              gap * 2);
+    }
     for (const auto& item : page.toolbar)
     {
       if (&item != &page.toolbar.front())
@@ -255,10 +264,22 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
         ImGui::PopStyleColor();
       const auto min = ImGui::GetItemRectMin();
       const auto max = ImGui::GetItemRectMax();
+      if (item.active)
+        window_draw->AddLine(ImVec2(min.x + gap, max.y - 4 * scale),
+                             ImVec2(max.x - gap, max.y - 4 * scale), Color(palette.selected_text),
+                             2 * scale);
+      const auto text_color = Color(item.active || ImGui::IsItemHovered() || ImGui::IsItemActive() ?
+                                        palette.selected_text :
+                                        palette.header_text);
+      const float icon_width = item.icon == MenuIcon::None ? 0 : 24 * scale;
       window_draw->PushClipRect(min, max, true);
-      window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(min.x + gap, min.y + gap),
-                           Color(palette.text), item.label.c_str(), nullptr,
-                           std::max(scale, toolbar_width - gap * 2));
+      DrawMenuIcon(window_draw, item.icon,
+                   ImVec2(min.x + gap, min.y + (toolbar_height - 18 * scale) * 0.5f), 18 * scale,
+                   text_color);
+      window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                           ImVec2(min.x + gap + icon_width, min.y + gap), text_color,
+                           item.label.c_str(), nullptr,
+                           std::max(scale, toolbar_width - gap * 2 - icon_width));
       window_draw->PopClipRect();
       if (item.enabled && (clicked || ImGui::IsItemFocused()))
         memory.item = item.id;
@@ -331,17 +352,35 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   }
   const float width =
       std::max(scale, (ImGui::GetContentRegionAvail().x - (columns - 1) * gap) / columns);
+  // Large menu text plus overscan margins can leave less than one normal card of height.
+  // Shrink artwork before sacrificing the title/summary or making focus impossible to reveal.
+  const float card_height_limit =
+      std::max(Style::ROW_HEIGHT * scale, ImGui::GetWindowHeight() - ImGui::GetCursorPosY() - gap);
   for (std::size_t i = 0; i < page.items.size(); ++i)
   {
     const auto& item = page.items[i];
     if (i % columns != 0)
       ImGui::SameLine();
+    const float requested_artwork_height =
+        page.artwork ?
+            (columns == 1 ? 70 * scale :
+                            std::min({210 * scale, width * 1.05f,
+                                      std::max(0.0f, card_height_limit - 102 * scale)})) :
+            0;
     const float artwork_height =
-        page.artwork ? (columns == 1 ? 70 * scale : std::min(210 * scale, width * 1.05f)) : 0;
+        columns > 1 && requested_artwork_height < 32 * scale ? 0 : requested_artwork_height;
     const float artwork_width = artwork_height * 2 / 3;
-    const float text_offset = page.artwork && columns == 1 ? artwork_width + gap : 0;
-    const float text_top = page.artwork && columns > 1 ? artwork_height + 12 * scale : 0;
-    const float wrap_width = std::max(scale, width - padding * 2 - text_offset);
+    const bool large_icon =
+        landing && columns > 1 && item.icon != MenuIcon::None && card_height_limit > 130 * scale;
+    const float icon_width =
+        !page.artwork && !large_icon && item.icon != MenuIcon::None ? title_size + gap : 0;
+    const float text_offset = page.artwork && columns == 1 ? artwork_width + gap : icon_width;
+    const float text_top =
+        large_icon ? std::min(96 * scale, std::max(0.0f, card_height_limit - 90 * scale)) :
+        artwork_height > 0 && columns > 1 ? artwork_height + 12 * scale :
+                                            0;
+    const float wrap_width =
+        std::max(scale, width - padding * 2 - text_offset - (item.active ? title_size + gap : 0));
     const float label_height =
         ImGui::CalcTextSize(item.label.c_str(), nullptr, false, wrap_width).y;
     ImGui::PushFont(font, summary_size / font_scale);
@@ -351,15 +390,16 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
             ImGui::CalcTextSize(item.detail.c_str(), nullptr, false, wrap_width).y + 4 * scale;
     ImGui::PopFont();
     // Fixed grid cells keep all subsequent rows aligned even with long translated titles.
-    const float height = columns > 1 ? (page.compact ? 40 * scale :
-                                        page.artwork ? text_top + 90 * scale :
-                                                       (landing ? 220 : 150) * scale) :
-                                       std::max((page.compact        ? 40 :
-                                                 page.artwork        ? 90 :
-                                                 item.detail.empty() ? Style::SHORT_ROW_HEIGHT :
-                                                                       Style::ROW_HEIGHT) *
-                                                    scale,
-                                                label_height + detail_height + gap * 2);
+    const float height =
+        columns > 1 ? (page.compact ? 40 * scale :
+                       page.artwork ? text_top + 90 * scale :
+                                      std::min((landing ? 220 : 150) * scale, card_height_limit)) :
+                      std::max((page.compact        ? 40 :
+                                page.artwork        ? 90 :
+                                item.detail.empty() ? Style::SHORT_ROW_HEIGHT :
+                                                      Style::ROW_HEIGHT) *
+                                   scale,
+                               label_height + detail_height + gap * 2);
     ImGui::PushID(item.id.c_str());
     const bool request_focus = (restore_focus && item.id == focus_id) || item.id == requested_focus;
     if (request_focus && item.enabled)
@@ -411,19 +451,35 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
     if (selected)
       draw->AddRect(min, max, Color(palette.focus), Style::ROUNDING * scale, 0, 2 * scale);
     draw->PushClipRect(min, max, true);
-    if (page.artwork && max.y >= ImGui::GetWindowPos().y &&
+    const auto label_color = Color(selected    ? palette.selected_text :
+                                   hovered     ? palette.text :
+                                   columns > 1 ? palette.header_text :
+                                                 palette.text);
+    if (item.active)
+      DrawMenuIcon(draw, MenuIcon::Check, ImVec2(max.x - padding - title_size, min.y + gap),
+                   title_size, Color(selected ? palette.selected_text : palette.focus));
+    if (!page.artwork)
+    {
+      const float icon_size =
+          large_icon ? std::min(64 * scale, std::max(0.0f, text_top - 32 * scale)) : title_size;
+      DrawMenuIcon(draw, item.icon,
+                   large_icon ? ImVec2(min.x + (width - icon_size) * 0.5f, min.y + 24 * scale) :
+                                ImVec2(min.x + padding, min.y + gap),
+                   icon_size, label_color);
+    }
+    if (page.artwork && artwork_height > 0 && max.y >= ImGui::GetWindowPos().y &&
         min.y <= ImGui::GetWindowPos().y + ImGui::GetWindowHeight())
     {
       const ImVec2 image_min(min.x + (columns == 1 ? 12 * scale : (width - artwork_width) * 0.5f),
                              min.y + 8 * scale);
       const auto texture = image && !item.image_key.empty() ? image(item.image_key) : ImTextureID{};
-      DrawCover(draw, image_min, ImVec2(artwork_width, artwork_height), texture, scale);
+      DrawCover(draw, image_min, ImVec2(artwork_width, artwork_height), texture, scale, palette);
     }
     const float title_height = columns > 1 ? std::min(label_height, title_size * 2) : label_height;
     draw->PushClipRect(min, ImVec2(max.x, min.y + gap + text_top + title_height), true);
     draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
-                  ImVec2(min.x + padding + text_offset, min.y + gap + text_top),
-                  ImGui::GetColorU32(ImGuiCol_Text), item.label.c_str(), nullptr, wrap_width);
+                  ImVec2(min.x + padding + text_offset, min.y + gap + text_top), label_color,
+                  item.label.c_str(), nullptr, wrap_width);
     draw->PopClipRect();
     if (!item.detail.empty())
     {
@@ -432,8 +488,11 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
       const float detail_top = min.y + gap + text_top + title_height + 4 * scale;
       draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                     ImVec2(min.x + padding + text_offset, detail_top),
-                    Color(selected ? palette.text : palette.secondary), item.detail.c_str(),
-                    nullptr, wrap_width);
+                    Color(selected    ? palette.selected_text :
+                          hovered     ? palette.text :
+                          columns > 1 ? palette.card_secondary :
+                                        palette.secondary),
+                    item.detail.c_str(), nullptr, wrap_width);
       ImGui::PopFont();
     }
     draw->PopClipRect();
@@ -464,11 +523,13 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
       DrawCover(ImGui::GetWindowDrawList(),
                 ImVec2(pos.x + (available - cover_size.x) / 2, pos.y + gap), cover_size,
                 image && !selected->image_key.empty() ? image(selected->image_key) : ImTextureID{},
-                scale);
+                scale, palette);
       ImGui::Dummy(ImVec2(0, cover_height + gap * 2));
       ImGui::TextWrapped("%s", selected->label.c_str());
       ImGui::PushFont(font, summary_size / font_scale);
-      ImGui::TextWrapped("%s", selected->detail.c_str());
+      ImGui::TextWrapped(
+          "%s",
+          (selected->preview_detail.empty() ? selected->detail : selected->preview_detail).c_str());
       ImGui::PopFont();
     }
     ImGui::EndChild();

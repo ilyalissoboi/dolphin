@@ -275,6 +275,9 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                 state.enabled ? std::move(detail) : state.disabled_reason,
                                 state.enabled};
     row.edit = Request{values->revision, state.descriptor.id, operation, std::move(value)};
+    row.active = operation == Operation::Set        ? row.edit->value == state.value :
+                 operation == Operation::SetDisplay ? row.edit->value == state.display_value :
+                                                      false;
     view->rows.push_back(std::move(row));
   };
   if (m_page != Page::Home)

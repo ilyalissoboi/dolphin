@@ -158,6 +158,7 @@ struct HostState
   std::shared_ptr<const SettingsMenuSnapshot> settings_menu;
   std::array<bool, 6> boot_ipl_available{};
   bool boot_system_menu_available = false;
+  std::string menu_theme = "Dark";
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

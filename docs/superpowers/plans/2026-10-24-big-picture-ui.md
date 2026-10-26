@@ -238,6 +238,9 @@ settings snapshots. The [common settings/profile results](../specs/2026-10-26-bi
 record controller-operated settings pages, persistent global/per-game edits, preset discovery and
 controller device/profile selection. The [visual refinement results](../specs/2026-10-26-big-picture-visual-refinement-results.md)
 record slice 9's shared dark styling, screen composition, navigation and Windows verification.
+The [appearance follow-up](../specs/2026-10-26-big-picture-appearance-parity-results.md) adds live,
+persistent theme selection, menu icons, checked setting values, richer library details and
+card sizing for large text with maximum safe-area margins.
 Reference comparison captures, user appearance review and platform/hardware gates remain open;
 final state-browser/release hardening follows in slice 10.
 Platform/hardware release checks remain required.

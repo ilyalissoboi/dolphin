@@ -78,6 +78,30 @@ TEST(BigPictureLibraryTest, PathsSurviveSortFilterAndIncrementalScansWithoutMuta
   EXPECT_FALSE(library.Execute(O::Select, a.path, 0).empty());
 }
 
+TEST(BigPictureLibraryTest, DetailedMetadataIsTranslatedAndRetainedByImmutableSnapshots)
+{
+  BigPictureLibrary library(nullptr, {});
+  auto game =
+      Entry("E:/Games/日本語/game.iso", "Game", "GameCube", "NTSC-J", {"Favorite", "Co-op"});
+  game.game_id = "GTEST1";
+  game.size = 1024 * 1024;
+  game.played_ms = (2 * 60 + 3) * 60000;
+  library.SetGames({game});
+  const auto retained = library.GetSnapshot();
+  const auto details = retained->games.front().details;
+  EXPECT_NE(details.find("Platform: GameCube"), std::string::npos);
+  EXPECT_NE(details.find("Region: NTSC-J"), std::string::npos);
+  EXPECT_NE(details.find("Game ID: GTEST1"), std::string::npos);
+  EXPECT_NE(details.find("Time Played: 2h 3m"), std::string::npos);
+  EXPECT_NE(details.find("File Size:"), std::string::npos);
+  EXPECT_NE(details.find("日本語"), std::string::npos);
+  EXPECT_NE(details.find("Tags: Favorite, Co-op"), std::string::npos);
+  game.played_ms = 4 * 60 * 60000;
+  library.SetGames({game});
+  EXPECT_EQ(retained->games.front().details, details);
+  EXPECT_NE(library.GetSnapshot()->games.front().details.find("4h 0m"), std::string::npos);
+}
+
 TEST(BigPictureLibraryTest, FiltersCycleBackToAllIncludingAnEmptyCatalog)
 {
   BigPictureLibrary library(nullptr, {});
