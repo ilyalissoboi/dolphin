@@ -20,6 +20,7 @@ add_executable(qt-tests EXCLUDE_FROM_ALL
   BalloonTipFilterTest.cpp
   ConfigComplexBindingTest.cpp
   ConfigSettingRegistryTest.cpp
+  SharedSettingsTest.cpp
   ControllersUiTest.cpp
   CoverManagerTest.cpp
   EmulationStatusWidgetTest.cpp

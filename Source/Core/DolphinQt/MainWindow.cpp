@@ -44,11 +44,14 @@
 #include <windows.h>
 #endif
 
+#include "AudioCommon/AudioCommon.h"
 #include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
 #include "Common/ScopeGuard.h"
 #include "Common/Version.h"
 #include "Common/WindowSystemInfo.h"
+#include "DolphinQt/Config/Binder/SharedSettings.h"
+#include "UICommon/Settings/Service.h"
 
 #include "Core/AchievementManager.h"
 #include "Core/Boot/Boot.h"
@@ -293,6 +296,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
 
   CreateComponents();
   m_big_picture_requested = start_big_picture && !Settings::Instance().IsBatchModeEnabled();
+  m_big_picture_settings = std::make_unique<UICommon::Settings::Service>();
 
   m_big_picture_library = new BigPictureLibrary(
       this,
@@ -343,6 +347,27 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           state.lifecycle = BigPicture::Lifecycle::Booting;
         state.netplay = NetPlay::IsNetPlayRunning();
         state.hardcore = AchievementManager::GetInstance().IsHardcoreModeActive();
+        UICommon::Settings::Environment environment;
+        environment.emulating = state.lifecycle != BigPicture::Lifecycle::Idle;
+        environment.transitioning = state.lifecycle == BigPicture::Lifecycle::Booting ||
+                                    state.lifecycle == BigPicture::Lifecycle::Stopping ||
+                                    m_standalone_stop != StandaloneStop::None ||
+                                    m_standalone_restart_queued;
+        environment.netplay = state.netplay;
+        environment.hardcore = state.hardcore;
+        environment.post_processing = m_settings_post_processing;
+        for (const auto& backend : VideoBackendBase::GetAvailableBackends())
+          if (backend->SupportsUI())
+            environment.graphics_backends.push_back(
+                {backend->GetConfigName(), backend->GetDisplayName()});
+        // Backend implementations are fixed for this process. Do not repeat optional
+        // library loading/probing on every settings snapshot; devices are separate options.
+        static const auto audio_backends = AudioCommon::GetSoundBackends();
+        for (const auto& backend : audio_backends)
+          environment.audio_backends.push_back({backend, backend});
+        m_big_picture_settings->SetEnvironment(std::move(environment));
+        state.settings =
+            ConfigWidget::TranslateSettingsSnapshot(*m_big_picture_settings->ReadSnapshot());
         state.pause_revision = m_system.GetCPU().GetPauseRevision();
         state.game_title = SConfig::GetInstance().GetTitleDescription();
         state.can_change_disc = m_big_picture_disc_game;
@@ -382,6 +407,20 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           return {command, ResultStatus::Unavailable, BigPicture::UnavailableReason::Busy};
         switch (command.action)
         {
+        case Action::EditSetting:
+        {
+          if (!command.setting)
+            return {command, ResultStatus::Unavailable,
+                    BigPicture::UnavailableReason::InvalidArgument};
+          const auto result = m_big_picture_settings->Apply(*command.setting);
+          using Common::Settings::Status;
+          if (result.status == Status::Success)
+            return {command, ResultStatus::Succeeded};
+          if (result.status == Status::Stale)
+            return {command, ResultStatus::Stale};
+          return {command, ResultStatus::Unavailable,
+                  BigPicture::UnavailableReason::InvalidArgument};
+        }
         case Action::Library:
         {
           using O = BigPicture::LibraryOperation;
@@ -963,6 +1002,10 @@ void MainWindow::ShutdownControllers()
 void MainWindow::InitCoreCallbacks()
 {
   connect(&Settings::Instance(), &Settings::EmulationStateChanged, this, [this](Core::State state) {
+    // Backend information belongs to graphics initialization. Sample capabilities
+    // after the owner publishes readiness, never while it is still constructing them.
+    if (state == Core::State::Running || state == Core::State::Paused)
+      m_settings_post_processing = g_backend_info.bSupportsPostProcessing;
     m_big_picture_host->Refresh();
     if (state == Core::State::Uninitialized)
       OnStopComplete();
@@ -1256,6 +1299,7 @@ void MainWindow::PollStandalone()
   const auto status = m_standalone->GetStatus();
   if (status == Status::Ready && !m_standalone_ready && m_standalone_stop == StandaloneStop::None)
   {
+    m_settings_post_processing = g_backend_info.bSupportsPostProcessing;
     m_standalone_ready = true;
     m_menu_bar->SetBigPictureActive(true);
     m_big_picture_host->Refresh();
@@ -1469,6 +1513,11 @@ void MainWindow::ConnectHotkeys()
             m_big_picture_host->RequestAction(
                 generation, action, input_epoch, slot, confirmation_id, path.toStdString(),
                 static_cast<BigPicture::LibraryOperation>(library_operation), library_revision);
+          });
+  qRegisterMetaType<Common::Settings::Request>();
+  connect(m_hotkey_scheduler, &HotkeyScheduler::BigPictureSetting, this,
+          [this](Common::Settings::Request request, quint64 generation, quint64 input_epoch) {
+            m_big_picture_host->RequestSetting(generation, std::move(request), input_epoch);
           });
   connect(
       m_hotkey_scheduler, &HotkeyScheduler::BigPictureOptions, this,

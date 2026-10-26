@@ -16,6 +16,7 @@ add_library(common
   Assert.h
   BigPicture/Contracts.h
   BigPicture/Library.h
+  Settings/Descriptor.h
   BigPicture/Navigation.cpp
   BigPicture/Navigation.h
   BigPicture/PresentationState.cpp

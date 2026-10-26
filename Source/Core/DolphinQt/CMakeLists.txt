@@ -64,6 +64,8 @@ add_library(dolphinqt-config-binder STATIC
   Config/Binder/ConfigWidgetBinder.h
   Config/Binder/ConfigSettingRegistry.cpp
   Config/Binder/ConfigSettingRegistry.h
+  Config/Binder/SharedSettings.cpp
+  Config/Binder/SharedSettings.h
   Config/SettingsHelp.h
   Config/Binder/BalloonTip.cpp
   Config/Binder/BalloonTip.h
@@ -77,7 +79,7 @@ add_library(dolphinqt-config-binder STATIC
   QtUtils/ModalMessageBox.h
 )
 target_include_directories(dolphinqt-config-binder PUBLIC ${CMAKE_SOURCE_DIR}/Source/Core)
-target_link_libraries(dolphinqt-config-binder PUBLIC Qt6::Widgets PRIVATE core)
+target_link_libraries(dolphinqt-config-binder PUBLIC Qt6::Widgets PRIVATE core uicommon)
 target_compile_definitions(dolphinqt-config-binder
 PRIVATE
   -DQT_USE_QSTRINGBUILDER

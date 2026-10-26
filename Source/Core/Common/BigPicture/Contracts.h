@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "Common/BigPicture/Library.h"
+#include "Common/Settings/Descriptor.h"
 
 namespace BigPicture
 {
@@ -68,6 +69,7 @@ enum class Action
   Library,
   BootIPL,
   BootSystemMenu,
+  EditSetting,
   Count
 };
 
@@ -114,6 +116,7 @@ struct Command
   std::uint64_t confirmation_id = 0;
   LibraryOperation library_operation = LibraryOperation::None;
   std::uint64_t library_revision = 0;
+  std::optional<Common::Settings::Request> setting;
 };
 
 struct Result
@@ -147,6 +150,7 @@ struct HostState
   std::string launch_path;
   std::string launch_title;
   std::shared_ptr<const LibrarySnapshot> library;
+  std::shared_ptr<const Common::Settings::Snapshot> settings;
   std::array<bool, 6> boot_ipl_available{};
   bool boot_system_menu_available = false;
 };
