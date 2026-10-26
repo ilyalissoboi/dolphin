@@ -105,6 +105,22 @@ struct NavigationText
   std::string stop_help;
   std::string standalone_help;
   std::string confirm_exit_idle;
+  std::array<std::string, static_cast<std::size_t>(LibraryOperation::Count)> library_actions;
+  std::string library_empty;
+  std::string library_no_matches;
+  std::string library_scanning;
+  std::string library_choose_folder;
+  std::string library_parent;
+  std::string library_roots;
+  std::string library_space;
+  std::string library_keyboard;
+  std::string library_disc_games;
+  std::string library_keyboard_prompts;
+  std::string library_cancel;
+  std::string library_grid;
+  std::string library_list;
+  std::string library_all;
+  std::string disc_change_requested;
 };
 
 struct NavigationRequest
@@ -116,5 +132,7 @@ struct NavigationRequest
   int slot = 0;
   std::uint64_t confirmation_id = 0;
   std::string path;
+  LibraryOperation library_operation = LibraryOperation::None;
+  std::uint64_t library_revision = 0;
 };
 }  // namespace BigPicture

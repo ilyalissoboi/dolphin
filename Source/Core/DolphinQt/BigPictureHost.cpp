@@ -69,9 +69,12 @@ void BigPictureHost::RequestBack()
 
 void BigPictureHost::RequestAction(std::uint64_t generation, BigPicture::Action action,
                                    std::optional<std::uint64_t> input_epoch, int slot,
-                                   std::uint64_t confirmation_id, std::string path)
+                                   std::uint64_t confirmation_id, std::string path,
+                                   BigPicture::LibraryOperation library_operation,
+                                   std::uint64_t library_revision)
 {
-  Submit({generation, m_next_id.fetch_add(1), action, std::move(path), slot, confirmation_id},
+  Submit({generation, m_next_id.fetch_add(1), action, std::move(path), slot, confirmation_id,
+          library_operation, library_revision},
          input_epoch);
 }
 
@@ -166,7 +169,7 @@ void BigPictureHost::PrepareForBoot()
 {
   Q_ASSERT(QThread::currentThread() == thread());
   const auto snapshot = m_controller.GetSnapshot();
-  if (!snapshot->pending || snapshot->pending->action != BigPicture::Action::Boot)
+  if (!snapshot->pending || !BigPicture::IsBootAction(snapshot->pending->action))
   {
     InvalidateSession();
     m_controller.Submit({m_controller.GetSnapshot()->generation, m_next_id.fetch_add(1),

@@ -44,6 +44,8 @@ add_library(videocommon
   BigPicture/Navigation.h
   BigPicture/InGameMenu.cpp
   BigPicture/InGameMenu.h
+  BigPicture/LibraryMenu.cpp
+  BigPicture/LibraryMenu.h
   BigPicture/StandaloneSession.cpp
   BigPicture/StandaloneSession.h
   BoundingBox.cpp

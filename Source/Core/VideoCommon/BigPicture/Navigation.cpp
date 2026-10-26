@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include <imgui_internal.h>
+
 namespace VideoCommon::BigPicture
 {
 MenuLayout ComputeMenuLayout(ImVec2 viewport, ::BigPicture::NavigationOptions options, bool dialog)
@@ -64,7 +66,8 @@ FocusMemory NavigationToolkit::GetMemory(const std::string& page) const
 }
 
 MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::NavigationOptions options,
-                                   const std::string& prompts, ImFont* font)
+                                   const std::string& prompts, ImFont* font,
+                                   const std::function<ImTextureID(const std::string&)>& image)
 {
   MenuResult result;
   const auto layout = ComputeMenuLayout(ImGui::GetIO().DisplaySize, options, page.dialog);
@@ -74,6 +77,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   auto& memory = m_memory[page.id];
   const auto previous_focus = memory.item;
+  const bool revision_changed = m_focus_revision != page.focus_revision;
   const bool entering = m_current_page != page.id || m_focus_revision != page.focus_revision ||
                         m_layout_width != layout.size.x || m_layout_height != layout.size.y ||
                         m_layout_scale != scale;
@@ -81,7 +85,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   m_focus_revision = page.focus_revision;
   // Destructive dialogs always start at their safe default, including another request using
   // the same page. Reuse one memory entry rather than accumulating entries per command ID.
-  if (entering && page.dialog)
+  if (entering && (page.dialog || (page.reset_on_revision && revision_changed)))
     memory = {};
   m_layout_width = layout.size.x;
   m_layout_height = layout.size.y;
@@ -89,11 +93,24 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   auto focus = std::ranges::find_if(page.items, [&](const MenuItem& item) {
     return item.enabled && item.id == (memory.item.empty() ? page.default_focus : memory.item);
   });
-  if (focus == page.items.end())
-    focus = std::ranges::find_if(page.items, &MenuItem::enabled);
+  bool toolbar_focus = std::ranges::any_of(
+      page.toolbar, [&](const auto& item) { return item.enabled && item.id == memory.item; });
+  if (focus == page.items.end() && !toolbar_focus)
+  {
+    toolbar_focus = std::ranges::any_of(page.toolbar, [&](const auto& item) {
+      return item.enabled && item.id == page.default_focus;
+    });
+    if (toolbar_focus)
+      memory.item = page.default_focus;
+    focus = std::ranges::find_if(page.items, [&](const auto& item) {
+      return item.enabled && item.id == page.default_focus;
+    });
+    if (focus == page.items.end() && !toolbar_focus)
+      focus = std::ranges::find_if(page.items, &MenuItem::enabled);
+  }
   if (focus != page.items.end())
     memory.item = focus->id;
-  else
+  else if (!toolbar_focus)
     memory.item.clear();
   const auto focus_id = memory.item;
   const bool restore_focus = entering || previous_focus != focus_id;
@@ -128,22 +145,55 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   if (!page.description.empty())
     ImGui::TextWrapped("%s", page.description.c_str());
   ImGui::Separator();
+  if (!page.toolbar.empty())
+  {
+    ImGui::PushFont(font, 18 * scale / font_scale);
+    const float toolbar_width = (ImGui::GetContentRegionAvail().x -
+                                 static_cast<float>(page.toolbar.size() - 1) * 12 * scale) /
+                                page.toolbar.size();
+    for (const auto& item : page.toolbar)
+    {
+      if (&item != &page.toolbar.front())
+        ImGui::SameLine();
+      ImGui::PushID(item.id.c_str());
+      if (restore_focus && item.id == focus_id)
+        ImGui::SetKeyboardFocusHere();
+      ImGui::BeginDisabled(!item.enabled);
+      const bool clicked = ImGui::Button(item.label.c_str(), ImVec2(toolbar_width, 42 * scale));
+      if (item.enabled && (clicked || ImGui::IsItemFocused()))
+        memory.item = item.id;
+      if (clicked)
+        result.activated = item.id;
+      ImGui::EndDisabled();
+      ImGui::PopID();
+    }
+    ImGui::PopFont();
+  }
   const float footer_height = 64 * scale;
   if (entering || m_restore_frames != 0)
     ImGui::SetNextWindowScroll(
         ImVec2(0, (m_restore_frames ? m_restore_scroll : memory.scroll) * scale));
-  ImGui::BeginChild(page.id.c_str(), ImVec2(0, -footer_height), ImGuiChildFlags_None,
+  ImGui::BeginChild(page.id.c_str(), ImVec2(0, -footer_height),
+                    page.toolbar.empty() ? ImGuiChildFlags_None : ImGuiChildFlags_NavFlattened,
                     ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
   const bool previous =
       ImGui::IsKeyPressed(ImGuiKey_GamepadL1) || ImGui::IsKeyPressed(ImGuiKey_PageUp);
   const bool next =
       ImGui::IsKeyPressed(ImGuiKey_GamepadR1) || ImGui::IsKeyPressed(ImGuiKey_PageDown);
+  const int columns =
+      page.artwork && page.columns > 1 ?
+          std::clamp(static_cast<int>(ImGui::GetContentRegionAvail().x / (220 * scale)), 1, 6) :
+          std::clamp(page.columns, 1, 6);
   std::string requested_focus;
   if (focus != page.items.end() && (previous || next))
   {
     const int current = static_cast<int>(focus - page.items.begin());
-    const int step = std::max(1, static_cast<int>(ImGui::GetWindowHeight() / (76 * scale)));
+    const float row_height = (page.compact ? 48 :
+                              page.artwork ? (columns == 1 ? 96 : 280) :
+                                             76) *
+                             scale;
+    const int step = std::max(1, static_cast<int>(ImGui::GetWindowHeight() / row_height)) * columns;
     int target =
         std::clamp(current + (next ? step : -step), 0, static_cast<int>(page.items.size()) - 1);
     while (target >= 0 && target < static_cast<int>(page.items.size()))
@@ -156,22 +206,29 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
       target += next ? 1 : -1;
     }
   }
-  const int columns = std::clamp(page.columns, 1, 6);
   const float width = (ImGui::GetContentRegionAvail().x - (columns - 1) * 12 * scale) / columns;
   for (std::size_t i = 0; i < page.items.size(); ++i)
   {
     const auto& item = page.items[i];
     if (i % columns != 0)
       ImGui::SameLine();
-    const float wrap_width = std::max(scale, width - 32 * scale);
+    const float artwork_height = page.artwork ? (columns == 1 ? 72 : 144) * scale : 0;
+    const float artwork_width = artwork_height * 2 / 3;
+    const float text_offset = page.artwork && columns == 1 ? artwork_width + 24 * scale : 0;
+    const float text_top = page.artwork && columns > 1 ? artwork_height + 12 * scale : 0;
+    const float wrap_width = std::max(scale, width - 32 * scale - text_offset);
     const float label_height =
         ImGui::CalcTextSize(item.label.c_str(), nullptr, false, wrap_width).y;
     const float detail_height =
         item.detail.empty() ?
             0 :
             ImGui::CalcTextSize(item.detail.c_str(), nullptr, false, wrap_width).y + 8 * scale;
-    const float height =
-        std::max((columns == 1 ? 64 : 150) * scale, label_height + detail_height + 24 * scale);
+    const float height = std::max((page.compact ? 40 :
+                                   page.artwork ? 96 :
+                                   columns == 1 ? 64 :
+                                                  150) *
+                                      scale,
+                                  text_top + label_height + detail_height + 24 * scale);
     ImGui::PushID(item.id.c_str());
     const bool request_focus = (restore_focus && item.id == focus_id) || item.id == requested_focus;
     if (request_focus && item.enabled)
@@ -200,25 +257,49 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
         ImGui::SetScrollY(m_restore_scroll * scale);
       }
     }
+    if (clicked && item.enabled)
+      result.activated = item.id;
+    // Selectable still participates in navigation/scroll restoration when clipped. Custom
+    // rounded backgrounds and text must not allocate geometry for thousands of hidden rows.
+    if (!ImGui::IsItemVisible())
+    {
+      ImGui::EndDisabled();
+      ImGui::PopID();
+      continue;
+    }
     auto* draw = ImGui::GetWindowDrawList();
     if (item.id != memory.item && !ImGui::IsItemHovered() && !ImGui::IsItemFocused())
       draw->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_FrameBg), 4 * scale);
     draw->PushClipRect(min, max, true);
+    if (page.artwork && max.y >= ImGui::GetWindowPos().y &&
+        min.y <= ImGui::GetWindowPos().y + ImGui::GetWindowHeight())
+    {
+      const ImVec2 image_min(min.x + (columns == 1 ? 12 * scale : (width - artwork_width) * 0.5f),
+                             min.y + 8 * scale);
+      const ImVec2 image_max(image_min.x + artwork_width, image_min.y + artwork_height);
+      const auto texture = image && !item.image_key.empty() ? image(item.image_key) : ImTextureID{};
+      if (texture)
+        draw->AddImage(texture, image_min, image_max);
+      else
+        draw->AddRectFilled(image_min, image_max, IM_COL32(50, 60, 80, 255), 4 * scale);
+    }
     draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
-                  ImVec2(min.x + 16 * scale, min.y + 12 * scale), ImGui::GetColorU32(ImGuiCol_Text),
-                  item.label.c_str(), nullptr, wrap_width);
+                  ImVec2(min.x + 16 * scale + text_offset, min.y + 12 * scale + text_top),
+                  ImGui::GetColorU32(ImGuiCol_Text), item.label.c_str(), nullptr, wrap_width);
     if (!item.detail.empty())
       draw->AddText(
           ImGui::GetFont(), ImGui::GetFontSize(),
-          ImVec2(min.x + 16 * scale, min.y + 20 * scale + label_height),
+          ImVec2(min.x + 16 * scale + text_offset, min.y + 20 * scale + label_height + text_top),
           ImGui::GetColorU32(item.id == memory.item ? ImGuiCol_Text : ImGuiCol_TextDisabled),
           item.detail.c_str(), nullptr, wrap_width);
     draw->PopClipRect();
-    if (clicked && item.enabled)
-      result.activated = item.id;
     ImGui::EndDisabled();
     ImGui::PopID();
   }
+  // List menus loop in both directions, including when the opposite end is clipped.
+  // Grids retain directional navigation between cards and their toolbar.
+  if (columns == 1 && page.toolbar.empty())
+    ImGui::NavMoveRequestTryWrapping(ImGui::GetCurrentWindow(), ImGuiNavMoveFlags_LoopY);
   memory.scroll = m_restore_frames ? m_restore_scroll : ImGui::GetScrollY() / scale;
   if (m_restore_frames)
     --m_restore_frames;
@@ -228,6 +309,7 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
   ImGui::PopFont();
   result.back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
+  result.focused = memory.item;
   ImGui::End();
   ImGui::PopFont();
   ImGui::PopStyleVar(2);

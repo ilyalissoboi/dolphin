@@ -6,9 +6,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "Common/BigPicture/Library.h"
 
 namespace BigPicture
 {
@@ -26,7 +29,10 @@ enum class Screen
   SaveStates,
   LoadStates,
   Confirmation,
-  Error
+  Error,
+  LibraryOptions,
+  FilePicker,
+  TextInput
 };
 enum class Lifecycle
 {
@@ -59,8 +65,16 @@ enum class Action
   Exit,
   OpenGame,
   Fullscreen,
+  Library,
+  BootIPL,
+  BootSystemMenu,
   Count
 };
+
+constexpr bool IsBootAction(Action action)
+{
+  return action == Action::Boot || action == Action::BootIPL || action == Action::BootSystemMenu;
+}
 enum class UnavailableReason
 {
   None,
@@ -98,6 +112,8 @@ struct Command
   // Confirm must name the destructive request displayed by its dialog. A delayed activation
   // from an earlier dialog must never confirm a different action in the same session.
   std::uint64_t confirmation_id = 0;
+  LibraryOperation library_operation = LibraryOperation::None;
+  std::uint64_t library_revision = 0;
 };
 
 struct Result
@@ -130,6 +146,9 @@ struct HostState
   std::array<StateSlot, STATE_SLOT_COUNT> state_slots;
   std::string launch_path;
   std::string launch_title;
+  std::shared_ptr<const LibrarySnapshot> library;
+  std::array<bool, 6> boot_ipl_available{};
+  bool boot_system_menu_available = false;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -20,6 +21,7 @@ struct MenuItem
   std::string label;
   std::string detail;
   bool enabled = true;
+  std::string image_key;
 };
 
 struct MenuPage
@@ -32,12 +34,17 @@ struct MenuPage
   int columns = 1;
   bool dialog = false;
   std::uint64_t focus_revision = 0;
+  std::vector<MenuItem> toolbar;
+  bool artwork = false;
+  bool compact = false;
+  bool reset_on_revision = false;
 };
 
 struct MenuResult
 {
   std::optional<std::string> activated;
   bool back = false;
+  std::string focused;
 };
 
 struct FocusMemory
@@ -62,7 +69,8 @@ class NavigationToolkit
 {
 public:
   MenuResult Draw(const MenuPage& page, ::BigPicture::NavigationOptions options,
-                  const std::string& prompts, ImFont* font = nullptr);
+                  const std::string& prompts, ImFont* font = nullptr,
+                  const std::function<ImTextureID(const std::string&)>& image = {});
   void InvalidateFocus() { m_current_page.clear(); }
   void Reset();
   FocusMemory GetMemory(const std::string& page) const;

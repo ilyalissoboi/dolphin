@@ -88,6 +88,14 @@ PRIVATE
 add_executable(dolphin-emu
   BigPictureHost.cpp
   BigPictureHost.h
+  BigPictureLibrary.cpp
+  BigPictureLibrary.h
+  BigPictureTextInput.cpp
+  BigPictureTextInput.h
+  QtUtils/RenderSurfaceHost.cpp
+  QtUtils/RenderSurfaceHost.h
+  BigPictureGraphicsConfig.cpp
+  BigPictureGraphicsConfig.h
   AboutDialog.cpp
   AboutDialog.h
   AboutDialog.ui
@@ -599,6 +607,10 @@ if(ENABLE_SDL)
   PRIVATE
     SDL3::SDL3
   )
+endif()
+
+if(APPLE)
+  target_link_libraries(dolphin-emu PRIVATE ${IOK_LIBRARY})
 endif()
 
 if (NEED_QT_GUI_PRIVATE_COMPONENT)

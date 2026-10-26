@@ -6,10 +6,27 @@
 
 Big Picture can now open without a running game through View → Big Picture, the startup
 preference in Config → Big Picture, or the GUI `--big-picture` option. Normal desktop startup
-remains the default. The initial screen can play the selected/default game, open the desktop
-game picker, adjust menu preferences, toggle fullscreen, return to desktop or exit Dolphin.
-Stopping a game launched in this mode returns to Big Picture. A full scanned library and
-controller file picker are planned for the next slice.
+remains the default. The library uses Dolphin's existing scanned games and covers, with grid/list
+views, search, platform/region/tag filters, and title/play-time/file-size sorting. Selection and
+view state survive boot, stop and rescans within the session.
+
+Add Game Folder, recursive scanning, Refresh, Open Game and the in-game Change Disc action now
+have controller-operated file/folder pickers. Text entry uses physical/system keyboards when
+available, with controller keys as a fallback, and search can be cleared directly from the
+library. Change Disc starts with matching games from the library; Browse Files starts beside
+the running image or in a configured ROM folder. Library Options also
+offers available GameCube IPLs and the installed Wii System Menu, menu preferences, fullscreen,
+desktop return and exit. Big Picture keeps its presentation window and fullscreen state through
+boot, stop and graphics handoffs. Stopping a game launched in this mode returns to the library. Disc
+insertion requested while paused completes after Resume.
+
+Starting in Big Picture no longer shows the desktop game grid before the renderer is ready.
+The desktop window stays hidden behind separate/fullscreen Big Picture during game transitions.
+Compatible boot/stop transitions also keep the native drawing surface; fresh surfaces receive
+a black background before graphics initialization instead of showing uninitialized pixels.
+Direct3D 12 releases its old swap-chain buffers at shutdown so the retained window can be
+used again when launching or stopping a game.
+List menus wrap consistently in both directions with keyboard and controller input.
 
 ### Post-Processing
 

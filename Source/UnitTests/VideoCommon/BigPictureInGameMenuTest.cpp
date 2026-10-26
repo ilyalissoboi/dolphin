@@ -160,4 +160,96 @@ TEST_F(BigPictureInGameMenuTest, IdleLandingOffersBootAndNativeHandoffsWithoutGa
   EXPECT_FALSE(menu.Activate({"save"}));
   EXPECT_FALSE(menu.Activate({"resume"}));
 }
+TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSelectionDisappears)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Library};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->games = {{"one.iso", "Same title"}, {"two.iso", "Same title"}};
+  library->total_games = 2;
+  library->selected_path = "two.iso";
+  snapshot.host.library = library;
+  auto menu = Build();
+  EXPECT_EQ(menu.page.default_focus, "game:two.iso");
+  EXPECT_EQ(menu.Activate({"game:two.iso"})->path, "two.iso");
+  EXPECT_EQ(menu.Activate({"add-folder"})->library_operation, LibraryOperation::AddFolder);
+  EXPECT_EQ(menu.page.toolbar.size(), 4u);
+  library->selected_path.clear();
+  library->games.pop_back();
+  menu = Build();
+  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_FALSE(menu.Activate({"game:two.iso"}));
+}
+
+TEST_F(BigPictureInGameMenuTest, PickerUsesRevisionAndDistinguishesFolderNavigationFromDiscChanges)
+{
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->picker_revision = 9;
+  library->picker_disc = true;
+  library->files = {{"dir", "Folder", true}, {"other.iso", "Other Disc", false}};
+  snapshot.host.library = library;
+  snapshot.host.can_change_disc = true;
+  snapshot.screens.push_back(Screen::FilePicker);
+  auto menu = Build();
+  EXPECT_EQ(menu.Activate({"file:dir"})->library_operation, LibraryOperation::EnterDirectory);
+  ASSERT_TRUE(menu.Activate({"file:other.iso"}));
+  EXPECT_EQ(menu.Activate({"file:other.iso"})->action, Action::ChangeDisc);
+  EXPECT_EQ(menu.Activate({"file:other.iso"})->library_revision, 9u);
+  library->picker_disc = false;
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  ASSERT_TRUE(Build().Activate({"file:other.iso"}));
+  EXPECT_EQ(Build().Activate({"file:other.iso"})->action, Action::Boot);
+}
+
+TEST_F(BigPictureInGameMenuTest, InGameDiscActionOpensControllerPickerWhenLibraryIsAvailable)
+{
+  snapshot.host.library = std::make_shared<LibrarySnapshot>();
+  snapshot.host.can_change_disc = true;
+  const auto menu = Build();
+  EXPECT_EQ(menu.Activate({"disc"})->action, Action::Library);
+  EXPECT_EQ(menu.Activate({"disc"})->library_operation, LibraryOperation::OpenDisc);
+}
+TEST_F(BigPictureInGameMenuTest, LibraryPolicyDisablesCardsWithoutCreatingFallbackRequests)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.screens = {Screen::Library};
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.host.netplay = true;
+  text.reasons[static_cast<std::size_t>(UnavailableReason::NetPlay)] = "NetPlay";
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->games = {{"game.iso", "Game"}};
+  library->selected_path = "game.iso";
+  snapshot.host.library = library;
+  const auto menu = Build();
+  ASSERT_EQ(menu.page.items.size(), 1u);
+  EXPECT_FALSE(menu.page.items.front().enabled);
+  EXPECT_EQ(menu.page.items.front().detail, "NetPlay");
+  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_FALSE(menu.Activate({"game:game.iso"}));
+}
+
+TEST_F(BigPictureInGameMenuTest,
+       SearchCanBeClearedDirectlyAndNativeTextEntryDoesNotShowControllerKeys)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Library};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->query = "Search";
+  snapshot.host.library = library;
+  auto menu = Build();
+  ASSERT_TRUE(menu.Activate({"clear-search"}));
+  EXPECT_EQ(menu.Activate({"clear-search"})->library_operation, LibraryOperation::ClearSearch);
+  snapshot.screens.push_back(Screen::TextInput);
+  library->native_text_input = true;
+  menu = Build();
+  EXPECT_FALSE(menu.Activate({"key-0"}));
+  EXPECT_TRUE(menu.page.toolbar.empty());
+  library->native_text_input = false;
+  menu = Build();
+  EXPECT_TRUE(menu.Activate({"key-0"}));
+  EXPECT_EQ(menu.Activate({"clear-text"})->library_operation, LibraryOperation::TextClear);
+}
 }  // namespace

@@ -1,6 +1,8 @@
 // Copyright 2026 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <array>
+
 #include <gtest/gtest.h>
 #include <imgui.h>
 
@@ -92,6 +94,33 @@ TEST_F(BigPictureNavigationUITest, DialogDefaultsToCancelAndSwapPreservesLogical
   EXPECT_EQ(Press(dialog, swapped_confirm).activated, "cancel");
   EXPECT_TRUE(Press(dialog, swapped_back).back);
   EXPECT_TRUE(Press(dialog, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, ListLoopsBothDirectionsWithKeyboardAndGamepad)
+{
+  MenuPage page{"pause", "Pause"};
+  page.items.push_back({"disabled-start", "Unavailable", {}, false});
+  for (int i = 0; i < 24; ++i)
+    page.items.push_back({std::to_string(i), "Item " + std::to_string(i)});
+  page.items.push_back({"disabled-end", "Unavailable", {}, false});
+  Settle(page);
+  for (const auto [up, down, confirm] :
+       {std::array{ImGuiKey_UpArrow, ImGuiKey_DownArrow, ImGuiKey_Enter},
+        std::array{ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadDpadDown, ImGuiKey_GamepadFaceDown}})
+  {
+    EXPECT_EQ(toolkit.GetMemory("pause").item, "0");
+    Press(page, up);
+    Settle(page);
+    EXPECT_EQ(toolkit.GetMemory("pause").item, "23");
+    EXPECT_GT(toolkit.GetMemory("pause").scroll, 0);
+    EXPECT_EQ(Press(page, confirm).activated, "23");
+    Press(page, down);
+    Settle(page);
+    EXPECT_EQ(toolkit.GetMemory("pause").item, "0");
+    EXPECT_EQ(Press(page, confirm).activated, "0");
+    // The first enabled row follows a disabled row; it must be back in view.
+    EXPECT_LT(toolkit.GetMemory("pause").scroll, 100);
+  }
 }
 
 TEST_F(BigPictureNavigationUITest, DisabledAndRemovedItemsDoNotRetainUnusableFocus)
@@ -224,5 +253,62 @@ TEST_F(BigPictureNavigationUITest, ResizingListRestoresSelectionAndLogicalScroll
   EXPECT_EQ(toolkit.GetMemory("resize").item, before.item);
   EXPECT_NEAR(toolkit.GetMemory("resize").scroll, before.scroll, 2.0f);
   EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, before.item);
+}
+TEST_F(BigPictureNavigationUITest, LibraryToolbarAndGridAreBothControllerAccessible)
+{
+  MenuPage page{"library", "Library", {}, {{"one", "One"}, {"two", "Two"}}, "refresh", 2};
+  page.toolbar = {{"options", "Options"}, {"refresh", "Refresh"}};
+  page.artwork = true;
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "refresh");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "refresh");
+  Press(page, ImGuiKey_GamepadDpadDown);
+  EXPECT_TRUE(toolkit.GetMemory("library").item == "one" ||
+              toolkit.GetMemory("library").item == "two");
+  Press(page, ImGuiKey_GamepadDpadUp);
+  EXPECT_TRUE(toolkit.GetMemory("library").item == "options" ||
+              toolkit.GetMemory("library").item == "refresh");
+}
+
+TEST_F(BigPictureNavigationUITest, RemovingSelectedGameUsesSafeToolbarFocusInsteadOfAnotherGame)
+{
+  MenuPage page{"library", "Library", {}, {{"one", "One"}, {"two", "Two"}}, "two"};
+  page.toolbar = {{"refresh", "Refresh"}};
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory("library").item, "two");
+  page.items.pop_back();
+  page.default_focus = "refresh";
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "refresh");
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "refresh");
+}
+TEST_F(BigPictureNavigationUITest, KeyboardShoulderPagingMovesByVisibleGridRows)
+{
+  MenuPage page{"keyboard", "Keyboard"};
+  page.columns = 6;
+  page.compact = true;
+  for (int i = 0; i < 80; ++i)
+    page.items.push_back({std::to_string(i), "Key"});
+  Settle(page);
+  Press(page, ImGuiKey_GamepadR1);
+  EXPECT_GE(std::stoi(toolkit.GetMemory("keyboard").item), 24);
+  Press(page, ImGuiKey_GamepadL1);
+  EXPECT_EQ(toolkit.GetMemory("keyboard").item, "0");
+}
+TEST_F(BigPictureNavigationUITest, LargeLibraryDoesNotGenerateGeometryForOffscreenCards)
+{
+  MenuPage page{"large-library", "Library"};
+  page.default_focus = "4999";
+  page.columns = 4;
+  page.artwork = true;
+  for (int i = 0; i < 5000; ++i)
+    page.items.push_back({std::to_string(i), "Library game", "GameCube | NTSC-U"});
+  Settle(page);
+  ASSERT_NE(ImGui::GetDrawData(), nullptr);
+  EXPECT_LT(ImGui::GetDrawData()->TotalVtxCount, 10000);
+  EXPECT_LT(ImGui::GetDrawData()->TotalIdxCount, 20000);
+  EXPECT_EQ(toolkit.GetMemory("large-library").item, "4999");
+  EXPECT_GT(toolkit.GetMemory("large-library").scroll, 0);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "4999");
 }
 }  // namespace

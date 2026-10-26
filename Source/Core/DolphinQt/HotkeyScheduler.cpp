@@ -167,9 +167,10 @@ void HotkeyScheduler::Run()
       }
       else
       {
-        emit BigPictureAction(static_cast<int>(request.action), request.generation,
-                              request.input_epoch, request.slot, request.confirmation_id,
-                              QString::fromStdString(request.path));
+        emit BigPictureAction(
+            static_cast<int>(request.action), request.generation, request.input_epoch, request.slot,
+            request.confirmation_id, QString::fromStdString(request.path),
+            static_cast<int>(request.library_operation), request.library_revision);
       }
     }
     if (toggle)
