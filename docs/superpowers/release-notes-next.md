@@ -15,7 +15,7 @@ have controller-operated file/folder pickers. Text entry uses physical/system ke
 available, with controller keys as a fallback, and search can be cleared directly from the
 library. Change Disc starts with matching games from the library; Browse Files starts beside
 the running image or in a configured ROM folder. Library Options also
-offers available GameCube IPLs and the installed Wii System Menu, menu preferences, fullscreen,
+offers available GameCube IPLs and the installed Wii System Menu, fullscreen,
 desktop return and exit. Big Picture keeps its presentation window and fullscreen state through
 boot, stop and graphics handoffs. Stopping a game launched in this mode returns to the library. Disc
 insertion requested while paused completes after Resume.
@@ -27,6 +27,20 @@ a black background before graphics initialization instead of showing uninitializ
 Direct3D 12 releases its old swap-chain buffers at shutdown so the retained window can be
 used again when launching or stopping a game.
 List menus wrap consistently in both directions with keyboard and controller input.
+
+Settings is a top-level Big Picture entry, separate from Library Options. It includes
+interface/menu preferences, volume and audio backend,
+graphics backend, internal resolution, aspect ratio, VSync, integer scaling and a folder-based
+post-processing preset picker. Global and selected/running-game settings show their context,
+inherited values, disabled reasons and apply timing. Reset to Default and Use Inherited Value
+remain separate actions. Settings persist through Dolphin's existing configuration files;
+changing the idle graphics backend rebuilds Big Picture while retaining the settings page.
+
+The Controllers page selects physical input devices and loads existing user/stock profiles
+for emulated GameCube controllers and Wii Remotes. Per-game profile selection stores a user
+profile reference for the next game start without replacing the global mapping. Controller
+changes require stopped emulation and are blocked during NetPlay and movie sessions. Full
+mapping, controller-type setup and shader parameters remain available on the desktop.
 
 ### Post-Processing
 

@@ -16,11 +16,12 @@ add_library(common
   Assert.h
   BigPicture/Contracts.h
   BigPicture/Library.h
-  Settings/Descriptor.h
+  BigPicture/Settings.h
   BigPicture/Navigation.cpp
   BigPicture/Navigation.h
   BigPicture/PresentationState.cpp
   BigPicture/PresentationState.h
+  Settings/Descriptor.h
   BitField.h
   BitSet.h
   BitUtils.h

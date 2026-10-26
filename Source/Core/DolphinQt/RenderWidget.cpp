@@ -48,6 +48,7 @@ RenderWidget::RenderWidget(QWidget* parent) : QWidget(parent)
   setWindowIcon(Resources::GetAppIcon());
   setWindowRole(QStringLiteral("renderer"));
   setAcceptDrops(true);
+  setFocusPolicy(Qt::StrongFocus);
 
   QPalette p;
   p.setColor(QPalette::Window, Qt::black);

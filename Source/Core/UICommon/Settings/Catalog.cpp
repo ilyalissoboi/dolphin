@@ -131,6 +131,16 @@ const Catalog& GetCatalog()
                                            context.fallback.get());
       return enabled ? std::string{} : std::string{_trans("Enable RAM override first.")};
     };
+    auto& resolution = add(Config::GFX_EFB_SCALE, "display.internal_resolution", "Display",
+                           _trans("Internal Resolution"), Control::Choice, true);
+    resolution.options = [](const Environment& environment) {
+      std::vector<Choice> choices{{0, _trans("Auto (Multiple of 640x528)")},
+                                  {1, _trans("Native (640x528)")}};
+      for (int scale = 2; scale <= std::clamp(environment.max_efb_scale, 2, 64); ++scale)
+        choices.push_back({scale, std::to_string(scale) + "x (" + std::to_string(640 * scale) +
+                                      "x" + std::to_string(528 * scale) + ")"});
+      return choices;
+    };
     const std::pair<const char*, const char*> help[] = {
         {"interface.start_big_picture",
          _trans("Open the controller-operated library when Dolphin starts.")},
@@ -152,7 +162,8 @@ const Catalog& GetCatalog()
         {"advanced.cpu_clock",
          _trans("Adjust the emulated CPU clock as a percentage of its normal rate.")},
         {"advanced.mem1_size",
-         _trans("Set the MEM1 memory size in MiB. Stop emulation before changing it.")}};
+         _trans("Set the MEM1 memory size in MiB. Stop emulation before changing it.")},
+        {"display.internal_resolution", _trans("Choose the internal rendering resolution scale.")}};
     for (const auto& [id, text] : help)
       std::ranges::find(entries, std::string_view(id), [](const Entry& e) {
         return e.descriptor.id;

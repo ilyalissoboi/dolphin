@@ -92,6 +92,8 @@ add_executable(dolphin-emu
   BigPictureHost.h
   BigPictureLibrary.cpp
   BigPictureLibrary.h
+  BigPictureSettings.cpp
+  BigPictureSettings.h
   BigPictureTextInput.cpp
   BigPictureTextInput.h
   QtUtils/RenderSurfaceHost.cpp

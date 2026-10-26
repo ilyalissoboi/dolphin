@@ -34,13 +34,14 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     request.library_revision = library.picker_revision;
     menu.requests.emplace(std::move(id), std::move(request));
   };
-  const auto action = [&](std::string id, Action a, bool enabled = true,
-                          int slot = 0) -> NavigationRequest* {
+  const auto action = [&](std::string id, Action a, bool enabled = true, int slot = 0,
+                          bool toolbar = false) -> NavigationRequest* {
     const auto reason = snapshot.availability[static_cast<std::size_t>(a)];
     enabled = enabled && reason == UnavailableReason::None;
-    page.items.push_back({id, text.actions[static_cast<std::size_t>(a)],
-                          enabled ? std::string{} : text.reasons[static_cast<std::size_t>(reason)],
-                          enabled});
+    (toolbar ? page.toolbar : page.items)
+        .push_back({id, text.actions[static_cast<std::size_t>(a)],
+                    enabled ? std::string{} : text.reasons[static_cast<std::size_t>(reason)],
+                    enabled});
     if (enabled)
     {
       NavigationRequest request{snapshot.generation, a};
@@ -64,7 +65,6 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     add("tag", O::Tag, {}, library.tag.empty() ? text.library_all : library.tag);
     add("clear", O::ClearFilters);
     add("file", O::OpenFile);
-    action("preferences", Action::Settings);
     action("fullscreen", Action::Fullscreen);
     for (int region : {0, 1, 2, 5})
     {
@@ -183,6 +183,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     if (!library.query.empty())
       add("clear-search", O::ClearSearch, {}, {}, true);
     add("options", O::Options, {}, {}, true);
+    action("settings", Action::Settings, true, 0, true);
     add("add-folder", O::AddFolder, {}, {}, true);
     add("refresh", O::Refresh, {}, {}, true);
     page.columns = library.grid ? 4 : 1;

@@ -44,6 +44,8 @@ struct Environment
   bool netplay = false;
   bool hardcore = false;
   bool post_processing = false;
+  bool movie = false;
+  int max_efb_scale = 12;
   std::vector<Choice> graphics_backends;
   std::vector<Choice> audio_backends;
   bool operator==(const Environment&) const = default;

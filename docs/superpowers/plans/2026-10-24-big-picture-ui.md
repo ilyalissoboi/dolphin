@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slices 0–7 complete, next open slice 8
+**Status:** Implementation in progress; slices 0–8 complete, next open slice 9
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -216,7 +216,7 @@ rendering; mutations go through the host settings service and publish fresh snap
 Implement as small reviewable changes. Each slice below includes a behavior gate, not just a
 new set of files. Slices 1–4 produce the first usable in-game release; 5–10 complete core Big Picture.
 
-**Progress, 2026-10-26:** Slices 0–7 are complete; see the
+**Progress, 2026-10-26:** Slices 0–8 are complete; see the
 [lifecycle/readability results](../specs/2026-10-24-big-picture-lifecycle-spike-results.md) for
 runtime measurements, retained fixes and the ownership design, and the
 [state/host-bridge results](../specs/2026-10-24-big-picture-host-bridge-results.md) for the command,
@@ -233,7 +233,9 @@ and the [library/setup results](../specs/2026-10-25-big-picture-library-results.
 catalog, grid/list, search/filters, bounded covers, controller setup and paused disc picker.
 The [shared settings foundation results](../specs/2026-10-26-big-picture-settings-foundation-results.md)
 record the explicit typed catalog, shared layer operations, desktop adapters and cold-start
-settings snapshots. Slice 8 is the next open slice. Slice 9 unifies the completed menu surfaces to the local PCSX2
+settings snapshots. The [common settings/profile results](../specs/2026-10-26-big-picture-common-settings-results.md)
+record controller-operated settings pages, persistent global/per-game edits, preset discovery and
+controller device/profile selection. Slice 9 is the next open slice and unifies the menu surfaces to the local PCSX2
 fork's layout and style; final state-browser/release hardening moves to slice 10.
 Platform/hardware release checks remain required.
 

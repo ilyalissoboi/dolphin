@@ -81,7 +81,7 @@ protected:
 TEST_F(SettingsServiceTest, CatalogIsCompleteBeforeAnyWidgetsOrRendererExist)
 {
   const auto snapshot = service->ReadSnapshot();
-  EXPECT_EQ(snapshot->settings.size(), 14u);
+  EXPECT_EQ(snapshot->settings.size(), 15u);
   std::set<std::string> ids;
   for (const auto& state : snapshot->settings)
   {
@@ -245,6 +245,20 @@ TEST_F(SettingsServiceTest, DynamicOptionsPreserveUnknownValuesAndInvalidateRequ
   EXPECT_EQ(old->settings[4].descriptor.choices.size(), 2u);
 }
 
+TEST_F(SettingsServiceTest, InternalResolutionUsesStoredScaleAndRetainsUnavailableValues)
+{
+  EXPECT_EQ(Set("display.internal_resolution", 3).status, Status::Success);
+  EXPECT_EQ(Config::Get(Config::GFX_EFB_SCALE), 3);
+  Config::SetBase(Config::GFX_EFB_SCALE, 16);
+  EXPECT_EQ(Read("display.internal_resolution").value, Value(16));
+  EXPECT_FALSE(Read("display.internal_resolution").value_available);
+  environment.max_efb_scale = 16;
+  service->SetEnvironment(environment);
+  EXPECT_TRUE(Read("display.internal_resolution").value_available);
+  EXPECT_EQ(Set("display.internal_resolution", 0).status, Status::Success);
+  EXPECT_EQ(Config::Get(Config::GFX_EFB_SCALE), 0);
+}
+
 TEST_F(SettingsServiceTest, ConfigChangesInvalidateRequestsAndPreservePublishedSnapshots)
 {
   const auto old = service->ReadSnapshot();
@@ -272,6 +286,11 @@ TEST_F(SettingsServiceTest, PoliciesAndDependenciesAreRecheckedAtMutationTime)
   EXPECT_EQ(Display("advanced.cpu_clock", 150).status, Status::Unavailable);
   EXPECT_EQ(Set("audio.volume", 44).status, Status::Success);
   environment.netplay = false;
+  environment.movie = true;
+  service->SetEnvironment(environment);
+  EXPECT_EQ(Set("advanced.overclock_enabled", false).status, Status::Unavailable);
+  EXPECT_EQ(Set("audio.volume", 46).status, Status::Success);
+  environment.movie = false;
   environment.hardcore = true;
   environment.post_processing = false;
   service->SetEnvironment(environment);
