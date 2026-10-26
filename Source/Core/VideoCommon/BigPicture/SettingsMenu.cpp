@@ -18,10 +18,11 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   menu.page.title = view.title;
   menu.page.description = view.description;
   menu.page.default_focus = view.default_focus;
-  menu.page.compact = true;
+  menu.page.overlay = snapshot.mode == Mode::InGame;
   const auto add = [&](const SettingsRow& row, bool toolbar) {
     (toolbar ? menu.page.toolbar : menu.page.items)
-        .push_back({row.id, row.label, row.detail, row.enabled && !snapshot.pending});
+        .push_back(
+            {row.id, row.label, row.detail, row.enabled && !snapshot.pending, {}, row.active});
     if (!row.enabled || snapshot.pending)
       return;
     NavigationRequest request{snapshot.generation, Action::SettingsMenu};

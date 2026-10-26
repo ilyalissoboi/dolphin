@@ -23,17 +23,19 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   using namespace ::BigPicture;
   InGameMenu menu;
   auto& page = menu.page;
+  page.overlay = snapshot.mode == Mode::InGame;
   const auto label = [&](Action action) -> const std::string& {
     return text.actions[static_cast<std::size_t>(action)];
   };
   const auto reason_text = [&](UnavailableReason reason) -> const std::string& {
     return text.reasons[static_cast<std::size_t>(reason)];
   };
-  const auto add = [&](std::string id, Action action, std::string detail = {}) {
+  const auto add = [&](std::string id, Action action, std::string detail = {},
+                       bool toolbar = false) {
     const auto reason = snapshot.availability[static_cast<std::size_t>(action)];
     const bool enabled = reason == UnavailableReason::None;
-    page.items.push_back(
-        {id, label(action), enabled ? std::move(detail) : reason_text(reason), enabled});
+    (toolbar ? page.toolbar : page.items)
+        .push_back({id, label(action), enabled ? std::move(detail) : reason_text(reason), enabled});
     if (enabled)
       menu.requests.emplace(std::move(id), NavigationRequest{snapshot.generation, action});
   };
@@ -89,6 +91,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.id = saving ? "save-states" : "load-states";
     page.title = label(saving ? Action::SaveStates : Action::LoadStates);
     page.description = text.state_browser_help;
+    page.columns = 4;
     const auto reason = snapshot.availability[static_cast<std::size_t>(action)];
     for (std::size_t slot = 0; slot < STATE_SLOT_COUNT; ++slot)
     {
@@ -109,8 +112,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
         menu.requests.emplace(id, std::move(request));
       }
     }
-    add("refresh", Action::RefreshStates);
-    add("back", Action::Back);
+    add("refresh", Action::RefreshStates, {}, true);
+    add("back", Action::Back, {}, true);
   }
   else if (screen == Screen::Settings)
   {
@@ -140,6 +143,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   else if (snapshot.mode == Mode::Library)
   {
     page.id = "standalone";
+    page.presentation = MenuPresentation::Landing;
+    page.columns = 3;
     page.title = text.title;
     page.description = text.standalone_help;
     if (!snapshot.host.launch_path.empty())
@@ -157,8 +162,10 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   else
   {
     page.id = "root";
+    page.presentation = MenuPresentation::Pause;
     page.title = text.title;
-    page.description = snapshot.host.game_title;
+    page.context.label = snapshot.host.game_title;
+    page.context.image_key = snapshot.host.game_path;
     page.default_focus = "resume";
     add("resume", Action::Resume);
     add("save", Action::SaveStates);
@@ -193,6 +200,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   {
     menu.requests.clear();
     for (auto& item : page.items)
+      item.enabled = false;
+    for (auto& item : page.toolbar)
       item.enabled = false;
   }
   return menu;

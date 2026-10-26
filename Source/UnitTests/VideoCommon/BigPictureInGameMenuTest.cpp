@@ -103,7 +103,8 @@ TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnre
   snapshot.host.state_slots[1] = {true, false, {}};
   snapshot.host.state_slots[9] = {true, true, "Saved date"};
   auto menu = Build();
-  EXPECT_EQ(menu.page.items.size(), 12u);
+  EXPECT_EQ(menu.page.items.size(), 10u);
+  EXPECT_EQ(menu.page.toolbar.size(), 2u);
   EXPECT_FALSE(menu.Activate({"slot-1"}));
   EXPECT_FALSE(menu.Activate({"slot-2"}));
   EXPECT_EQ(menu.page.items[0].detail, "Empty");
@@ -215,7 +216,9 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_EQ(menu.page.default_focus, "game:two.iso");
   EXPECT_EQ(menu.Activate({"game:two.iso"})->path, "two.iso");
   EXPECT_EQ(menu.Activate({"add-folder"})->library_operation, LibraryOperation::AddFolder);
-  EXPECT_EQ(menu.page.toolbar.size(), 5u);
+  EXPECT_EQ(menu.page.toolbar.size(), 6u);
+  ASSERT_TRUE(menu.Activate({"view-toggle"}));
+  EXPECT_EQ(menu.Activate({"view-toggle"})->library_operation, LibraryOperation::View);
   ASSERT_TRUE(menu.Activate({"settings"}));
   EXPECT_EQ(menu.Activate({"settings"})->action, Action::Settings);
   library->selected_path.clear();

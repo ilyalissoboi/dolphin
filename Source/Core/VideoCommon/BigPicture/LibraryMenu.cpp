@@ -172,6 +172,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   else
   {
     page.id = "library";
+    page.presentation = MenuPresentation::Library;
     page.focus_revision = library.view_revision;
     page.description = library.scanning         ? text.library_scanning :
                        library.total_games == 0 ? text.library_empty :
@@ -183,6 +184,8 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     if (!library.query.empty())
       add("clear-search", O::ClearSearch, {}, {}, true);
     add("options", O::Options, {}, {}, true);
+    add("view-toggle", O::View, {}, {}, true);
+    page.toolbar.back().label = library.grid ? text.library_list : text.library_grid;
     action("settings", Action::Settings, true, 0, true);
     add("add-folder", O::AddFolder, {}, {}, true);
     add("refresh", O::Refresh, {}, {}, true);

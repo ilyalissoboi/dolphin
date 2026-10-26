@@ -146,6 +146,7 @@ struct HostState
   bool hardcore = false;
   std::uint64_t pause_revision = 0;
   std::string game_title;
+  std::string game_path;
   bool can_change_disc = false;
   bool stop_requires_desktop = false;
   bool state_slots_ready = false;

@@ -28,6 +28,13 @@ Direct3D 12 releases its old swap-chain buffers at shutdown so the retained wind
 used again when launching or stopping a game.
 List menus wrap consistently in both directions with keyboard and controller input.
 
+Big Picture menus now share a fullscreen dark palette, separate title/summary typography,
+rounded focus outlines and a fixed controller-prompt footer. The library list includes a
+selected-game cover/details panel, with a direct grid/list switch in the toolbar. The pause
+menu uses a narrow action column and running-game title/cover header. Save/load slots use
+four-column cards, and settings retains category navigation with active category and
+global/game context indicators. These layouts retain the menu scale and safe-area preferences.
+
 Settings is a top-level Big Picture entry, separate from Library Options. It includes
 interface/menu preferences, volume and audio backend,
 graphics backend, internal resolution, aspect ratio, VSync, integer scaling and a folder-based

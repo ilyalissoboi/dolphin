@@ -393,6 +393,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         state.settings_menu = m_big_picture_settings->ReadMenu();
         state.pause_revision = m_system.GetCPU().GetPauseRevision();
         state.game_title = SConfig::GetInstance().GetTitleDescription();
+        state.game_path = m_big_picture_disc_path;
         state.can_change_disc = m_big_picture_disc_game;
         state.state_slots_ready = m_big_picture_state_slots_ready;
         state.state_slots = m_big_picture_state_slots;

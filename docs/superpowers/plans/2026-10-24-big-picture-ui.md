@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-24
 
-**Status:** Implementation in progress; slices 0–8 complete, next open slice 9
+**Status:** Implementation in progress; slices 0–8 complete; slice 9 visual refinement implemented,
+appearance review and platform/hardware gates pending
 
 **Dolphin baseline:** `dd2cae1601216a4e254424d37d57ba47da1c2221`
 
@@ -235,8 +236,10 @@ The [shared settings foundation results](../specs/2026-10-26-big-picture-setting
 record the explicit typed catalog, shared layer operations, desktop adapters and cold-start
 settings snapshots. The [common settings/profile results](../specs/2026-10-26-big-picture-common-settings-results.md)
 record controller-operated settings pages, persistent global/per-game edits, preset discovery and
-controller device/profile selection. Slice 9 is the next open slice and unifies the menu surfaces to the local PCSX2
-fork's layout and style; final state-browser/release hardening moves to slice 10.
+controller device/profile selection. The [visual refinement results](../specs/2026-10-26-big-picture-visual-refinement-results.md)
+record slice 9's shared dark styling, screen composition, navigation and Windows verification.
+Reference comparison captures, user appearance review and platform/hardware gates remain open;
+final state-browser/release hardening follows in slice 10.
 Platform/hardware release checks remain required.
 
 | Slice | Work and primary touchpoints | Completion gate |

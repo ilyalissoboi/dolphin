@@ -734,8 +734,6 @@ void OnScreenUI::DrawNavigation()
                                   prompt(back, text.back) + "   " +
                                   prompt(::BigPicture::NavButton::Previous, text.previous) + "   " +
                                   prompt(::BigPicture::NavButton::Next, text.next);
-  ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImGui::GetIO().DisplaySize,
-                                                IM_COL32(0, 0, 0, 160));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
         return snapshot->host.library ? GetLibraryCover(*snapshot->host.library, path) :

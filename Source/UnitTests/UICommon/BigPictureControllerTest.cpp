@@ -471,4 +471,33 @@ TEST_F(BigPictureControllerTest, SystemBootUsesTheSameAsynchronousLifecycleAsGam
   EXPECT_FALSE(controller.GetSnapshot()->pending);
   EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Desktop);
 }
+
+TEST_F(BigPictureControllerTest, PauseCoverReadUsesRunningGameWithoutEnablingLibraryMutations)
+{
+  host.state.game_path = "running.iso";
+  host.state.library = std::make_shared<LibrarySnapshot>();
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  InGame(Lifecycle::Paused);
+  auto cover = Make(Action::Library, 0, "running.iso");
+  cover.library_operation = LibraryOperation::Cover;
+  controller.Submit(cover);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+  EXPECT_EQ(host.state.lifecycle, Lifecycle::Paused);
+  auto other = Make(Action::Library, 0, "another.iso");
+  other.library_operation = LibraryOperation::Cover;
+  controller.Submit(other);
+  EXPECT_EQ(host.executed.size(), 1u);
+  auto mutation = Make(Action::Library);
+  mutation.library_operation = LibraryOperation::AddFolder;
+  controller.Submit(mutation);
+  EXPECT_EQ(host.executed.size(), 1u);
+  Send(Action::Stop);
+  ASSERT_TRUE(controller.GetSnapshot()->confirmation);
+  cover.id = ++id;
+  controller.Submit(cover);
+  EXPECT_EQ(host.executed.size(), 1u);
+  EXPECT_TRUE(controller.GetSnapshot()->confirmation);
+}
 }  // namespace

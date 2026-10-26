@@ -15,6 +15,14 @@
 
 namespace VideoCommon::BigPicture
 {
+enum class MenuPresentation
+{
+  List,
+  Landing,
+  Pause,
+  Library,
+};
+
 struct MenuItem
 {
   std::string id;
@@ -22,6 +30,7 @@ struct MenuItem
   std::string detail;
   bool enabled = true;
   std::string image_key;
+  bool active = false;
 };
 
 struct MenuPage
@@ -38,6 +47,10 @@ struct MenuPage
   bool artwork = false;
   bool compact = false;
   bool reset_on_revision = false;
+  MenuPresentation presentation = MenuPresentation::List;
+  // Header metadata is separate from the scrollable explanation/status text.
+  MenuItem context;
+  bool overlay = false;
 };
 
 struct MenuResult

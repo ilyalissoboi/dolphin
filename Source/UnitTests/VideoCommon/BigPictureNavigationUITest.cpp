@@ -311,4 +311,48 @@ TEST_F(BigPictureNavigationUITest, LargeLibraryDoesNotGenerateGeometryForOffscre
   EXPECT_GT(toolkit.GetMemory("large-library").scroll, 0);
   EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "4999");
 }
+
+TEST_F(BigPictureNavigationUITest, LibraryDetailsDoNotTakeFocusFromListOrToolbar)
+{
+  MenuPage page{"library-details",
+                "Library",
+                {},
+                {{"one", "First game", "GameCube"}, {"two", "Second game", "Wii"}},
+                "one"};
+  page.presentation = MenuPresentation::Library;
+  page.artwork = true;
+  page.toolbar = {{"search", "Search"}, {"refresh", "Refresh"}};
+  for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160), ImVec2(3440, 1440)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    toolkit.Reset();
+    Settle(page);
+    Press(page, ImGuiKey_GamepadDpadDown);
+    EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "two");
+    Press(page, ImGuiKey_GamepadDpadUp);
+    Press(page, ImGuiKey_GamepadDpadUp);
+    EXPECT_TRUE(toolkit.GetMemory(page.id).item == "search" ||
+                toolkit.GetMemory(page.id).item == "refresh");
+  }
+}
+
+TEST_F(BigPictureNavigationUITest, FullscreenStylesDoNotLeakIntoDiagnosticOverlays)
+{
+  const auto original = ImGui::GetStyle();
+  MenuPage page{"style", "Menu", {}, {{"one", "One", "Summary"}}};
+  page.toolbar = {{"tab", "Current category", {}, true, {}, true}};
+  Settle(page);
+  const auto& after = ImGui::GetStyle();
+  EXPECT_EQ(after.Alpha, original.Alpha);
+  EXPECT_EQ(after.WindowPadding.x, original.WindowPadding.x);
+  EXPECT_EQ(after.ItemSpacing.y, original.ItemSpacing.y);
+  EXPECT_EQ(after.FrameRounding, original.FrameRounding);
+  for (int i = 0; i < ImGuiCol_COUNT; ++i)
+  {
+    EXPECT_EQ(after.Colors[i].x, original.Colors[i].x);
+    EXPECT_EQ(after.Colors[i].y, original.Colors[i].y);
+    EXPECT_EQ(after.Colors[i].z, original.Colors[i].z);
+    EXPECT_EQ(after.Colors[i].w, original.Colors[i].w);
+  }
+}
 }  // namespace

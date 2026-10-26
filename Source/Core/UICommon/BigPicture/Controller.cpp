@@ -355,6 +355,9 @@ void Controller::Submit(const Command& command)
     else if (operation == LibraryOperation::OpenDisc)
       valid = valid && screen == Screen::Pause &&
               GetAvailability(Action::ChangeDisc, m_state.host) == UnavailableReason::None;
+    else if (operation == LibraryOperation::Cover && m_state.mode == Mode::InGame)
+      valid = valid && screen == Screen::Pause && m_state.host.library &&
+              command.path == m_state.host.game_path && !command.path.empty();
     else
       valid = valid && m_state.mode == Mode::Library &&
               (screen == Screen::Library || screen == Screen::LibraryOptions);

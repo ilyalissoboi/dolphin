@@ -145,6 +145,25 @@ TEST_F(BigPictureSettingsTest, ColdPagesAndQueuedValueEditsDoNotConstructDesktop
   EXPECT_EQ(QApplication::allWidgets().size(), widgets);
 }
 
+TEST_F(BigPictureSettingsTest, CategoryNavigationRemainsAvailableAndHighlightsCurrentContext)
+{
+  ASSERT_EQ(Activate("Audio"), Status::Success);
+  EXPECT_TRUE(Row("global").active);
+  EXPECT_FALSE(Row("game").active);
+  EXPECT_TRUE(Row("Audio").active);
+  ASSERT_EQ(Activate("Display"), Status::Success);
+  EXPECT_TRUE(Row("Display").active);
+  EXPECT_FALSE(Row("Audio").active);
+  ASSERT_EQ(Activate("game"), Status::Success);
+  ASSERT_EQ(Activate("PostProcessing"), Status::Success);
+  EXPECT_TRUE(Row("game").active);
+  EXPECT_FALSE(Row("global").active);
+  EXPECT_TRUE(Row("PostProcessing").active);
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  EXPECT_TRUE(Row("controllers").active);
+  EXPECT_FALSE(Row("PostProcessing").active);
+}
+
 TEST_F(BigPictureSettingsTest, PerGameEditsPersistAndClearingRevealsGlobalWithoutChangingIt)
 {
   Config::SetBase(Config::GFX_VSYNC, true);

@@ -42,6 +42,7 @@ add_library(videocommon
   BigPicture/Runtime.h
   BigPicture/Navigation.cpp
   BigPicture/Navigation.h
+  BigPicture/Style.h
   BigPicture/InGameMenu.cpp
   BigPicture/InGameMenu.h
   BigPicture/LibraryMenu.cpp
