@@ -140,6 +140,7 @@ TEST_F(SharedSettingsTest, DesignerFloatAndScaledRangesMatchCanonicalStorage)
   EXPECT_EQ(service->Apply(request).status, Status::Success);
   QCoreApplication::processEvents();
   EXPECT_EQ(ui.cpuClockSlider->value(), 149);
+  Config::SetBase(Config::MAIN_RAM_OVERRIDE_ENABLE, true);
   EXPECT_EQ(Set("advanced.mem1_size", u32(32 * 1048576)).status, Status::Success);
   EXPECT_EQ(ui.mem1Slider->value(), 32);
 }

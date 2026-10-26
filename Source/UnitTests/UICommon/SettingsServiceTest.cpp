@@ -124,6 +124,7 @@ TEST_F(SettingsServiceTest, DisplayTransformsReverseBoolsAndPreserveExactStorage
   EXPECT_FLOAT_EQ(Config::Get(Config::MAIN_OVERCLOCK), 1.25f);
   EXPECT_EQ(Read("advanced.cpu_clock").display_value, Value(125.0f));
   EXPECT_EQ(Display("advanced.cpu_clock", 125.5).status, Status::InvalidValue);
+  Config::SetBase(Config::MAIN_RAM_OVERRIDE_ENABLE, true);
   EXPECT_EQ(Display("advanced.mem1_size", 48).status, Status::Success);
   EXPECT_EQ(Config::Get(Config::MAIN_MEM1_SIZE), 48u * 1048576);
   EXPECT_EQ(Display("advanced.mem1_size", 48.5).status, Status::InvalidValue);
@@ -280,6 +281,48 @@ TEST_F(SettingsServiceTest, PoliciesAndDependenciesAreRecheckedAtMutationTime)
   environment.transitioning = true;
   service->SetEnvironment(environment);
   EXPECT_EQ(Set("audio.volume", 33).status, Status::Unavailable);
+}
+
+TEST_F(SettingsServiceTest, MemoryEditsRequireRamOverrideInTheSelectedContext)
+{
+  const u32 original = Config::Get(Config::MAIN_MEM1_SIZE);
+  EXPECT_FALSE(Read("advanced.mem1_size").enabled);
+  EXPECT_FALSE(Read("advanced.mem1_size").disabled_reason.empty());
+  EXPECT_EQ(Set("advanced.mem1_size", u32(48 * 1048576)).status, Status::Unavailable);
+  EXPECT_EQ(Display("advanced.mem1_size", 48).status, Status::Unavailable);
+  EXPECT_EQ(Set("advanced.mem1_size", false, Operation::ResetDefault).status, Status::Unavailable);
+  EXPECT_EQ(Config::Get(Config::MAIN_MEM1_SIZE), original);
+
+  Config::SetBase(Config::MAIN_RAM_OVERRIDE_ENABLE, true);
+  EXPECT_TRUE(Read("advanced.mem1_size").enabled);
+  EXPECT_EQ(Display("advanced.mem1_size", 48).status, Status::Success);
+  EXPECT_EQ(Config::Get(Config::MAIN_MEM1_SIZE), 48u * 1048576);
+  const auto enabled = service->ReadSnapshot();
+  Config::SetCurrent(Config::MAIN_RAM_OVERRIDE_ENABLE, false);
+  EXPECT_EQ(
+      service->Apply({enabled->revision, "advanced.mem1_size", Operation::Set, u32(32 * 1048576)})
+          .status,
+      Status::Stale);
+  EXPECT_FALSE(Read("advanced.mem1_size").enabled);
+  EXPECT_EQ(Display("advanced.mem1_size", 32).status, Status::Unavailable);
+  EXPECT_EQ(Config::Get(Config::MAIN_MEM1_SIZE), 48u * 1048576);
+
+  ASSERT_TRUE(service->SetContext({EditTarget::Base}));
+  EXPECT_TRUE(Read("advanced.mem1_size").enabled);
+  EXPECT_EQ(Display("advanced.mem1_size", 32).status, Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_MEM1_SIZE), 32u * 1048576);
+  Config::SetBase(Config::MAIN_RAM_OVERRIDE_ENABLE, false);
+  Config::SetCurrent(Config::MAIN_RAM_OVERRIDE_ENABLE, true);
+  EXPECT_FALSE(Read("advanced.mem1_size").enabled);
+  EXPECT_EQ(Display("advanced.mem1_size", 48).status, Status::Unavailable);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_MEM1_SIZE), 32u * 1048576);
+  ASSERT_TRUE(service->SetContext({EditTarget::Effective}));
+  EXPECT_TRUE(Read("advanced.mem1_size").enabled);
+
+  environment.emulating = true;
+  service->SetEnvironment(environment);
+  EXPECT_FALSE(Read("advanced.mem1_size").enabled);
+  EXPECT_EQ(Display("advanced.mem1_size", 48).status, Status::Unavailable);
 }
 
 TEST_F(SettingsServiceTest, PersistenceWritesOnlyTheSelectedLayer)

@@ -41,6 +41,8 @@ live edits, idle-only changes and settings applied at the next start. Context su
 transition state, NetPlay/Hardcore restrictions, dependencies and backend capability are checked
 again when a request executes. Capability information is sampled after graphics initialization
 publishes readiness, rather than reading it concurrently during initialization.
+MEM1 edits require RAM override to be enabled in the selected base/effective context, matching
+the desktop pane; disabled edits leave the stored size unchanged.
 
 ## Layers and lifetime
 
@@ -83,7 +85,7 @@ display/post-processing pages and global/per-game context selection are implemen
 
 - Windows Release `Dolphin-Settings.exe`, `tests.exe` and `qt-tests.exe` build with MSVC 19.51
   and Qt 6.8.3; optional emusync remains disabled as in preceding slices.
-- **1,648 core tests passed**, with two existing external-preset fixture skips.
+- **1,649 core tests passed**, with two existing external-preset fixture skips.
 - **243 Qt tests passed**. New coverage includes cold catalog availability, typed mapped
   values, non-monotonic ticks, reverse booleans, display transforms and invalid numbers,
   base/effective/game contexts, shipped fallback, reset versus clearing, persistence through

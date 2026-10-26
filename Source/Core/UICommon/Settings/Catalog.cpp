@@ -124,6 +124,13 @@ const Catalog& GetCatalog()
         Range{24 * 1048576.0, 64 * 1048576.0, 1048576, 1.0 / 1048576, 0, "MiB"};
     memory.descriptor.netplay_safe = false;
     memory.descriptor.hardcore_safe = false;
+    memory.unavailable = [](const Environment&, const Context& context) {
+      const bool enabled = context.target == EditTarget::Base ?
+                               Config::GetBase(Config::MAIN_RAM_OVERRIDE_ENABLE) :
+                               Logic::Read(Config::MAIN_RAM_OVERRIDE_ENABLE, context.layer.get(),
+                                           context.fallback.get());
+      return enabled ? std::string{} : std::string{_trans("Enable RAM override first.")};
+    };
     const std::pair<const char*, const char*> help[] = {
         {"interface.start_big_picture",
          _trans("Open the controller-operated library when Dolphin starts.")},
