@@ -115,7 +115,7 @@ void Controller::SetRoot()
   if (m_state.mode == Mode::Desktop)
     return;
   m_state.mode = m_state.host.lifecycle == Lifecycle::Idle ? Mode::Library : Mode::InGame;
-  m_state.screens.push_back(m_state.mode == Mode::Library ? Screen::Library : Screen::Pause);
+  m_state.screens.push_back(m_state.mode == Mode::Library ? Screen::Home : Screen::Pause);
 }
 
 void Controller::Finish(Result result)
@@ -355,9 +355,13 @@ void Controller::Submit(const Command& command)
     else if (operation == LibraryOperation::OpenDisc)
       valid = valid && screen == Screen::Pause &&
               GetAvailability(Action::ChangeDisc, m_state.host) == UnavailableReason::None;
+    else if (operation == LibraryOperation::Cover && m_state.mode == Mode::InGame)
+      valid = valid && screen == Screen::Pause && m_state.host.library &&
+              command.path == m_state.host.game_path && !command.path.empty();
     else
       valid = valid && m_state.mode == Mode::Library &&
-              (screen == Screen::Library || screen == Screen::LibraryOptions);
+              (screen == Screen::Library || screen == Screen::LibraryOptions ||
+               (screen == Screen::StartGame && operation == LibraryOperation::OpenFile));
     if (!valid)
     {
       m_state.result =
@@ -429,7 +433,12 @@ void Controller::Submit(const Command& command)
     break;
   case Action::Back:
   case Action::Cancel:
-    if (m_state.screens.size() > 1)
+    if (m_state.mode == Mode::Library && m_state.screens.size() == 1 &&
+        m_state.screens.back() == Screen::Home)
+    {
+      m_state.screens.push_back(Screen::ExitMenu);
+    }
+    else if (m_state.screens.size() > 1)
     {
       if (m_state.screens.back() == Screen::Error)
         m_state.error.reset();
@@ -440,6 +449,24 @@ void Controller::Submit(const Command& command)
       m_state.mode = Mode::Desktop;
       SetRoot();
     }
+    break;
+  case Action::ShowLibrary:
+  case Action::StartGame:
+  case Action::ExitMenu:
+  case Action::About:
+    if (m_state.mode != Mode::Library || m_state.screens.empty() ||
+        (command.action != Action::ExitMenu && m_state.screens.back() != Screen::Home))
+    {
+      m_state.result =
+          Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+      Publish();
+      return;
+    }
+    if (m_state.screens.back() != Screen::ExitMenu)
+      m_state.screens.push_back(command.action == Action::About       ? Screen::About :
+                                command.action == Action::ShowLibrary ? Screen::Library :
+                                command.action == Action::StartGame   ? Screen::StartGame :
+                                                                        Screen::ExitMenu);
     break;
   case Action::ReturnToDesktop:
     m_state.mode = Mode::Desktop;

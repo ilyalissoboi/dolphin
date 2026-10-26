@@ -17,6 +17,7 @@ add_library(common
   BigPicture/Contracts.h
   BigPicture/Library.h
   BigPicture/Settings.h
+  BigPicture/Theme.h
   BigPicture/Navigation.cpp
   BigPicture/Navigation.h
   BigPicture/PresentationState.cpp

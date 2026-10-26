@@ -34,7 +34,11 @@ enum class Screen
   Error,
   LibraryOptions,
   FilePicker,
-  TextInput
+  TextInput,
+  Home,
+  StartGame,
+  ExitMenu,
+  About
 };
 enum class Lifecycle
 {
@@ -72,6 +76,10 @@ enum class Action
   BootSystemMenu,
   EditSetting,
   SettingsMenu,
+  ShowLibrary,
+  StartGame,
+  ExitMenu,
+  About,
   Count
 };
 
@@ -146,6 +154,7 @@ struct HostState
   bool hardcore = false;
   std::uint64_t pause_revision = 0;
   std::string game_title;
+  std::string game_path;
   bool can_change_disc = false;
   bool stop_requires_desktop = false;
   bool state_slots_ready = false;
@@ -157,6 +166,9 @@ struct HostState
   std::shared_ptr<const SettingsMenuSnapshot> settings_menu;
   std::array<bool, 6> boot_ipl_available{};
   bool boot_system_menu_available = false;
+  std::string menu_theme = "Dark";
+  std::string achievements_username;
+  std::shared_ptr<const LibraryImage> achievements_avatar;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

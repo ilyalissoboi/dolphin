@@ -7,6 +7,7 @@
 #include "Common/CommonPaths.h"
 #include "Common/EnumMap.h"
 #include "Common/FileUtil.h"
+#include "Common/Image.h"
 #include "Common/Profiler.h"
 #include "Common/Timer.h"
 #include "VideoCommon/BigPicture/InGameMenu.h"
@@ -35,6 +36,7 @@
 #include "VideoCommon/VideoConfig.h"
 #include "VideoCommon/VideoEvents.h"
 
+#include <bit>
 #include <inttypes.h>
 #include <mutex>
 
@@ -242,7 +244,7 @@ void OnScreenUI::DrawImGui()
 
   // Set up common state for drawing.
   g_gfx->SetPipeline(m_imgui_pipeline.get());
-  g_gfx->SetSamplerState(0, RenderState::GetPointSamplerState());
+  g_gfx->SetSamplerState(0, RenderState::GetLinearSamplerState());
   g_vertex_manager->UploadUtilityUniforms(&ubo, sizeof(ubo));
 
   for (int i = 0; i < draw_data->CmdListsCount; i++)
@@ -581,7 +583,7 @@ void OnScreenUI::ProcessInput()
       ImGuiKey_End,       ImGuiKey_Insert,    ImGuiKey_Delete,     ImGuiKey_Backspace,
       ImGuiKey_Space,     ImGuiKey_Enter,     ImGuiKey_Escape,     ImGuiKey_KeypadEnter,
       ImGuiKey_A,         ImGuiKey_C,         ImGuiKey_V,          ImGuiKey_X,
-      ImGuiKey_Y,         ImGuiKey_Z,
+      ImGuiKey_Y,         ImGuiKey_Z,         ImGuiKey_F11,        ImGuiKey_F1,
   };
 
   auto input = ::BigPicture::GetPresentationState().TakeInput();
@@ -593,7 +595,9 @@ void OnScreenUI::ProcessInput()
   const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
   const bool modal = snapshot && snapshot->mode != ::BigPicture::Mode::Desktop &&
                      ::BigPicture::GetPresentationState().IsModal();
-  io.ConfigNavCursorVisibleAlways = modal;
+  const bool home =
+      modal && !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::Home;
+  io.ConfigNavCursorVisibleAlways = modal && !home;
   io.ConfigFlags &= ~(ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
   io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
   if (modal)
@@ -604,13 +608,29 @@ void OnScreenUI::ProcessInput()
       const auto fallback_paths = ::BigPicture::GetPresentationState().GetMenuFontPaths();
       auto font_path = File::GetUserPath(D_LOAD_IDX) + "OSD_Font.ttf";
       if (!File::Exists(font_path))
-        font_path = !fallback_paths.empty() ? fallback_paths.front() :
-                                              File::GetSysDirectory() + DIR_SEP + RESOURCES_DIR +
-                                                  DIR_SEP + "OSD_Font.ttf";
+        font_path = File::GetSysDirectory() + RESOURCES_DIR "/BigPicture/Roboto-Regular.ttf";
+      if (!File::Exists(font_path) && !fallback_paths.empty())
+        font_path = fallback_paths.front();
       if (File::Exists(font_path))
-        m_menu_font = io.Fonts->AddFontFromFileTTF(font_path.c_str());
+      {
+        static constexpr ImWchar prompt_ranges[] = {
+            0x2198, 0x2199, 0x219c, 0x219d, 0x21b0, 0x21b3, 0x21ba, 0x21bb, 0x21ce,
+            0x21ce, 0x21d0, 0x21d3, 0x21e0, 0x21e8, 0x23f4, 0x23f4, 0x23f6, 0x23f6,
+            0x242e, 0x242f, 0x243a, 0x243c, 0x2460, 0x2460, 0x246a, 0x246a, 0};
+        ImFontConfig config;
+        config.GlyphExcludeRanges = prompt_ranges;
+        m_menu_font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 0, &config);
+      }
       if (!m_menu_font)
         m_menu_font = io.Fonts->AddFontDefault();
+      const auto prompt_path = File::GetSysDirectory() + RESOURCES_DIR "/BigPicture/promptfont.otf";
+      if (File::Exists(prompt_path))
+      {
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.DstFont = m_menu_font;
+        io.Fonts->AddFontFromFileTTF(prompt_path.c_str(), 0, &config);
+      }
       for (const auto& path : fallback_paths)
       {
         if (path == font_path || !File::Exists(path))
@@ -627,6 +647,7 @@ void OnScreenUI::ProcessInput()
   }
   if (input.reset || mapping_changed)
   {
+    m_navigation_input.Reset();
     io.ClearInputKeys();
     io.ClearInputMouse();
     io.ClearEventsQueue();
@@ -635,7 +656,7 @@ void OnScreenUI::ProcessInput()
   }
 
   m_dolphin_to_imgui_map.clear();
-  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::Z); dolphin_key++)
+  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F1); dolphin_key++)
   {
     const int imgui_key = dolphin_to_imgui_map[DolphinKey(dolphin_key)];
     if (imgui_key >= 0)
@@ -650,9 +671,9 @@ void OnScreenUI::ProcessInput()
     {
     case ::BigPicture::InputEvent::Type::Key:
       if (event.down)
-        m_navigation_keyboard = true;
+        m_navigation_input.SetSource(true);
       if (auto it = m_dolphin_to_imgui_map.find(event.key); it != m_dolphin_to_imgui_map.end())
-        io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.down);
+        m_navigation_input.KeyEvent(static_cast<ImGuiKey>(it->second), event.down, true);
       [[fallthrough]];
     case ::BigPicture::InputEvent::Type::Text:
       if (!event.text.empty())
@@ -665,9 +686,9 @@ void OnScreenUI::ProcessInput()
             BigPicture::GetNavigationKey(static_cast<::BigPicture::NavButton>(event.key),
                                          m_navigation.options.swap_confirm_back);
         if (key != ImGuiKey_None)
-          io.AddKeyEvent(key, event.down);
+          m_navigation_input.KeyEvent(key, event.down, false);
         if (event.down)
-          m_navigation_keyboard = false;
+          io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
       }
       break;
     case ::BigPicture::InputEvent::Type::MousePosition:
@@ -681,6 +702,7 @@ void OnScreenUI::ProcessInput()
       io.AddFocusEvent(event.down);
       break;
     case ::BigPicture::InputEvent::Type::Reset:
+      m_navigation_input.Reset();
       io.ClearInputKeys();
       io.ClearInputMouse();
       io.ClearEventsQueue();
@@ -716,28 +738,103 @@ void OnScreenUI::DrawNavigation()
     m_cover_textures.clear();
     m_cover_revision = snapshot->host.library->catalog_revision;
   }
-  const auto prompt = [&](::BigPicture::NavButton button, const std::string& label) {
-    const auto& binding = m_navigation.bindings[static_cast<std::size_t>(button)];
-    return !m_navigation_keyboard && !binding.empty() && binding.size() <= 24 ?
-               binding + ": " + label :
-               label;
-  };
-  const auto confirm =
-      options.swap_confirm_back ? ::BigPicture::NavButton::Back : ::BigPicture::NavButton::Confirm;
-  const auto back =
-      options.swap_confirm_back ? ::BigPicture::NavButton::Confirm : ::BigPicture::NavButton::Back;
   const bool text_input =
       !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
-  const std::string prompts =
-      m_navigation_keyboard ? (text_input ? text.library_keyboard_prompts : text.keyboard_prompts) :
-                              m_navigation.device + "   " + prompt(confirm, text.select) + "   " +
-                                  prompt(back, text.back) + "   " +
-                                  prompt(::BigPicture::NavButton::Previous, text.previous) + "   " +
-                                  prompt(::BigPicture::NavButton::Next, text.next);
-  ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImGui::GetIO().DisplaySize,
-                                                IM_COL32(0, 0, 0, 160));
+  const bool home = menu.page.id == "home";
+  const std::string prompts = m_navigation_input.IsKeyboard() ?
+                                  (home       ? text.home_keyboard_prompts :
+                                   text_input ? text.library_keyboard_prompts :
+                                                text.keyboard_prompts) :
+                                  BigPicture::GetControllerPrompts(m_navigation, text, home);
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
+        if (path.starts_with("home:"))
+        {
+          const auto upload = [&](const ::BigPicture::LibraryImage& image) {
+            TextureConfig config;
+            config.width = image.width;
+            config.height = image.height;
+            const bool menu_icon = path != "home:avatar" && path != "home:logo";
+            if (menu_icon)
+              config.levels = std::bit_width(std::max(image.width, image.height));
+            auto texture = g_gfx->CreateTexture(config, "Big Picture home");
+            if (texture)
+            {
+              auto pixels = image.rgba;
+              // The monochrome SVGs have white coverage. Keep transparent texels white
+              // too, avoiding dark fringes when filtering straight-alpha artwork.
+              if (menu_icon)
+                for (std::size_t i = 0; i < pixels.size(); i += 4)
+                  pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
+              u32 width = image.width, height = image.height;
+              for (u32 level = 0; level < config.levels; ++level)
+              {
+                texture->Load(level, width, height, width, pixels.data(), pixels.size());
+                if (level + 1 == config.levels)
+                  break;
+                const u32 next_width = std::max(1u, width / 2);
+                const u32 next_height = std::max(1u, height / 2);
+                std::vector<u8> next(next_width * next_height * 4, 255);
+                for (u32 y = 0; y < next_height; ++y)
+                  for (u32 x = 0; x < next_width; ++x)
+                  {
+                    unsigned alpha = 0;
+                    for (u32 dy = 0; dy < 2; ++dy)
+                      for (u32 dx = 0; dx < 2; ++dx)
+                        alpha += pixels[(std::min(y * 2 + dy, height - 1) * width +
+                                         std::min(x * 2 + dx, width - 1)) *
+                                            4 +
+                                        3];
+                    next[(y * next_width + x) * 4 + 3] = static_cast<u8>((alpha + 2) / 4);
+                  }
+                pixels = std::move(next);
+                width = next_width;
+                height = next_height;
+              }
+            }
+            return texture;
+          };
+          if (path == "home:avatar")
+          {
+            const auto& avatar = snapshot->host.achievements_avatar;
+            if (!avatar)
+              return ImTextureID{};
+            if (!m_home_avatar || m_home_avatar->width != avatar->width ||
+                m_home_avatar->height != avatar->height || m_home_avatar->rgba != avatar->rgba)
+            {
+              m_home_textures[path] = upload(*avatar);
+              m_home_avatar = avatar;
+            }
+          }
+          else if (!m_home_textures.contains(path))
+          {
+            std::string filename;
+            if (path == "home:logo")
+              filename = "dolphin_logo.png";
+            else if (path == "home:media-cdrom" || path == "home:start-game" ||
+                     path == "home:applications-system" || path == "home:exit")
+              filename = "BigPicture/" + path.substr(5) + ".png";
+            else
+              return ImTextureID{};
+            std::string bytes;
+            Common::UniqueBuffer<u8> pixels;
+            u32 width = 0, height = 0;
+            auto& texture = m_home_textures[path];
+            if (File::ReadFileToString(File::GetSysDirectory() + RESOURCES_DIR "/" + filename,
+                                       bytes) &&
+                Common::LoadPNG(std::span(reinterpret_cast<const u8*>(bytes.data()), bytes.size()),
+                                &pixels, &width, &height) &&
+                width && height && width <= 1024 && height <= 1024)
+            {
+              ::BigPicture::LibraryImage image;
+              image.width = width;
+              image.height = height;
+              image.rgba.assign(pixels.data(), pixels.data() + width * height * 4);
+              texture = upload(image);
+            }
+          }
+          return reinterpret_cast<ImTextureID>(m_home_textures[path].get());
+        }
         return snapshot->host.library ? GetLibraryCover(*snapshot->host.library, path) :
                                         ImTextureID{};
       });
@@ -750,6 +847,20 @@ void OnScreenUI::DrawNavigation()
     presentation.RequestNavigation(std::move(request), m_input_epoch);
   }
   bool typed_activation = false;
+  if (home && (ImGui::IsKeyPressed(ImGuiKey_Space, false) ||
+               ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false)))
+  {
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::ShowLibrary},
+                                   m_input_epoch);
+    typed_activation = true;
+  }
+  if (home &&
+      (ImGui::IsKeyPressed(ImGuiKey_F11, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false)))
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Fullscreen},
+                                   m_input_epoch);
+  if (home && ImGui::IsKeyPressed(ImGuiKey_F1, false))
+    presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::About},
+                                   m_input_epoch);
   if (text_input)
   {
     const auto send = [&](::BigPicture::LibraryOperation operation, std::string value = {}) {
@@ -770,11 +881,12 @@ void OnScreenUI::DrawNavigation()
       send(::BigPicture::LibraryOperation::TextErase);
     const bool enter = ImGui::IsKeyPressed(ImGuiKey_Enter, false) ||
                        ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false);
-    if (m_navigation_keyboard && enter)
+    if (m_navigation_input.IsKeyboard() && enter)
       send(::BigPicture::LibraryOperation::TextDone);
     // Physical Space inserts text and Enter submits. Neither should also activate the
     // currently focused on-screen key. Controller Confirm still selects keys normally.
-    typed_activation = m_navigation_keyboard && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
+    typed_activation =
+        m_navigation_input.IsKeyboard() && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
   }
   if (!typed_activation)
     if (const auto request = menu.Activate(result))

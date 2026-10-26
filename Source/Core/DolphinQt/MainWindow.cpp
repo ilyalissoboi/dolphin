@@ -393,6 +393,29 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         state.settings_menu = m_big_picture_settings->ReadMenu();
         state.pause_revision = m_system.GetCPU().GetPauseRevision();
         state.game_title = SConfig::GetInstance().GetTitleDescription();
+        state.game_path = m_big_picture_disc_path;
+        state.menu_theme = Config::GetBase(Config::MAIN_BIG_PICTURE_THEME);
+#ifdef USE_RETRO_ACHIEVEMENTS
+        {
+          auto& achievements = AchievementManager::GetInstance();
+          std::lock_guard lock(achievements.GetLock());
+          if (Config::Get(Config::RA_ENABLED))
+          {
+            state.achievements_username = achievements.GetPlayerDisplayName();
+            const auto& badge = achievements.GetPlayerBadge();
+            if (!state.achievements_username.empty() && badge.width && badge.height &&
+                badge.width <= 256 && badge.height <= 256 &&
+                badge.data.size() == static_cast<std::size_t>(badge.width) * badge.height * 4)
+            {
+              auto avatar = std::make_shared<BigPicture::LibraryImage>();
+              avatar->width = badge.width;
+              avatar->height = badge.height;
+              avatar->rgba.assign(badge.data.begin(), badge.data.end());
+              state.achievements_avatar = std::move(avatar);
+            }
+          }
+        }
+#endif
         state.can_change_disc = m_big_picture_disc_game;
         state.state_slots_ready = m_big_picture_state_slots_ready;
         state.state_slots = m_big_picture_state_slots;
@@ -1012,6 +1035,25 @@ void MainWindow::InitControllers()
       tr("GameCube IPL").toStdString();
   menu_text.actions[static_cast<std::size_t>(BigPicture::Action::BootSystemMenu)] =
       tr("Wii System Menu").toStdString();
+  menu_text.home_labels = {tr("Game List").toStdString(), tr("Start Game").toStdString(),
+                           tr("Settings").toStdString(), tr("Exit").toStdString()};
+  menu_text.home_descriptions = {
+      tr("Launch a game from images scanned from your game directories.").toStdString(),
+      tr("Launch a game from a file, or start the GameCube or Wii system menu.").toStdString(),
+      tr("Changes settings for the application.").toStdString(),
+      tr("Return to desktop mode, or exit the application.").toStdString()};
+  // PromptFont's keycaps, matching the fullscreen reference. Keep labels independently translated.
+  menu_text.home_keyboard_prompts = "\xe2\x91\xa0 " + tr("About").toStdString() +
+                                    "   \xe2\x91\xaa " + tr("Toggle Fullscreen").toStdString() +
+                                    "   \xe2\x8f\xb4\xe2\x8f\xb6 " + tr("Navigate").toStdString() +
+                                    "   \xe2\x90\xba " + tr("Game List").toStdString() +
+                                    "   \xe2\x90\xae " + tr("Select").toStdString() +
+                                    "   \xe2\x90\xaf " + tr("Exit").toStdString();
+  menu_text.navigate = tr("Navigate").toStdString();
+  menu_text.about_title = tr("About Dolphin").toStdString();
+  menu_text.about_description = Common::GetScmRevStr() + "\n\n" +
+                                tr("Dolphin is a GameCube and Wii emulator.").toStdString() +
+                                "\n\nhttps://dolphin-emu.org";
   BigPicture::GetPresentationState().SetNavigationText(std::move(menu_text));
 
   m_hotkey_scheduler = new HotkeyScheduler();

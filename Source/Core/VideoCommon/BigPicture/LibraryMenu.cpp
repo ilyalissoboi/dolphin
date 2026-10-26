@@ -14,6 +14,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   using O = LibraryOperation;
   InGameMenu menu;
   auto& page = menu.page;
+  page.theme = snapshot.host.menu_theme;
   const auto& library = *snapshot.host.library;
   const auto tail = [](const std::string& value) {
     if (value.size() <= 180)
@@ -27,6 +28,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   const auto add = [&](std::string id, O operation, std::string value = {}, std::string detail = {},
                        bool toolbar = false) {
     MenuItem item{id, text.library_actions[static_cast<std::size_t>(operation)], detail};
+    item.icon = GetLibraryIcon(operation);
     (toolbar ? page.toolbar : page.items).push_back(std::move(item));
     NavigationRequest request{snapshot.generation, Action::Library};
     request.library_operation = operation;
@@ -39,9 +41,13 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     const auto reason = snapshot.availability[static_cast<std::size_t>(a)];
     enabled = enabled && reason == UnavailableReason::None;
     (toolbar ? page.toolbar : page.items)
-        .push_back({id, text.actions[static_cast<std::size_t>(a)],
+        .push_back({id,
+                    text.actions[static_cast<std::size_t>(a)],
                     enabled ? std::string{} : text.reasons[static_cast<std::size_t>(reason)],
-                    enabled});
+                    enabled,
+                    {},
+                    false,
+                    GetActionIcon(a)});
     if (enabled)
     {
       NavigationRequest request{snapshot.generation, a};
@@ -172,6 +178,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   else
   {
     page.id = "library";
+    page.presentation = MenuPresentation::Library;
     page.focus_revision = library.view_revision;
     page.description = library.scanning         ? text.library_scanning :
                        library.total_games == 0 ? text.library_empty :
@@ -183,6 +190,9 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     if (!library.query.empty())
       add("clear-search", O::ClearSearch, {}, {}, true);
     add("options", O::Options, {}, {}, true);
+    add("view-toggle", O::View, {}, {}, true);
+    page.toolbar.back().label = library.grid ? text.library_list : text.library_grid;
+    page.toolbar.back().icon = library.grid ? MenuIcon::List : MenuIcon::Grid;
     action("settings", Action::Settings, true, 0, true);
     add("add-folder", O::AddFolder, {}, {}, true);
     add("refresh", O::Refresh, {}, {}, true);
@@ -197,6 +207,8 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       if (page.items.back().enabled)
         page.items.back().detail = game.description;
       page.items.back().image_key = game.path;
+      page.items.back().icon = MenuIcon::None;
+      page.items.back().preview_detail = game.details;
       if (request)
         request->path = game.path;
       if (game.path == library.selected_path && page.items.back().enabled)

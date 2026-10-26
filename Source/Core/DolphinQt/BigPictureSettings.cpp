@@ -261,6 +261,12 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                        std::string detail = {}, bool enabled = true, bool toolbar = false) {
     BigPicture::SettingsRow row{std::move(id), S(label), std::move(detail), enabled,
                                 BigPicture::SettingsRequest{m_revision, op, std::move(value)}};
+    row.active =
+        (op == O::Global && !game) || (op == O::Game && game) ||
+        (op == O::Category && row.navigation->value == m_category &&
+         (m_page == Page::Category || m_page == Page::Edit || m_page == Page::Presets)) ||
+        (op == O::Controllers && (m_page == Page::Controllers || m_page == Page::Controller ||
+                                  m_page == Page::Devices || m_page == Page::Profiles));
     (toolbar ? view->toolbar : view->rows).push_back(std::move(row));
   };
   const auto edit = [&](std::string id, QString label, const State& state, Value value,
@@ -269,20 +275,31 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                 state.enabled ? std::move(detail) : state.disabled_reason,
                                 state.enabled};
     row.edit = Request{values->revision, state.descriptor.id, operation, std::move(value)};
+    row.active = operation == Operation::Set        ? row.edit->value == state.value :
+                 operation == Operation::SetDisplay ? row.edit->value == state.display_value :
+                                                      false;
     view->rows.push_back(std::move(row));
   };
   if (m_page != Page::Home)
     view->back = BigPicture::SettingsRequest{m_revision, O::Back};
+  nav("global", tr("Global settings"), O::Global, {}, {}, true, true);
+  nav("game", tr("Game settings"), O::Game, {},
+      ValidGameId(m_game.id) ? m_game.title : S(tr("Select a game in the library first.")),
+      ValidGameId(m_game.id), true);
+  if (m_page != Page::Home)
+  {
+    for (const auto& [category, label] :
+         {std::pair{"Interface", tr("Interface and menu")}, std::pair{"Audio", tr("Audio")},
+          std::pair{"Display", tr("Display")}, std::pair{"PostProcessing", tr("Post-processing")}})
+      nav(category, label, O::Category, category, {}, true, true);
+    nav("controllers", tr("Controllers"), O::Controllers, {}, {}, true, true);
+  }
   if (m_page == Page::Home)
   {
     if (ValidGameId(m_game.id))
       view->description += "\n" + S(tr("Selected game: %1").arg(Q(m_game.title)));
     else
       view->description += "\n" + S(tr("Select a game in the library to edit game settings."));
-    nav("global", tr("Global settings"), O::Global, {}, {}, true, true);
-    nav("game", tr("Game settings"), O::Game, {},
-        ValidGameId(m_game.id) ? m_game.title : S(tr("Select a game in the library first.")),
-        ValidGameId(m_game.id), true);
     for (const auto& [category, label] :
          {std::pair{"Interface", tr("Interface and menu")}, std::pair{"Audio", tr("Audio")},
           std::pair{"Display", tr("Display")}, std::pair{"PostProcessing", tr("Post-processing")}})

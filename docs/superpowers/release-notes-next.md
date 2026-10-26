@@ -4,6 +4,12 @@
 
 ### Big Picture
 
+The initial screen now follows PCSX2's four-action layout: Game List, Start Game, Settings,
+and Exit. It uses the same home icons, Roboto text and PromptFont keycaps, with Dolphin branding,
+a local clock, and the signed-in RetroAchievements display name and avatar when available.
+Start Game offers the controller file picker and installed console menus. Exit offers desktop
+mode or application exit; Escape returns from child pages to the home screen.
+
 Big Picture can now open without a running game through View → Big Picture, the startup
 preference in Config → Big Picture, or the GUI `--big-picture` option. Normal desktop startup
 remains the default. The library uses Dolphin's existing scanned games and covers, with grid/list
@@ -27,6 +33,24 @@ a black background before graphics initialization instead of showing uninitializ
 Direct3D 12 releases its old swap-chain buffers at shutdown so the retained window can be
 used again when launching or stopping a game.
 List menus wrap consistently in both directions with keyboard and controller input.
+
+Big Picture menus now share a fullscreen dark palette, separate title/summary typography,
+rounded focus outlines and a fixed controller-prompt footer. The library list includes a
+selected-game cover/details panel, with a direct grid/list switch in the toolbar. The pause
+menu uses a narrow action column and running-game title/cover header. Save/load slots use
+four-column cards, and settings retains category navigation with active category and
+global/game context indicators. These layouts retain the menu scale and safe-area preferences.
+
+Big Picture appearance can now be changed live from either its Interface settings or the
+desktop Big Picture pane. Eleven theme families include Light, AMOLED and Dolphin Blue;
+unknown stored theme names are preserved and render with the Dark fallback. Menus include
+drawn action/category icons and checkmarks for current setting values. Library details show
+platform, region, game ID, play time, size, path and tags. At large menu scales, artwork shrinks
+to keep focused cards readable inside safe-area margins.
+
+Windows file replacement now briefly retries transient sharing/access locks, preventing
+temporary reader locks from immediately producing a blocking configuration/FST save alert.
+Persistent failures still report failure and leave the original files intact.
 
 Settings is a top-level Big Picture entry, separate from Library Options. It includes
 interface/menu preferences, volume and audio backend,

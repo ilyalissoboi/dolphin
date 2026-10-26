@@ -16,6 +16,7 @@
 #include "Common/ScopeGuard.h"
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
+#include "Core/Config/UISettings.h"
 #include "Core/ConfigManager.h"
 #include "DolphinQt/BigPictureHost.h"
 #include "DolphinQt/BigPictureSettings.h"
@@ -143,6 +144,43 @@ TEST_F(BigPictureSettingsTest, ColdPagesAndQueuedValueEditsDoNotConstructDesktop
   EXPECT_TRUE(menu->ReadMenu()->preferences);
   EXPECT_TRUE(Row("interface.start_big_picture").enabled);
   EXPECT_EQ(QApplication::allWidgets().size(), widgets);
+}
+
+TEST_F(BigPictureSettingsTest, ThemeMenuAppliesTypedChoicesWithoutLeavingThePage)
+{
+  ASSERT_EQ(Activate("Interface"), Status::Success);
+  ASSERT_EQ(Activate("interface.big_picture_theme"), Status::Success);
+  ASSERT_EQ(Activate("choice-1"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "Light");
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "choice-1");
+  EXPECT_TRUE(Row("choice-1").active);
+  EXPECT_FALSE(Row("choice-0").active);
+  ASSERT_EQ(Activate("choice-2"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "AMOLED");
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "choice-2");
+  EXPECT_TRUE(Row("choice-2").active);
+  EXPECT_FALSE(Row("choice-1").active);
+  ASSERT_EQ(Activate("reset"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "Dark");
+}
+
+TEST_F(BigPictureSettingsTest, CategoryNavigationRemainsAvailableAndHighlightsCurrentContext)
+{
+  ASSERT_EQ(Activate("Audio"), Status::Success);
+  EXPECT_TRUE(Row("global").active);
+  EXPECT_FALSE(Row("game").active);
+  EXPECT_TRUE(Row("Audio").active);
+  ASSERT_EQ(Activate("Display"), Status::Success);
+  EXPECT_TRUE(Row("Display").active);
+  EXPECT_FALSE(Row("Audio").active);
+  ASSERT_EQ(Activate("game"), Status::Success);
+  ASSERT_EQ(Activate("PostProcessing"), Status::Success);
+  EXPECT_TRUE(Row("game").active);
+  EXPECT_FALSE(Row("global").active);
+  EXPECT_TRUE(Row("PostProcessing").active);
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  EXPECT_TRUE(Row("controllers").active);
+  EXPECT_FALSE(Row("PostProcessing").active);
 }
 
 TEST_F(BigPictureSettingsTest, PerGameEditsPersistAndClearingRevealsGlobalWithoutChangingIt)

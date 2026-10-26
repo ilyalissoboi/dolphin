@@ -44,6 +44,7 @@ struct SettingsRow
   bool enabled = true;
   std::optional<SettingsRequest> navigation;
   std::optional<Common::Settings::Request> edit;
+  bool active = false;
 };
 // Translated, value-only menu data. Profile/controller objects and config layers stay on the host.
 struct SettingsMenuSnapshot

@@ -68,7 +68,7 @@ protected:
 TEST_F(SharedSettingsTest, ColdSnapshotDoesNotPopulateOrDependOnWidgetRegistry)
 {
   const auto translated = ConfigWidget::TranslateSettingsSnapshot(*service->ReadSnapshot());
-  EXPECT_EQ(translated->settings.size(), 15u);
+  EXPECT_EQ(translated->settings.size(), 16u);
   EXPECT_TRUE(ConfigWidget::ConfigSettingRegistry::Instance().Entries().empty());
   EXPECT_FALSE(translated->settings.front().descriptor.label.empty());
 }

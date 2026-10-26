@@ -18,6 +18,7 @@
 #include <QThread>
 
 #include "DolphinQt/QtUtils/QueueOnObject.h"
+#include "UICommon/UICommon.h"
 
 namespace
 {
@@ -113,6 +114,23 @@ void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games)
   {
     m_pending_games = std::move(games);
     return;
+  }
+  for (auto& game : games)
+  {
+    const auto played =
+        tr("%1h %2m").arg(game.played_ms / 3600000).arg(game.played_ms / 60000 % 60);
+    QStringList details{tr("Platform: %1").arg(Q(game.platform)),
+                        tr("Region: %1").arg(Q(game.region)),
+                        tr("Game ID: %1").arg(Q(game.game_id)),
+                        tr("Time Played: %1").arg(played),
+                        tr("File Size: %1").arg(Q(UICommon::FormatSize(game.size))),
+                        tr("File: %1").arg(QDir::toNativeSeparators(Q(game.path)))};
+    QStringList tags;
+    for (const auto& tag : game.tags)
+      tags.push_back(Q(tag));
+    if (!tags.empty())
+      details.push_back(tr("Tags: %1").arg(tags.join(QStringLiteral(", "))));
+    game.details = S(details.join(QLatin1Char('\n')));
   }
   m_games = std::move(games);
   ++m_state.catalog_revision;

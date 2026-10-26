@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdexcept>
 
+#include "Common/BigPicture/Theme.h"
 #include "Common/Common.h"
 #include "Core/Config/GraphicsSettings.h"
 #include "Core/Config/MainSettings.h"
@@ -64,6 +65,10 @@ const Catalog& GetCatalog()
     };
     add(Config::MAIN_START_BIG_PICTURE, "interface.start_big_picture", "Interface",
         _trans("Start Dolphin in Big Picture Mode"), Control::Toggle, false, ApplyPolicy::NextBoot);
+    auto& theme = add(Config::MAIN_BIG_PICTURE_THEME, "interface.big_picture_theme", "Interface",
+                      _trans("Big Picture Theme"), Control::Choice);
+    for (const auto& choice : BigPicture::THEME_CHOICES)
+      theme.descriptor.choices.push_back({std::string(choice.id), choice.label});
     add(Config::MAIN_AUDIO_VOLUME, "audio.volume", "Audio", _trans("Volume"), Control::Number)
         .descriptor.range = Range{0, 100, 1, 1, 0, "%"};
     add(Config::MAIN_AUDIO_MUTE_ON_DISABLED_SPEED_LIMIT, "audio.mute_unlimited", "Audio",
@@ -144,6 +149,8 @@ const Catalog& GetCatalog()
     const std::pair<const char*, const char*> help[] = {
         {"interface.start_big_picture",
          _trans("Open the controller-operated library when Dolphin starts.")},
+        {"interface.big_picture_theme",
+         _trans("Choose the appearance of Big Picture menus. Changes apply immediately.")},
         {"audio.volume", _trans("Adjust the volume of emulated audio.")},
         {"audio.mute_unlimited", _trans("Mute audio while the emulation speed limit is disabled.")},
         {"audio.backend",
