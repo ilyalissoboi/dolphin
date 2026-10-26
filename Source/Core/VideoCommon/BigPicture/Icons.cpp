@@ -183,6 +183,7 @@ MenuIcon GetActionIcon(::BigPicture::Action action)
   case A::Screenshot:
     return MenuIcon::Camera;
   case A::Exit:
+  case A::ExitMenu:
     return MenuIcon::Exit;
   case A::Fullscreen:
   case A::ReturnToDesktop:
@@ -191,7 +192,10 @@ MenuIcon GetActionIcon(::BigPicture::Action action)
   case A::Cancel:
     return MenuIcon::Back;
   case A::ChangeDisc:
+  case A::ShowLibrary:
     return MenuIcon::Disc;
+  case A::StartGame:
+    return MenuIcon::Controller;
   case A::OpenGame:
     return MenuIcon::Folder;
   default:

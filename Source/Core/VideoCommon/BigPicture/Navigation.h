@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <imgui.h>
@@ -55,6 +56,7 @@ struct MenuPage
   MenuItem context;
   bool overlay = false;
   std::string theme = "Dark";
+  std::string account_name;
 };
 
 struct MenuResult
@@ -93,6 +95,9 @@ public:
   FocusMemory GetMemory(const std::string& page) const;
 
 private:
+  MenuResult DrawLanding(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                         const std::string& prompts, ImFont* font,
+                         const std::function<ImTextureID(const std::string&)>& image);
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
@@ -106,4 +111,24 @@ private:
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is
 // resolved here, so ImGui always receives logical Select/Back controls.
 ImGuiKey GetNavigationKey(::BigPicture::NavButton button, bool swap_confirm_back);
+
+// The most recently pressed input family owns navigation. Release the previous family's
+// held keys when switching, so a missed release or held stick cannot mask the new input.
+class NavigationInput
+{
+public:
+  void SetSource(bool keyboard);
+  void KeyEvent(ImGuiKey key, bool down, bool keyboard);
+  void Reset() { m_held.clear(); }
+  bool IsKeyboard() const { return m_keyboard; }
+
+private:
+  bool m_keyboard = true;
+  std::vector<ImGuiKey> m_held;
+};
+
+std::string GetBindingGlyph(std::string_view binding, std::string_view device,
+                            std::string_view source = {});
+std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                 const ::BigPicture::NavigationText& text, bool home);
 }  // namespace VideoCommon::BigPicture

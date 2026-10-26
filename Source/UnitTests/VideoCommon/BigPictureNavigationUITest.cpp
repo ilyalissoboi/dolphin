@@ -427,4 +427,152 @@ TEST(BigPictureThemeTest, EveryThemeKeepsNormalHeaderAndSelectionTextReadable)
   }
   EXPECT_FLOAT_EQ(Style::GetPalette("FutureTheme").background.x, Style::DARK.background.x);
 }
+TEST_F(BigPictureNavigationUITest, HomeNavigatesHorizontallyAndRestoresFocusAfterAChild)
+{
+  MenuPage home{
+      "home",
+      "Dolphin",
+      {},
+      {{"games", "Game List"}, {"start", "Start Game"}, {"settings", "Settings"}, {"exit", "Exit"}},
+      "games",
+      4};
+  home.presentation = MenuPresentation::Landing;
+  Settle(home);
+  Press(home, ImGuiKey_RightArrow);
+  EXPECT_EQ(toolkit.GetMemory("home").item, "start");
+  EXPECT_EQ(Press(home, ImGuiKey_Enter).activated, "start");
+  MenuPage child{"start", "Start Game", {}, {{"file", "Open File"}}};
+  Settle(child);
+  Settle(home);
+  EXPECT_EQ(toolkit.GetMemory("home").item, "start");
+  Press(home, ImGuiKey_GamepadDpadRight);
+  EXPECT_EQ(Press(home, ImGuiKey_GamepadFaceDown).activated, "settings");
+  EXPECT_TRUE(Press(home, ImGuiKey_Escape).back);
+  for (int i = 0; i < 4; ++i)
+    Frame(home, {false, 1.5f, 0.15f});
+  EXPECT_EQ(toolkit.GetMemory("home").item, "settings");
+}
+TEST_F(BigPictureNavigationUITest, SwitchingDevicesReleasesHeldKeysAndKeepsTheCurrentSelection)
+{
+  MenuPage home{
+      "home",
+      "Dolphin",
+      {},
+      {{"games", "Game List"}, {"start", "Start Game"}, {"settings", "Settings"}, {"exit", "Exit"}},
+      "games",
+      4};
+  home.presentation = MenuPresentation::Landing;
+  NavigationInput input;
+  Settle(home);
+  input.KeyEvent(ImGuiKey_LeftArrow, true, true);
+  Settle(home);
+  input.KeyEvent(ImGuiKey_GamepadDpadRight, true, false);
+  Settle(home);
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_LeftArrow));
+  EXPECT_FALSE(input.IsKeyboard());
+  EXPECT_EQ(toolkit.GetMemory("home").item, "start");
+  input.KeyEvent(ImGuiKey_RightArrow, true, true);
+  Settle(home);
+  EXPECT_FALSE(ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight));
+  EXPECT_TRUE(input.IsKeyboard());
+  EXPECT_EQ(toolkit.GetMemory("home").item, "settings");
+  input.KeyEvent(ImGuiKey_GamepadDpadRight, false, false);
+  Settle(home);
+  EXPECT_TRUE(input.IsKeyboard());  // A late release must not steal input ownership.
+  input.KeyEvent(ImGuiKey_GamepadFaceDown, true, false);
+  auto result = Frame(home);
+  EXPECT_EQ(result.activated, "settings");
+}
+
+TEST_F(BigPictureNavigationUITest, HomeRecoversRetainedFocusWithoutNeedingAnotherDevice)
+{
+  MenuPage home{"home",  "Dolphin", {}, {{"games", "Game List"}, {"start", "Start Game"}},
+                "games", 4};
+  home.presentation = MenuPresentation::Landing;
+  Settle(home);
+  Press(home, ImGuiKey_RightArrow);
+  ImGui::SetWindowFocus(nullptr);
+  Settle(home);
+  EXPECT_EQ(Press(home, ImGuiKey_Enter).activated, "start");
+}
+
+TEST(BigPicturePromptTest, ControllerHintsUsePhysicalGlyphsAndRespectSwappedButtons)
+{
+  ::BigPicture::NavigationStatus status;
+  status.device = "Xbox Wireless Controller";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Confirm)] = "`Button A`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Back)] = "`Button B`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Previous)] = "`Shoulder L`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Next)] = "`Shoulder R`";
+  ::BigPicture::NavigationText text;
+  text.select = "Select";
+  text.back = "Back";
+  text.navigate = "Navigate";
+  const auto normal = GetControllerPrompts(status, text, false);
+  EXPECT_NE(normal.find("\xe2\x87\x93 Select"), std::string::npos);
+  EXPECT_NE(normal.find("\xe2\x87\x92 Back"), std::string::npos);
+  EXPECT_EQ(normal.find("Button A"), std::string::npos);
+  status.options.swap_confirm_back = true;
+  EXPECT_NE(GetControllerPrompts(status, text, false).find("\xe2\x87\x92 Select"),
+            std::string::npos);
+  EXPECT_EQ(GetBindingGlyph("`Button S`", "DualSense Wireless Controller"), "\xe2\x87\xa3");
+  EXPECT_EQ(GetBindingGlyph("`Button E`", "Nintendo Switch Pro Controller"), "\xe2\x87\x93");
+  EXPECT_NE(GetBindingGlyph("`Custom/0/Pad:Button 7`", "").find("Button 7"), std::string::npos);
+  EXPECT_FALSE(GetBindingGlyph("", "").empty());
+}
+TEST(BigPicturePromptTest, DirectInputDualSenseNumbersUseSonyHidLayoutAndKeepConfiguredActions)
+{
+  const std::string_view device = "DualSense Wireless Controller";
+  EXPECT_EQ(GetBindingGlyph("`Button 0`", device, "DInput"), "\xe2\x87\xa0");
+  EXPECT_EQ(GetBindingGlyph("`Button 1`", device, "DInput"), "\xe2\x87\xa3");
+  EXPECT_EQ(GetBindingGlyph("`Button 2`", device, "DInput"), "\xe2\x87\xa2");
+  EXPECT_EQ(GetBindingGlyph("`Button 3`", device, "DInput"), "\xe2\x87\xa1");
+  EXPECT_EQ(GetBindingGlyph("`Button 4`", device, "DInput"), "\xe2\x86\xb0");
+  EXPECT_EQ(GetBindingGlyph("`Button 5`", device, "DInput"), "\xe2\x86\xb1");
+  ::BigPicture::NavigationStatus status;
+  status.device = device;
+  status.device_source = "DInput";
+  // Reproduce the saved DualSense profile: Circle selects, Cross goes back, L1/R1 page.
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Confirm)] = "`Button 2`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Back)] = "`Button 1`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Previous)] = "`Button 4`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Next)] = "`Button 5`";
+  ::BigPicture::NavigationText text;
+  text.select = "Select";
+  text.navigate = "Navigate";
+  text.home_labels = {"Game List", "Start Game", "Settings", "Exit"};
+  text.actions[static_cast<std::size_t>(::BigPicture::Action::Fullscreen)] = "Toggle Fullscreen";
+  const auto prompts = GetControllerPrompts(status, text, true);
+  EXPECT_EQ(prompts.find("Button "), std::string::npos);
+  EXPECT_NE(prompts.find("\xe2\x86\xb0 Game List"), std::string::npos);
+  EXPECT_NE(prompts.find("\xe2\x86\xb1 Toggle Fullscreen"), std::string::npos);
+  EXPECT_NE(prompts.find("\xe2\x87\xa2 Select"), std::string::npos);
+  EXPECT_NE(prompts.find("\xe2\x87\xa3 Exit"), std::string::npos);
+  status.options.swap_confirm_back = true;
+  const auto swapped = GetControllerPrompts(status, text, true);
+  EXPECT_NE(swapped.find("\xe2\x87\xa3 Select"), std::string::npos);
+  EXPECT_NE(swapped.find("\xe2\x87\xa2 Exit"), std::string::npos);
+}
+
+TEST(BigPicturePromptTest, QualifiedButtonsUseTheirOwnBackendAndCompoundsAreNotGuessed)
+{
+  EXPECT_EQ(GetBindingGlyph("`DInput/0/DualSense Wireless Controller:Button 4`", "Xbox Controller",
+                            "XInput"),
+            "\xe2\x86\xb0");
+  EXPECT_EQ(GetBindingGlyph("`SDL/0/DualSense Wireless Controller:Button S`", "Xbox Controller",
+                            "XInput"),
+            "\xe2\x87\xa3");
+  for (const auto source : {"SDL", "XInput", ""})
+    EXPECT_NE(
+        GetBindingGlyph("`Button 4`", "DualSense Wireless Controller", source).find("Button 4"),
+        std::string::npos);
+  EXPECT_NE(GetBindingGlyph("`Button 4`", "Unknown Gamepad", "DInput").find("Button 4"),
+            std::string::npos);
+  EXPECT_NE(
+      GetBindingGlyph("`Button 999`", "DualSense Wireless Controller", "DInput").find("Button 999"),
+      std::string::npos);
+  EXPECT_NE(GetBindingGlyph("`Button 4` | `Button 5`", "DualSense Wireless Controller", "DInput")
+                .find("Button 5"),
+            std::string::npos);
+}
 }  // namespace

@@ -164,7 +164,7 @@ TEST_F(BigPictureControllerTest, AsynchronousBootFailureReturnsAnErrorToLibrary)
   EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Library);
   EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Error);
   Send(Action::Back);
-  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Library);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Home);
 }
 
 TEST_F(BigPictureControllerTest, GracefulStopRemainsPendingUntilActualStop)
@@ -398,6 +398,7 @@ TEST_F(BigPictureControllerTest, LibrarySetupAndKeyboardPreserveNestedBackAndRej
 {
   host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
   Send(Action::OpenMenu);
+  Send(Action::ShowLibrary);
   const auto send = [&](LibraryOperation operation) {
     auto command = Make(Action::Library);
     command.library_operation = operation;
@@ -499,5 +500,36 @@ TEST_F(BigPictureControllerTest, PauseCoverReadUsesRunningGameWithoutEnablingLib
   controller.Submit(cover);
   EXPECT_EQ(host.executed.size(), 1u);
   EXPECT_TRUE(controller.GetSnapshot()->confirmation);
+}
+TEST_F(BigPictureControllerTest, HomeRoutesLibraryLaunchAndExitWithoutLeavingTheSession)
+{
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  Send(Action::OpenMenu);
+  EXPECT_EQ(controller.GetSnapshot()->screens, std::vector{Screen::Home});
+  Send(Action::About);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::About);
+  Send(Action::Back);
+  Send(Action::ShowLibrary);
+  EXPECT_EQ(controller.GetSnapshot()->screens, (std::vector{Screen::Home, Screen::Library}));
+  Send(Action::Back);
+  Send(Action::StartGame);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::StartGame);
+  auto command = Make(Action::Library);
+  command.library_operation = LibraryOperation::OpenFile;
+  controller.Submit(command);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::StartGame);
+  Send(Action::Back);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::ExitMenu);
+  Send(Action::Exit);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Confirmation);
+  Send(Action::Cancel);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::ExitMenu);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Home);
+  Send(Action::ReturnToDesktop);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Desktop);
 }
 }  // namespace

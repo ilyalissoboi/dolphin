@@ -4,6 +4,12 @@
 
 ### Big Picture
 
+The initial screen now follows PCSX2's four-action layout: Game List, Start Game, Settings,
+and Exit. It uses the same home icons, Roboto text and PromptFont keycaps, with Dolphin branding,
+a local clock, and the signed-in RetroAchievements display name and avatar when available.
+Start Game offers the controller file picker and installed console menus. Exit offers desktop
+mode or application exit; Escape returns from child pages to the home screen.
+
 Big Picture can now open without a running game through View → Big Picture, the startup
 preference in Config → Big Picture, or the GUI `--big-picture` option. Normal desktop startup
 remains the default. The library uses Dolphin's existing scanned games and covers, with grid/list

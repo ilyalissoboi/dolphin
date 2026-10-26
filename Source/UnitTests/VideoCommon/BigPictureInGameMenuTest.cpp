@@ -317,4 +317,42 @@ TEST_F(BigPictureInGameMenuTest,
   EXPECT_TRUE(menu.Activate({"key-0"}));
   EXPECT_EQ(menu.Activate({"clear-text"})->library_operation, LibraryOperation::TextClear);
 }
+TEST_F(BigPictureInGameMenuTest, HomeShowsFourActionsEvenWhenTheLibraryIsPopulated)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home};
+  snapshot.host.library = std::make_shared<LibrarySnapshot>();
+  snapshot.host.achievements_username = "PlayerOne";
+  text.home_labels = {"Game List", "Start Game", "Settings", "Exit"};
+  const auto menu = Build();
+  EXPECT_EQ(menu.page.id, "home");
+  EXPECT_EQ(menu.page.account_name, "PlayerOne");
+  ASSERT_EQ(menu.page.items.size(), 4u);
+  EXPECT_EQ(menu.page.items.front().image_key, "home:media-cdrom");
+  EXPECT_EQ(menu.Activate({"game-list"})->action, Action::ShowLibrary);
+  EXPECT_EQ(menu.Activate({"start-game"})->action, Action::StartGame);
+  EXPECT_EQ(menu.Activate({"preferences"})->action, Action::Settings);
+  EXPECT_EQ(menu.Activate({"exit-menu"})->action, Action::ExitMenu);
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::ExitMenu);
+  snapshot.pending = Command{snapshot.generation, 1, Action::Settings};
+  EXPECT_TRUE(Build().requests.empty());
+}
+
+TEST_F(BigPictureInGameMenuTest, StartGameOffersOnlyInstalledConsoleMenusAndControllerFilePicker)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home, Screen::StartGame};
+  snapshot.host.library = std::make_shared<LibrarySnapshot>();
+  snapshot.host.boot_ipl_available[1] = true;
+  snapshot.host.boot_ipl_available[5] = true;
+  snapshot.host.boot_system_menu_available = true;
+  const auto menu = Build();
+  EXPECT_EQ(menu.Activate({"open-file"})->library_operation, LibraryOperation::OpenFile);
+  EXPECT_EQ(menu.Activate({"ipl-1"})->slot, 1);
+  EXPECT_EQ(menu.Activate({"ipl-5"})->slot, 5);
+  EXPECT_FALSE(menu.Activate({"ipl-0"}));
+  EXPECT_EQ(menu.Activate({"system-menu"})->action, Action::BootSystemMenu);
+}
 }  // namespace

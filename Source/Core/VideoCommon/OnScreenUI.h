@@ -86,7 +86,9 @@ private:
   u64 m_navigation_generation = 0;
   ::BigPicture::NavigationStatus m_navigation;
   BigPicture::NavigationToolkit m_navigation_toolkit;
-  bool m_navigation_keyboard = true;
+  std::map<std::string, std::unique_ptr<AbstractTexture>> m_home_textures;
+  std::shared_ptr<const ::BigPicture::LibraryImage> m_home_avatar;
+  BigPicture::NavigationInput m_navigation_input;
   ImFont* m_menu_font = nullptr;
 
   // ImGui resources.

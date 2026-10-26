@@ -50,10 +50,81 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     menu.requests.emplace("back", NavigationRequest{snapshot.generation, Action::Back});
 
   const auto screen = snapshot.screens.empty() ? Screen::Pause : snapshot.screens.back();
-  if (snapshot.host.library && (screen == Screen::Library || screen == Screen::LibraryOptions ||
-                                screen == Screen::FilePicker || screen == Screen::TextInput))
+  if (screen == Screen::About)
+  {
+    page.id = "about";
+    page.title = text.about_title;
+    page.description = text.about_description;
+    page.dialog = true;
+    add("back", Action::Back);
+  }
+  else if (screen == Screen::Home)
+  {
+    page.id = "home";
+    page.title = "Dolphin";
+    page.presentation = MenuPresentation::Landing;
+    page.columns = 4;
+    page.default_focus = "game-list";
+    page.account_name = snapshot.host.achievements_username;
+    const std::array actions{Action::ShowLibrary, Action::StartGame, Action::Settings,
+                             Action::ExitMenu};
+    const std::array ids{"game-list", "start-game", "preferences", "exit-menu"};
+    const std::array images{"media-cdrom", "start-game", "applications-system", "exit"};
+    for (std::size_t i = 0; i < actions.size(); ++i)
+    {
+      add(ids[i], actions[i], text.home_descriptions[i]);
+      page.items.back().label = text.home_labels[i];
+      page.items.back().image_key = std::string("home:") + images[i];
+    }
+    menu.requests["back"] = {snapshot.generation, Action::ExitMenu};
+  }
+  else if (screen == Screen::StartGame)
+  {
+    page.id = "start-game";
+    page.title = text.home_labels[1];
+    if (snapshot.host.library)
+    {
+      add("open-file", Action::Library);
+      page.items.back().label =
+          text.library_actions[static_cast<std::size_t>(LibraryOperation::OpenFile)];
+      page.items.back().icon = MenuIcon::Folder;
+      if (auto it = menu.requests.find("open-file"); it != menu.requests.end())
+        it->second.library_operation = LibraryOperation::OpenFile;
+    }
+    else
+      add("open-file", Action::OpenGame);
+    if (!snapshot.host.launch_path.empty())
+    {
+      add("boot", Action::Boot, snapshot.host.launch_title);
+      if (auto it = menu.requests.find("boot"); it != menu.requests.end())
+        it->second.path = snapshot.host.launch_path;
+    }
+    for (int i : {0, 1, 2, 5})
+    {
+      if (!snapshot.host.boot_ipl_available[i])
+        continue;
+      const auto id = "ipl-" + std::to_string(i);
+      add(id, Action::BootIPL, i == 0 ? "NTSC-J" : i == 1 ? "NTSC-U" : i == 2 ? "PAL" : "DEV");
+      if (auto it = menu.requests.find(id); it != menu.requests.end())
+        it->second.slot = static_cast<int>(i);
+    }
+    if (snapshot.host.boot_system_menu_available)
+      add("system-menu", Action::BootSystemMenu);
+    add("back", Action::Back);
+  }
+  else if (screen == Screen::ExitMenu)
+  {
+    page.id = "exit-menu";
+    page.title = text.home_labels[3];
+    add("desktop", Action::ReturnToDesktop);
+    add("exit", Action::Exit);
+    add("back", Action::Back);
+  }
+  else if (snapshot.host.library &&
+           (screen == Screen::Library || screen == Screen::LibraryOptions ||
+            screen == Screen::FilePicker || screen == Screen::TextInput))
     return BuildLibraryMenu(snapshot, text);
-  if (screen == Screen::Confirmation && snapshot.confirmation)
+  else if (screen == Screen::Confirmation && snapshot.confirmation)
   {
     const auto& command = *snapshot.confirmation;
     page.id = "confirmation";
@@ -78,7 +149,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.items.back().label = text.cancel;
     return menu;
   }
-  if (screen == Screen::Error)
+  else if (screen == Screen::Error)
   {
     page.id = "error";
     page.focus_revision = snapshot.error ? snapshot.error->command.id : 0;
@@ -91,7 +162,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("back", Action::Back);
     return menu;
   }
-  if (screen == Screen::SaveStates || screen == Screen::LoadStates)
+  else if (screen == Screen::SaveStates || screen == Screen::LoadStates)
   {
     const bool saving = screen == Screen::SaveStates;
     const auto action = saving ? Action::SaveState : Action::LoadState;

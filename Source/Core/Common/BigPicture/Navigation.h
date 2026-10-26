@@ -67,6 +67,8 @@ struct NavigationStatus
   std::string device;
   std::array<std::string, NAV_BUTTON_COUNT> bindings;
   NavigationOptions options;
+  // Button numbering differs across backends, even for the same physical controller.
+  std::string device_source;
 };
 
 // Translated on the Qt owner; the graphics owner only consumes these value strings.
@@ -121,6 +123,12 @@ struct NavigationText
   std::string library_list;
   std::string library_all;
   std::string disc_change_requested;
+  std::array<std::string, 4> home_labels;
+  std::array<std::string, 4> home_descriptions;
+  std::string home_keyboard_prompts;
+  std::string navigate;
+  std::string about_title;
+  std::string about_description;
 };
 
 struct NavigationRequest
