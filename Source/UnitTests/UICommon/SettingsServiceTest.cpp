@@ -210,6 +210,37 @@ TEST_F(SettingsServiceTest, DisplayTransformsReverseBoolsAndPreserveExactStorage
   EXPECT_EQ(Display("advanced.mem1_size", 48.5).status, Status::InvalidValue);
 }
 
+TEST_F(SettingsServiceTest, FloatStepsAcceptEveryConvergenceTickButRejectValuesBetweenTicks)
+{
+  constexpr auto id = "native.gfx_stereo_convergence";
+  const auto* entry = GetCatalog().Find(id);
+  ASSERT_NE(entry, nullptr);
+  // Limit the exhaustive tick sweep to this descriptor, rather than rebuilding unrelated rows.
+  const Catalog catalog({*entry});
+  Service convergence(catalog);
+  environment.stereo = true;
+  ASSERT_TRUE(convergence.SetEnvironment(environment));
+  ASSERT_TRUE(convergence.SetContext({EditTarget::Base}));
+  const auto display = [&](double value) {
+    Request request{convergence.ReadSnapshot()->revision, id, Operation::SetDisplay};
+    request.display_value = value;
+    return convergence.Apply(request).status;
+  };
+  ASSERT_EQ(display(100), Status::Success);
+  for (int tick = 0; tick <= 20000; ++tick)
+  {
+    const double value = tick / 100.0;
+    ASSERT_EQ(display(value), Status::Success) << value;
+    EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), static_cast<float>(value));
+    ASSERT_TRUE(convergence.ReadSnapshot()->settings.front().value_available) << value;
+  }
+  for (double value : {0.005, 10.005, 99.995, 100.005, 199.995, -0.01, 200.01})
+  {
+    EXPECT_EQ(display(value), Status::InvalidValue) << value;
+    EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 200);
+  }
+}
+
 TEST_F(SettingsServiceTest, InvalidNumbersAndTypesNeverChangeConfiguration)
 {
   const int original = Config::Get(Config::MAIN_AUDIO_VOLUME);

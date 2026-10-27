@@ -51,7 +51,13 @@ bool Valid(const Descriptor& descriptor, const Value& value, bool default_reset)
     if (range.step > 0)
     {
       const double steps = (*number - range.minimum) / range.step;
-      if (std::abs(steps - std::round(steps)) > 0.0001)
+      // Float values and float-derived steps lose precision before promotion to double.
+      // Account for that accumulated error without relaxing validation for integer settings.
+      const double tolerance = std::holds_alternative<float>(value) ?
+                                   std::max(0.0001, 2 * std::numeric_limits<float>::epsilon() *
+                                                        std::max(1.0, std::abs(steps))) :
+                                   0.0001;
+      if (std::abs(steps - std::round(steps)) > tolerance)
         return false;
     }
   }

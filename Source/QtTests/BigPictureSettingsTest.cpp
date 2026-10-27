@@ -195,6 +195,26 @@ TEST_F(BigPictureSettingsTest, NativeNumberEditorUsesDisplayUnitsAndValidatesTyp
   EXPECT_EQ(Row("adjust-10").edit->display_value, 200);
 }
 
+TEST_F(BigPictureSettingsTest, ConvergenceEditorAcceptsFloatStepsAndTypedValuesAtTheUpperBound)
+{
+  environment.stereo = true;
+  menu->SetEnvironment(environment);
+  Config::SetBase(Config::GFX_STEREO_CONVERGENCE, 100.0f);
+  ASSERT_EQ(Activate("Enhancements"), Status::Success);
+  ASSERT_EQ(Activate("native.gfx_stereo_convergence"), Status::Success);
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 100.01f);
+  ASSERT_EQ(Activate("enter-value"), Status::Success);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  ASSERT_EQ(menu->Execute({menu->ReadMenu()->revision, O::TextKey, "199.99"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_FALSE(menu->ReadMenu()->text_input);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 199.99f);
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 200.0f);
+  EXPECT_FALSE(Row("adjust-1").enabled);
+}
+
 TEST_F(BigPictureSettingsTest, TextEditorKeepsDraftsUntilDoneAndHandlesUnicodeAndQueuedCharacters)
 {
   ASSERT_EQ(Activate("Paths"), Status::Success);
