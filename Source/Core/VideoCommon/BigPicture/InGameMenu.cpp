@@ -5,6 +5,7 @@
 #include "VideoCommon/BigPicture/LibraryMenu.h"
 #include "VideoCommon/BigPicture/SettingsMenu.h"
 
+#include <algorithm>
 #include <string_view>
 #include <utility>
 
@@ -24,7 +25,6 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   InGameMenu menu;
   auto& page = menu.page;
   page.theme = snapshot.host.menu_theme;
-  page.overlay = snapshot.mode == Mode::InGame;
   const auto label = [&](Action action) -> const std::string& {
     return text.actions[static_cast<std::size_t>(action)];
   };
@@ -218,7 +218,10 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.id = saving ? "save-states" : "load-states";
     page.title = label(saving ? Action::SaveStates : Action::LoadStates);
     page.description = text.state_browser_help;
-    page.columns = 4;
+    page.presentation = MenuPresentation::States;
+    page.overlay = snapshot.mode == Mode::InGame;
+    page.columns = 3;
+    page.busy = snapshot.pending.has_value();
     const auto reason = snapshot.availability[static_cast<std::size_t>(action)];
     for (std::size_t slot = 0; slot < STATE_SLOT_COUNT; ++slot)
     {
@@ -232,6 +235,10 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
                           !state.readable                   ? text.unknown_slot :
                                                               state.description;
       page.items.push_back({id, text.slot_labels[slot], detail, enabled});
+      page.items.back().image_key = "state:" + std::to_string(slot);
+      if (state.preview && state.preview->width && state.preview->height)
+        page.items.back().image_aspect =
+            static_cast<float>(state.preview->width) / state.preview->height;
       page.items.back().icon = GetActionIcon(action);
       if (enabled)
       {
@@ -242,6 +249,9 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     }
     add("refresh", Action::RefreshStates, {}, true);
     add("back", Action::Back, {}, true);
+    std::rotate(page.toolbar.begin(), page.toolbar.end() - 1, page.toolbar.end());
+    const auto first = std::ranges::find_if(page.items, &MenuItem::enabled);
+    page.default_focus = first == page.items.end() ? "refresh" : first->id;
   }
   else if (screen == Screen::Settings)
   {
@@ -291,33 +301,41 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   {
     page.id = "root";
     page.presentation = MenuPresentation::Pause;
+    page.overlay = true;
     page.title = text.title;
     page.context.label = snapshot.host.game_title;
     page.context.image_key = snapshot.host.game_path;
+    page.context.detail = snapshot.host.game_details;
+    page.play_time = snapshot.host.game_play_time;
+    page.rich_presence = snapshot.host.game_rich_presence;
+    page.achievement_progress = snapshot.host.game_achievement_progress;
     page.default_focus = "resume";
     add("resume", Action::Resume);
-    add("save", Action::SaveStates);
     add("load", Action::LoadStates);
+    add("save", Action::SaveStates);
+    add("screenshot", Action::Screenshot);
+    add("disc", Action::ChangeDisc);
+    if (menu.requests.contains("disc"))
+    {
+      if (snapshot.host.library)
+      {
+        menu.requests["disc"].action = Action::Library;
+        menu.requests["disc"].library_operation = LibraryOperation::OpenDisc;
+      }
+      else
+      {
+        menu.requests.erase("disc");
+        page.items.back().enabled = false;
+        page.items.back().detail = reason_text(UnavailableReason::Busy);
+      }
+    }
+    add("reset", Action::Reset);
     add("preferences", Action::Settings);
     page.items.back().label = text.game_settings;
     if (auto it = menu.requests.find("preferences"); it != menu.requests.end())
       it->second.slot = 1;
-    add("global-preferences", Action::Settings);
-    page.items.back().label = text.global_settings;
-    add("disc", Action::ChangeDisc, text.desktop_disc_help);
-    if (snapshot.host.library && menu.requests.contains("disc"))
-    {
-      menu.requests["disc"].action = Action::Library;
-      menu.requests["disc"].library_operation = LibraryOperation::OpenDisc;
-      page.items.back().detail.clear();
-    }
-    add("reset", Action::Reset);
-    add("screenshot", Action::Screenshot);
-    add("stop", Action::Stop, text.stop_help);
+    add("stop", Action::Stop);
     add("exit", Action::Exit);
-    page.items.push_back({"close", text.close});
-    page.items.back().icon = MenuIcon::Back;
-    menu.requests.emplace("close", NavigationRequest{snapshot.generation, Action::Back});
   }
   if (snapshot.result && (snapshot.result->status == ResultStatus::Dispatched ||
                           snapshot.result->status == ResultStatus::Unavailable))

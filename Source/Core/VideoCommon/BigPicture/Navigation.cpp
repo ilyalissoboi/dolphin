@@ -21,6 +21,20 @@ ImU32 Color(const ImVec4& color)
   return ImGui::GetColorU32(color);
 }
 
+std::string GetClockText()
+{
+  const std::time_t now = std::time(nullptr);
+  std::tm local{};
+#ifdef _WIN32
+  localtime_s(&local, &now);
+#else
+  localtime_r(&now, &local);
+#endif
+  char clock[32]{};
+  std::strftime(clock, sizeof(clock), "%H:%M:%S", &local);
+  return clock;
+}
+
 void DrawCover(ImDrawList* draw, ImVec2 min, ImVec2 size, ImTextureID texture, float scale,
                const Style::Palette& palette)
 {
@@ -175,7 +189,7 @@ std::string GetBindingGlyph(std::string_view binding, std::string_view device,
 }
 
 std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
-                                 const ::BigPicture::NavigationText& text, bool home)
+                                 const ::BigPicture::NavigationText& text, bool home, bool pause)
 {
   using ::BigPicture::NavButton;
   const auto hint = [&](NavButton button, const std::string& label) {
@@ -191,12 +205,31 @@ std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
               hint(NavButton::Next,
                    text.actions[static_cast<std::size_t>(::BigPicture::Action::Fullscreen)]) +
               "   ";
-  else
+  else if (!pause)
     prompts =
         hint(NavButton::Previous, text.previous) + "   " + hint(NavButton::Next, text.next) + "   ";
   return prompts + "\xe2\x87\x8e " + text.navigate + "   " + hint(confirm, text.select) + "   " +
-         hint(back, home ? text.home_labels[3] : text.back);
+         hint(back, home  ? text.home_labels[3] :
+                    pause ? text.return_to_game :
+                            text.back);
 }
+std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                      const ::BigPicture::NavigationText& text)
+{
+  using ::BigPicture::NavButton;
+  const auto hint = [&](NavButton button, const std::string& label) {
+    return GetBindingGlyph(status.bindings[static_cast<std::size_t>(button)], status.device,
+                           status.device_source) +
+           " " + label;
+  };
+  const auto confirm = status.options.swap_confirm_back ? NavButton::Back : NavButton::Confirm;
+  const auto back = status.options.swap_confirm_back ? NavButton::Confirm : NavButton::Back;
+  return "\xe2\x87\x8e " + text.navigate + "   " +
+         hint(NavButton::Previous,
+              text.actions[static_cast<std::size_t>(::BigPicture::Action::RefreshStates)]) +
+         "   " + hint(confirm, text.select) + "   " + hint(back, text.cancel);
+}
+
 std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                         const ::BigPicture::NavigationText& text)
 {
@@ -234,6 +267,7 @@ void NavigationToolkit::Reset()
   m_current_page.clear();
   m_memory.clear();
   m_restore_frames = 0;
+  m_header_height = 0;
 }
 
 std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
@@ -477,6 +511,8 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
     result = DrawSettings(page, options, prompts, font);
   else if (page.presentation == MenuPresentation::Library)
     result = DrawLibrary(page, options, prompts, font, image);
+  else if (page.presentation == MenuPresentation::States)
+    result = DrawStates(page, options, prompts, font, image);
   else if (page.dialog)
     result = DrawDialog(page, options, prompts, font, image);
   else
@@ -493,6 +529,9 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   MenuResult result;
   const auto layout = ComputeMenuLayout(ImGui::GetIO().DisplaySize, options, page.dialog);
   const float scale = layout.scale;
+  const bool pause = page.presentation == MenuPresentation::Pause;
+  const bool achievements = !page.rich_presence.empty() || !page.achievement_progress.empty();
+  const float header_height = (pause ? (achievements ? 130 : 110) : Style::HEADER_HEIGHT) * scale;
   // DisplaySize is already in native pixels. Diagnostic OSD/DPI font scaling must not
   // multiply the menu's separately scaled geometry a second time.
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
@@ -501,7 +540,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   const bool revision_changed = m_focus_revision != page.focus_revision;
   const bool entering = m_current_page != page.id || m_focus_revision != page.focus_revision ||
                         m_layout_width != layout.size.x || m_layout_height != layout.size.y ||
-                        m_layout_scale != scale;
+                        m_layout_scale != scale || m_header_height != header_height;
   m_current_page = page.id;
   m_focus_revision = page.focus_revision;
   // Destructive dialogs always start at their safe default, including another request using
@@ -511,6 +550,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   m_layout_width = layout.size.x;
   m_layout_height = layout.size.y;
   m_layout_scale = scale;
+  m_header_height = header_height;
   auto focus = std::ranges::find_if(page.items, [&](const MenuItem& item) {
     return item.enabled && item.id == (memory.item.empty() ? page.default_focus : memory.item);
   });
@@ -551,15 +591,18 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
 
   const auto& palette = Style::GetPalette(page.theme);
   const float padding = Style::PADDING * scale;
-  const float gap = Style::GAP * scale;
+  const float gap = (pause ? 7 : Style::GAP) * scale;
   const float title_size = Style::TITLE_SIZE * scale;
   const float summary_size = Style::SUMMARY_SIZE * scale;
-  const bool pause = page.presentation == MenuPresentation::Pause;
   const bool landing = page.presentation == MenuPresentation::Landing;
   auto* background = ImGui::GetBackgroundDrawList();
   const ImVec2 display = ImGui::GetIO().DisplaySize;
   auto backdrop = palette.background;
-  if (pause || page.overlay || page.dialog)
+  if (pause)
+    backdrop = palette.text.x > 0.5f ?
+                   ImVec4(0, 0, 0, 0.72f) :
+                   ImVec4(palette.background.x, palette.background.y, palette.background.z, 0.90f);
+  else if (page.overlay || page.dialog)
     backdrop.w = 0.80f;
   background->AddRectFilled(ImVec2(0, 0), display, Color(backdrop));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
@@ -569,9 +612,9 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.focus);
+  ImGui::PushStyleColor(ImGuiCol_NavCursor, pause ? palette.secondary : palette.focus);
   ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.selected);
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.selected);
   ImGui::PushStyleColor(ImGuiCol_Border, palette.hover);
   ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.panel);
@@ -579,7 +622,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.secondary);
   ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.focus);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(gap, pause ? 0 : gap));
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(gap, gap));
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, page.dialog ? 8 * scale : 0);
   ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::ROUNDING * scale);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(gap, gap));
@@ -599,13 +642,12 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
                    ImGuiWindowFlags_NoScrollWithMouse);
   auto* window_draw = ImGui::GetWindowDrawList();
-  const float header_height = (pause ? 110 : Style::HEADER_HEIGHT) * scale;
   const ImVec2 header_max(layout.position.x + layout.size.x, layout.position.y + header_height);
   if (!pause)
     window_draw->AddRectFilled(layout.position, header_max, Color(palette.header),
                                page.dialog ? 8 * scale : 0);
   ImGui::SetCursorPos(ImVec2(padding, gap));
-  if (pause && !page.context.label.empty())
+  if (pause)
   {
     DrawCover(window_draw, ImVec2(layout.position.x + padding, layout.position.y + gap),
               ImVec2(60 * scale, 90 * scale),
@@ -613,10 +655,66 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
                                                          ImTextureID{},
               scale, palette);
     const ImVec2 text_min(layout.position.x + padding + 80 * scale, layout.position.y + gap);
-    window_draw->PushClipRect(text_min, header_max, true);
+    // Reserve a separate right-aligned band so long titles and translated metadata
+    // cannot paint over the clock or play times.
+    const float right = header_max.x - padding;
+    const float stats_width = std::min(280 * scale, layout.size.x * 0.35f);
+    const ImVec2 text_max(right - stats_width - gap, header_max.y);
+    window_draw->PushClipRect(text_min, text_max, true);
     window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), text_min, Color(palette.text),
-                         page.context.label.c_str(), nullptr,
-                         std::max(scale, layout.size.x - padding * 2 - 80 * scale));
+                         page.context.label.c_str());
+    ImGui::PushFont(font, summary_size / font_scale);
+    window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                         ImVec2(text_min.x, text_min.y + title_size + 4 * scale),
+                         Color(palette.text), page.context.detail.c_str());
+    float metadata_y =
+        text_min.y + title_size + 4 * scale + ImGui::CalcTextSize(page.context.detail.c_str()).y;
+    const float metadata_width = std::max(scale, text_max.x - text_min.x);
+    if (!page.rich_presence.empty())
+    {
+      metadata_y += 4 * scale;
+      const float presence_height = std::min(
+          summary_size * 2,
+          ImGui::CalcTextSize(page.rich_presence.c_str(), nullptr, false, metadata_width).y);
+      window_draw->PushClipRect(ImVec2(text_min.x, metadata_y),
+                                ImVec2(text_max.x, metadata_y + presence_height), true);
+      window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(text_min.x, metadata_y),
+                           Color(palette.text), page.rich_presence.c_str(), nullptr,
+                           metadata_width);
+      window_draw->PopClipRect();
+      metadata_y += presence_height;
+    }
+    if (!page.achievement_progress.empty())
+    {
+      metadata_y += 4 * scale;
+      DrawMenuIcon(window_draw, MenuIcon::Trophy, ImVec2(text_min.x, metadata_y), summary_size,
+                   Color(palette.text));
+      window_draw->AddText(ImVec2(text_min.x + summary_size + 5 * scale, metadata_y),
+                           Color(palette.text), page.achievement_progress.c_str());
+    }
+    ImGui::PopFont();
+    window_draw->PopClipRect();
+    const auto clock = GetClockText();
+    window_draw->PushClipRect(ImVec2(right - stats_width, text_min.y), header_max, true);
+    window_draw->AddText(ImVec2(right - ImGui::CalcTextSize(clock.c_str()).x, text_min.y),
+                         Color(palette.text), clock.c_str());
+    ImGui::PushFont(font, summary_size / font_scale);
+    const float line_height = ImGui::GetTextLineHeight();
+    std::string_view times = page.play_time;
+    float time_y = text_min.y + title_size + 4 * scale;
+    while (!times.empty())
+    {
+      const auto end = times.find('\n');
+      const auto line = times.substr(0, end);
+      const float width = ImGui::CalcTextSize(line.data(), line.data() + line.size()).x;
+      window_draw->AddText(ImVec2(right - width, time_y), Color(palette.text), line.data(),
+                           line.data() + line.size());
+      time_y += line_height;
+      if (end == std::string_view::npos)
+        break;
+      times.remove_prefix(end + 1);
+    }
+    ImGui::PopFont();
     window_draw->PopClipRect();
   }
   else
@@ -651,19 +749,22 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
         ImGui::SetKeyboardFocusHere();
       ImGui::BeginDisabled(!item.enabled);
       if (item.active)
+      {
         ImGui::PushStyleColor(ImGuiCol_Button, palette.selected);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.selected);
+      }
       const bool clicked = ImGui::Button("##toolbar", ImVec2(toolbar_width, toolbar_height));
       if (item.active)
-        ImGui::PopStyleColor();
+        ImGui::PopStyleColor(2);
       const auto min = ImGui::GetItemRectMin();
       const auto max = ImGui::GetItemRectMax();
       if (item.active)
         window_draw->AddLine(ImVec2(min.x + gap, max.y - 4 * scale),
                              ImVec2(max.x - gap, max.y - 4 * scale), Color(palette.selected_text),
                              2 * scale);
-      const auto text_color = Color(item.active || ImGui::IsItemHovered() || ImGui::IsItemActive() ?
-                                        palette.selected_text :
-                                        palette.header_text);
+      const auto text_color = Color(item.active            ? palette.selected_text :
+                                    ImGui::IsItemHovered() ? palette.text :
+                                                             palette.header_text);
       const float icon_width = item.icon == MenuIcon::None ? 0 : 24 * scale;
       window_draw->PushClipRect(min, max, true);
       DrawMenuIcon(window_draw, item.icon,
@@ -686,23 +787,28 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   // The prompt strip is outside the scrolling region, including on small/high-scale displays.
   ImGui::PushFont(font, summary_size / font_scale);
   const float footer_height =
-      std::max(Style::FOOTER_HEIGHT * scale,
-               ImGui::CalcTextSize(prompts.c_str(), nullptr, false,
-                                   std::max(scale, layout.size.x - padding * 2))
-                       .y +
-                   gap * 2);
+      pause ? Style::FOOTER_HEIGHT * scale :
+              std::max(Style::FOOTER_HEIGHT * scale,
+                       ImGui::CalcTextSize(prompts.c_str(), nullptr, false,
+                                           std::max(scale, layout.size.x - padding * 2))
+                               .y +
+                           gap * 2);
   ImGui::PopFont();
   const float content_top = ImGui::GetCursorPosY();
-  const float content_height = std::max(scale, layout.size.y - content_top - footer_height - gap);
+  const float footer_y =
+      page.dialog ? layout.position.y + layout.size.y - footer_height : display.y - footer_height;
+  const float content_bottom = std::min(layout.position.y + layout.size.y, footer_y - gap);
+  const float content_height = std::max(scale, content_bottom - layout.position.y - content_top);
   const float content_width = std::max(scale, ImGui::GetContentRegionAvail().x);
   if (entering || m_restore_frames != 0)
     ImGui::SetNextWindowScroll(
         ImVec2(0, (m_restore_frames ? m_restore_scroll : memory.scroll) * scale));
   ImGui::BeginChild(
       page.id.c_str(),
-      ImVec2(pause ? std::min(content_width, 500 * scale) : content_width, content_height),
+      ImVec2(pause ? std::min(content_width, Style::ACTION_COLUMN_WIDTH * scale) : content_width,
+             content_height),
       page.toolbar.empty() ? ImGuiChildFlags_None : ImGuiChildFlags_NavFlattened,
-      ImGuiWindowFlags_AlwaysVerticalScrollbar);
+      pause ? ImGuiWindowFlags_None : ImGuiWindowFlags_AlwaysVerticalScrollbar);
   if (!page.description.empty())
   {
     ImGui::PushFont(font, summary_size / font_scale);
@@ -764,8 +870,9 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
     const float artwork_width = artwork_height * 2 / 3;
     const bool large_icon =
         landing && columns > 1 && item.icon != MenuIcon::None && card_height_limit > 130 * scale;
-    const float icon_width =
-        !page.artwork && !large_icon && item.icon != MenuIcon::None ? title_size + gap : 0;
+    const float icon_width = !page.artwork && !large_icon && item.icon != MenuIcon::None ?
+                                 Style::ICON_SIZE * scale + gap :
+                                 0;
     const float text_offset = page.artwork && columns == 1 ? artwork_width + gap : icon_width;
     const float text_top =
         large_icon ? std::min(96 * scale, std::max(0.0f, card_height_limit - 90 * scale)) :
@@ -788,7 +895,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
                                       std::min((landing ? 220 : 150) * scale, card_height_limit)) :
                       std::max((page.compact        ? 40 :
                                 page.artwork        ? 90 :
-                                item.detail.empty() ? Style::SHORT_ROW_HEIGHT :
+                                item.detail.empty() ? (pause ? 36 : Style::SHORT_ROW_HEIGHT) :
                                                       Style::ROW_HEIGHT) *
                                    scale,
                                label_height + detail_height + gap * 2);
@@ -797,9 +904,13 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
     if (request_focus && item.enabled)
       ImGui::SetKeyboardFocusHere();
     ImGui::BeginDisabled(!item.enabled);
+    if (pause)
+      ImGui::PushStyleColor(ImGuiCol_NavCursor, ImVec4(0, 0, 0, 0));
     const bool clicked =
         ImGui::Selectable("##item", item.enabled && item.id == memory.item,
                           ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2(width, height));
+    if (pause)
+      ImGui::PopStyleColor();
     if (item.enabled && (ImGui::IsItemFocused() || clicked))
       memory.item = item.id;
     if (request_focus && !requested_focus.empty())
@@ -834,26 +945,24 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
     auto* draw = ImGui::GetWindowDrawList();
     const bool selected = item.enabled && item.id == memory.item;
     const bool hovered = ImGui::IsItemHovered();
-    if (selected || hovered || columns > 1)
-      draw->AddRectFilled(min, max,
-                          Color(selected ? palette.selected :
-                                hovered  ? palette.hover :
-                                           palette.header),
+    const bool highlighted = hovered || (selected && ImGui::GetIO().NavVisible);
+    if (highlighted || columns > 1)
+      draw->AddRectFilled(min, max, Color(highlighted ? palette.hover : palette.header),
                           Style::ROUNDING * scale);
-    if (selected)
-      draw->AddRect(min, max, Color(palette.focus), Style::ROUNDING * scale, 0, 2 * scale);
+    if (highlighted)
+      draw->AddRect(min, max, Color(palette.secondary), Style::ROUNDING * scale, 0, scale);
     draw->PushClipRect(min, max, true);
-    const auto label_color = Color(selected    ? palette.selected_text :
-                                   hovered     ? palette.text :
+    const auto label_color = Color(highlighted ? palette.text :
                                    columns > 1 ? palette.header_text :
                                                  palette.text);
     if (item.active)
       DrawMenuIcon(draw, MenuIcon::Check, ImVec2(max.x - padding - title_size, min.y + gap),
-                   title_size, Color(selected ? palette.selected_text : palette.focus));
+                   title_size, Color(palette.focus));
     if (!page.artwork)
     {
-      const float icon_size =
-          large_icon ? std::min(64 * scale, std::max(0.0f, text_top - 32 * scale)) : title_size;
+      const float icon_size = large_icon ?
+                                  std::min(64 * scale, std::max(0.0f, text_top - 32 * scale)) :
+                                  Style::ICON_SIZE * scale;
       DrawMenuIcon(draw, item.icon,
                    large_icon ? ImVec2(min.x + (width - icon_size) * 0.5f, min.y + 24 * scale) :
                                 ImVec2(min.x + padding, min.y + gap),
@@ -880,8 +989,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
       const float detail_top = min.y + gap + text_top + title_height + 4 * scale;
       draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                     ImVec2(min.x + padding + text_offset, detail_top),
-                    Color(selected    ? palette.selected_text :
-                          hovered     ? palette.text :
+                    Color(highlighted ? palette.text :
                           columns > 1 ? palette.card_secondary :
                                         palette.secondary),
                     item.detail.c_str(), nullptr, wrap_width);
@@ -899,18 +1007,26 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   if (m_restore_frames)
     --m_restore_frames;
   ImGui::EndChild();
-  const ImVec2 footer_min(layout.position.x, layout.position.y + layout.size.y - footer_height);
-  window_draw->AddRectFilled(footer_min,
-                             ImVec2(footer_min.x + layout.size.x, footer_min.y + footer_height),
-                             Color(palette.panel));
-  ImGui::SetCursorScreenPos(ImVec2(footer_min.x + padding, footer_min.y + gap));
+  // Match the home screen's thin edge-to-edge bar. Overscan margins belong to
+  // the content layout and must not increase the visible footer's thickness.
+  const ImVec2 footer_min(page.dialog ? layout.position.x : 0, footer_y);
+  const ImVec2 footer_max(page.dialog ? footer_min.x + layout.size.x : display.x,
+                          footer_y + footer_height);
+  auto* footer_draw = page.dialog ? window_draw : ImGui::GetForegroundDrawList();
+  footer_draw->AddRectFilled(footer_min, footer_max, Color(palette.header));
   ImGui::PushFont(font, summary_size / font_scale);
-  window_draw->PushClipRect(
-      footer_min, ImVec2(footer_min.x + layout.size.x, footer_min.y + footer_height), true);
-  window_draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImGui::GetCursorScreenPos(),
-                       Color(palette.text), prompts.c_str(), nullptr,
-                       std::max(scale, layout.size.x - padding * 2));
-  window_draw->PopClipRect();
+  const float prompt_width = ImGui::CalcTextSize(prompts.c_str()).x;
+  const float prompt_x = !page.dialog ?
+                             std::max(layout.position.x + padding,
+                                      layout.position.x + layout.size.x - padding - prompt_width) :
+                             footer_min.x + padding;
+  footer_draw->PushClipRect(footer_min, footer_max, true);
+  footer_draw->AddText(
+      ImGui::GetFont(), ImGui::GetFontSize(),
+      ImVec2(prompt_x, footer_min.y + (footer_height - ImGui::GetTextLineHeight()) * 0.5f),
+      Color(palette.header_text), prompts.c_str(), nullptr,
+      std::max(scale, layout.size.x - padding * 2));
+  footer_draw->PopClipRect();
   ImGui::PopFont();
   ImGui::Dummy(ImVec2(0, 0));
   result.back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||

@@ -18,6 +18,8 @@
 
 namespace VideoCommon::BigPicture
 {
+std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                      const ::BigPicture::NavigationText& text);
 enum class MenuPresentation
 {
   List,
@@ -27,6 +29,7 @@ enum class MenuPresentation
   Launch,
   FilePicker,
   Settings,
+  States,
 };
 
 struct MenuItem
@@ -67,6 +70,9 @@ struct MenuPage
   bool overlay = false;
   std::string theme = "Dark";
   std::string account_name;
+  std::string play_time;
+  std::string rich_presence;
+  std::string achievement_progress;
   std::shared_ptr<const MenuPage> background;
   bool category_page = false;
   bool busy = false;
@@ -131,6 +137,9 @@ private:
                             const std::function<ImTextureID(const std::string&)>& image);
   MenuResult DrawSettings(const MenuPage& page, ::BigPicture::NavigationOptions options,
                           const std::string& prompts, ImFont* font);
+  MenuResult DrawStates(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                        const std::string& prompts, ImFont* font,
+                        const std::function<ImTextureID(const std::string&)>& image);
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
@@ -138,6 +147,7 @@ private:
   float m_layout_width = 0;
   float m_layout_height = 0;
   float m_layout_scale = 0;
+  float m_header_height = 0;
   std::uint64_t m_focus_revision = 0;
   int m_library_columns = 0;
   bool m_library_grid = false;
@@ -166,7 +176,8 @@ private:
 std::string GetBindingGlyph(std::string_view binding, std::string_view device,
                             std::string_view source = {});
 std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
-                                 const ::BigPicture::NavigationText& text, bool home);
+                                 const ::BigPicture::NavigationText& text, bool home,
+                                 bool pause = false);
 std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                         const ::BigPicture::NavigationText& text);
 std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& status,

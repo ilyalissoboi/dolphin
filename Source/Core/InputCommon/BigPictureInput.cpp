@@ -54,8 +54,8 @@ void MenuController::LoadDefaults(const ControllerInterface& controller_interfac
   EmulatedController::LoadDefaults(controller_interface);
   if (!selected_device.ToString().empty())
     SetDefaultDevice(selected_device);
-  // Entry is opt-in until the in-game menu is complete. Selecting a device and clicking
-  // Default supplies known XInput bindings; other backends use the normal mapping UI.
+  // Keyboard entry is supplied by the Open Pause Menu hotkey (Escape by default).
+  // Selecting an XInput device also supplies controller navigation defaults.
   if (GetDefaultDevice().source == "XInput")
   {
     constexpr std::array<const char*, BigPicture::NAV_BUTTON_COUNT> bindings = {

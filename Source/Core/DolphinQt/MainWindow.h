@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QPointer>
 #include <QStringList>
@@ -13,6 +14,7 @@
 #include <string>
 
 #include "Common/BigPicture/Contracts.h"
+#include "Common/HookableEvent.h"
 #include "DolphinQt/BigPictureGraphicsConfig.h"
 
 #ifdef USE_RETRO_ACHIEVEMENTS
@@ -284,8 +286,13 @@ private:
   bool m_big_picture_system_menu_available = false;
   std::array<BigPicture::StateSlot, BigPicture::STATE_SLOT_COUNT> m_big_picture_state_slots;
   bool m_big_picture_state_slots_ready = false;
+  Common::EventHook m_state_save_hook;
   bool m_big_picture_disc_game = false;
   std::string m_big_picture_disc_path;
+  QElapsedTimer m_big_picture_play_timer;
+  qint64 m_big_picture_session_ms = 0;
+  qint64 m_big_picture_previous_play_ms = 0;
+  bool m_big_picture_play_time_started = false;
   void ShowBigPictureTextInput(std::uint64_t generation);
   std::unique_ptr<VideoCommon::BigPicture::StandaloneSession> m_standalone;
   QTimer* m_standalone_timer = nullptr;

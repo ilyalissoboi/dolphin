@@ -34,6 +34,38 @@ TEST(BigPictureHostTest, QueuedNavigationCannotExecuteAfterFocusReset)
   EXPECT_EQ(host.GetSnapshot()->mode, Mode::InGame);
 }
 
+TEST(BigPictureHostTest, RendererTeardownRejectsQueuedOpeningAndReleasesCaptureWithoutPausing)
+{
+  auto& presentation = GetPresentationState();
+  presentation.SetFocused(true);
+  presentation.SetRendererReady(true);
+  HostState state{Lifecycle::Running};
+  int pauses = 0;
+  BigPictureHost host(
+      nullptr, [&] { return state; }, [](const Command& command) { return Result{command}; },
+      [&](bool paused) {
+        if (paused)
+        {
+          ++pauses;
+          state.lifecycle = Lifecycle::Paused;
+          ++state.pause_revision;
+        }
+      },
+      [&](std::shared_ptr<const Snapshot> snapshot) { presentation.Publish(std::move(snapshot)); });
+  const auto generation = host.GetSnapshot()->generation;
+  const auto epoch = presentation.BeginMenuRequest(generation, presentation.GetFrameInputEpoch());
+  ASSERT_TRUE(epoch);
+  ASSERT_TRUE(presentation.GetCapture().modal);
+  host.RequestAction(generation, Action::OpenMenu, *epoch);
+  presentation.SetRendererReady(false);
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+  EXPECT_EQ(state.lifecycle, Lifecycle::Running);
+  EXPECT_EQ(pauses, 0);
+  EXPECT_FALSE(presentation.IsModal());
+  EXPECT_FALSE(presentation.GetCapture().modal);
+}
+
 TEST(BigPictureHostTest, WorkerCommandsExecuteOnlyOnQtOwnerAndSnapshotsStayValid)
 {
   HostState state{Lifecycle::Running};

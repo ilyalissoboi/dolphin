@@ -7,14 +7,21 @@
 
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string>
 #include <type_traits>
 
 #include "Common/CommonTypes.h"
+#include "Common/HookableEvent.h"
 
 namespace Core
 {
 class System;
+}
+
+namespace BigPicture
+{
+struct LibraryImage;
 }
 
 namespace State
@@ -94,6 +101,7 @@ struct SlotInfo
   bool exists = false;
   bool readable = false;
   std::string description;
+  std::shared_ptr<const BigPicture::LibraryImage> preview;
 };
 // A single locked metadata read for menu snapshots. This does not validate the state payload.
 SlotInfo GetSlotInfo(u32 slot);
@@ -115,4 +123,7 @@ void UndoLoadState(Core::System& system);
 // for calling back into UI code without introducing a dependency on it in core
 using AfterLoadCallbackFunc = std::function<void()>;
 void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback);
+// Invoked on the save worker after writing the state and its optional preview finishes.
+// Callbacks must queue UI work rather than reading slots while the save task holds its lock.
+[[nodiscard]] Common::EventHook AddAfterSaveCallback(std::function<void()> callback);
 }  // namespace State

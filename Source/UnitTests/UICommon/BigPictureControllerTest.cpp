@@ -519,6 +519,16 @@ TEST_F(BigPictureControllerTest, ControllerDiscPickerKeepsPauseAndRechecksNetPla
   EXPECT_EQ(host.state.lifecycle, Lifecycle::Paused);
 }
 
+TEST_F(BigPictureControllerTest, DiscChangeRequiresASelectedPathInsteadOfADesktopHandoff)
+{
+  InGame(Lifecycle::Paused);
+  host.state.can_change_disc = true;
+  Send(Action::ChangeDisc);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  EXPECT_TRUE(host.executed.empty());
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+}
+
 TEST_F(BigPictureControllerTest, SystemBootUsesTheSameAsynchronousLifecycleAsGameBoot)
 {
   Send(Action::OpenMenu);

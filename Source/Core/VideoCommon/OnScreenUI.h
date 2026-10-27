@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -79,6 +80,12 @@ private:
     u64 last_request_us = 0;
   };
   std::map<std::string, CoverTexture> m_cover_textures;
+  struct StateTexture
+  {
+    std::shared_ptr<const ::BigPicture::LibraryImage> image;
+    std::unique_ptr<AbstractTexture> texture;
+  };
+  std::array<StateTexture, ::BigPicture::STATE_SLOT_COUNT> m_state_textures;
   u64 m_cover_revision = 0;
   u64 m_cover_frame = 0;
   unsigned m_cover_uploads = 0;

@@ -58,7 +58,7 @@ std::optional<std::uint64_t> PresentationState::BeginMenuRequest(std::uint64_t g
                                                                  std::uint64_t input_epoch)
 {
   std::lock_guard lock(m_mutex);
-  if (!m_focused || IsModal() || !m_snapshot || m_snapshot->generation != generation ||
+  if (!m_ready || !m_focused || IsModal() || !m_snapshot || m_snapshot->generation != generation ||
       input_epoch != m_frame_epoch ||
       (m_snapshot->host.lifecycle != Lifecycle::Running &&
        m_snapshot->host.lifecycle != Lifecycle::Paused))

@@ -33,6 +33,8 @@ enum class MenuIcon
   Filter,
   Theme,
   Check,
+  Power,
+  Trophy,
   FolderSolid,
   Globe,
   Image,
@@ -51,6 +53,8 @@ enum class MenuIcon
   Wrench,
   Remote,
   Puzzle,
+  StateSave,
+  StateLoad,
 };
 
 // The same Font Awesome / PromptFont families as PCSX2, with a primitive fallback.

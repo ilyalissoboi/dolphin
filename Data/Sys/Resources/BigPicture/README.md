@@ -19,7 +19,7 @@ in Apache-2.0.txt. Source: https://github.com/google/roboto .
 
 promptfont.otf: PromptFont, SIL Open Font License 1.1; see promptfont-LICENSE.txt.
 Source: https://github.com/Shinmera/promptfont .
-The font supplies the keyboard keycaps in the home-screen footer.
+The font supplies the keyboard keycaps in the home and pause-screen footers.
 
 fa-solid-900.ttf: Font Awesome Free, SIL Open Font License 1.1; see
 FontAwesome-LICENSE.txt. This is the same font file as bin/resources/fonts/fa-solid-900.ttf

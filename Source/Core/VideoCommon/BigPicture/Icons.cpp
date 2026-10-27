@@ -17,6 +17,14 @@ ImWchar GetMenuIconCodepoint(MenuIcon icon)
     return 0xf04b;
   case MenuIcon::Stop:
     return 0xf04d;
+  case MenuIcon::Power:
+    return 0xf011;
+  case MenuIcon::Trophy:
+    return 0xf091;
+  case MenuIcon::StateSave:
+    return 0xf019;
+  case MenuIcon::StateLoad:
+    return 0xf2ea;
   case MenuIcon::Save:
     return 0xf0c7;
   case MenuIcon::Load:
@@ -28,7 +36,7 @@ ImWchar GetMenuIconCodepoint(MenuIcon icon)
   case MenuIcon::Camera:
     return 0xf030;
   case MenuIcon::Exit:
-    return 0xf011;
+    return 0xf2f5;
   case MenuIcon::Display:
     return 0xf26c;
   case MenuIcon::Grid:
@@ -137,10 +145,30 @@ void DrawMenuIcon(ImDrawList* draw, MenuIcon icon, ImVec2 position, float size, 
   switch (icon)
   {
   case MenuIcon::Play:
-    draw->AddTriangleFilled(p(5, 3), p(21, 12), p(5, 21), color);
+    draw->AddTriangle(p(5, 3), p(21, 12), p(5, 21), color, stroke);
     break;
   case MenuIcon::Stop:
-    draw->AddRectFilled(p(4, 4), p(20, 20), color, 2 * scale);
+    rect(4, 4, 20, 20);
+    break;
+  case MenuIcon::Power:
+    draw->PathArcTo(p(12, 13), 9 * scale, -0.95f, 4.09f, 32);
+    draw->PathStroke(color, 0, stroke);
+    line(12, 1, 12, 12);
+    break;
+  case MenuIcon::Trophy:
+    line(6, 3, 18, 3);
+    line(6, 3, 7, 11);
+    line(18, 3, 17, 11);
+    line(7, 11, 12, 15);
+    line(17, 11, 12, 15);
+    line(12, 15, 12, 21);
+    line(7, 21, 17, 21);
+    line(6, 5, 2, 5);
+    line(2, 5, 3, 11);
+    line(3, 11, 7, 12);
+    line(18, 5, 22, 5);
+    line(22, 5, 21, 11);
+    line(21, 11, 17, 12);
     break;
   case MenuIcon::Save:
     rect(3, 3, 21, 21);
@@ -295,13 +323,13 @@ MenuIcon GetActionIcon(::BigPicture::Action action)
   case A::Resume:
     return MenuIcon::Play;
   case A::Stop:
-    return MenuIcon::Stop;
+    return MenuIcon::Power;
   case A::SaveStates:
   case A::SaveState:
-    return MenuIcon::Save;
+    return MenuIcon::StateSave;
   case A::LoadStates:
   case A::LoadState:
-    return MenuIcon::Load;
+    return MenuIcon::StateLoad;
   case A::Settings:
   case A::DesktopSettings:
     return MenuIcon::Settings;
