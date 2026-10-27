@@ -389,8 +389,8 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
     library.Execute(O::Cover, game.path, revision);
     ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(game.path); }));
     const auto& cover = *library.GetSnapshot()->covers.at(game.path);
-    EXPECT_LE(cover.width, 256u);
-    EXPECT_LE(cover.height, 384u);
+    EXPECT_LE(cover.width, BigPicture::MAX_COVER_WIDTH);
+    EXPECT_LE(cover.height, BigPicture::MAX_COVER_HEIGHT);
     EXPECT_EQ(cover.rgba.size(), static_cast<std::size_t>(cover.width) * cover.height * 4);
     EXPECT_LE(library.GetSnapshot()->covers.size(), 24u);
   }
@@ -408,5 +408,39 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
   ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains("1"); }));
   EXPECT_FALSE(library.GetSnapshot()->covers.contains("0"));
   EXPECT_EQ(library.GetSnapshot()->covers.at("1")->revision, new_revision);
+}
+TEST(BigPictureLibraryTest, SmallCoverImagesKeepTheirNativeResolution)
+{
+  QImage image(40, 60, QImage::Format_RGBA8888);
+  image.fill(Qt::blue);
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  buffer.open(QIODevice::WriteOnly);
+  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
+                                        return std::vector<unsigned char>(bytes.begin(),
+                                                                          bytes.end());
+                                      }});
+  library.SetGames({Entry("small", "Small cover")});
+  library.Execute(O::Cover, "small", library.GetSnapshot()->catalog_revision);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains("small"); }));
+  const auto& cover = *library.GetSnapshot()->covers.at("small");
+  EXPECT_EQ(cover.width, 40u);
+  EXPECT_EQ(cover.height, 60u);
+}
+TEST(BigPictureLibraryTest, ExplicitViewButtonsAreIdempotentAndShortcutsStillToggle)
+{
+  BigPictureLibrary library(nullptr, {});
+  library.Execute(O::View, "list", 0);
+  EXPECT_FALSE(library.GetSnapshot()->grid);
+  const auto revision = library.GetSnapshot()->view_revision;
+  library.Execute(O::View, "list", 0);
+  EXPECT_FALSE(library.GetSnapshot()->grid);
+  EXPECT_EQ(library.GetSnapshot()->view_revision, revision);
+  library.Execute(O::View, "grid", 0);
+  library.Execute(O::View, "grid", 0);
+  EXPECT_TRUE(library.GetSnapshot()->grid);
+  library.Execute(O::View, {}, 0);
+  EXPECT_FALSE(library.GetSnapshot()->grid);
 }
 }  // namespace

@@ -231,7 +231,9 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_EQ(menu.page.default_focus, "game:two.iso");
   EXPECT_EQ(menu.Activate({"game:two.iso"})->path, "two.iso");
   EXPECT_EQ(menu.Activate({"add-folder"})->library_operation, LibraryOperation::AddFolder);
-  EXPECT_EQ(menu.page.toolbar.size(), 6u);
+  EXPECT_EQ(menu.page.toolbar.size(), 3u);
+  EXPECT_EQ(menu.Activate({"list-view"})->path, "list");
+  EXPECT_FALSE(menu.Activate({"grid-view"}));
   ASSERT_TRUE(menu.Activate({"view-toggle"}));
   EXPECT_EQ(menu.Activate({"view-toggle"})->library_operation, LibraryOperation::View);
   ASSERT_TRUE(menu.Activate({"settings"}));
@@ -239,12 +241,11 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   library->selected_path.clear();
   library->games.pop_back();
   menu = Build();
-  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_EQ(menu.page.default_focus, "back");
   EXPECT_FALSE(menu.Activate({"game:two.iso"}));
   snapshot.screens.push_back(Screen::LibraryOptions);
   menu = Build();
-  EXPECT_TRUE(std::ranges::none_of(
-      menu.requests, [](const auto& entry) { return entry.second.action == Action::Settings; }));
+  EXPECT_TRUE(menu.Activate({"settings"}));
 }
 
 TEST_F(BigPictureInGameMenuTest, PickerUsesRevisionAndDistinguishesFolderNavigationFromDiscChanges)
@@ -291,7 +292,7 @@ TEST_F(BigPictureInGameMenuTest, LibraryPolicyDisablesCardsWithoutCreatingFallba
   ASSERT_EQ(menu.page.items.size(), 1u);
   EXPECT_FALSE(menu.page.items.front().enabled);
   EXPECT_EQ(menu.page.items.front().detail, "NetPlay");
-  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_EQ(menu.page.default_focus, "back");
   EXPECT_FALSE(menu.Activate({"game:game.iso"}));
 }
 

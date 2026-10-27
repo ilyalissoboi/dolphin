@@ -1,6 +1,7 @@
 // Copyright 2026 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -276,14 +277,15 @@ TEST_F(BigPictureNavigationUITest, LibraryToolbarAndGridAreBothControllerAccessi
 TEST_F(BigPictureNavigationUITest, RemovingSelectedGameUsesSafeToolbarFocusInsteadOfAnotherGame)
 {
   MenuPage page{"library", "Library", {}, {{"one", "One"}, {"two", "Two"}}, "two"};
-  page.toolbar = {{"refresh", "Refresh"}};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
   Settle(page);
   ASSERT_EQ(toolkit.GetMemory("library").item, "two");
   page.items.pop_back();
-  page.default_focus = "refresh";
+  page.default_focus = "back";
   Settle(page);
-  EXPECT_EQ(toolkit.GetMemory("library").item, "refresh");
-  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "refresh");
+  EXPECT_EQ(toolkit.GetMemory("library").item, "back");
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "back");
 }
 TEST_F(BigPictureNavigationUITest, KeyboardShoulderPagingMovesByVisibleGridRows)
 {
@@ -302,6 +304,7 @@ TEST_F(BigPictureNavigationUITest, LargeLibraryDoesNotGenerateGeometryForOffscre
 {
   MenuPage page{"large-library", "Library"};
   page.default_focus = "4999";
+  page.presentation = MenuPresentation::Library;
   page.columns = 4;
   page.artwork = true;
   for (int i = 0; i < 5000; ++i)
@@ -324,7 +327,9 @@ TEST_F(BigPictureNavigationUITest, LibraryDetailsDoNotTakeFocusFromListOrToolbar
                 "one"};
   page.presentation = MenuPresentation::Library;
   page.artwork = true;
-  page.toolbar = {{"search", "Search"}, {"refresh", "Refresh"}};
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"grid-view", "Grid", {}, true, {}, false, MenuIcon::Grid},
+                  {"list-view", "List", {}, true, {}, true, MenuIcon::List}};
   for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160), ImVec2(3440, 1440)})
   {
     ImGui::GetIO().DisplaySize = size;
@@ -334,8 +339,7 @@ TEST_F(BigPictureNavigationUITest, LibraryDetailsDoNotTakeFocusFromListOrToolbar
     EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "two");
     Press(page, ImGuiKey_GamepadDpadUp);
     Press(page, ImGuiKey_GamepadDpadUp);
-    EXPECT_TRUE(toolkit.GetMemory(page.id).item == "search" ||
-                toolkit.GetMemory(page.id).item == "refresh");
+    EXPECT_EQ(toolkit.GetMemory(page.id).item, "back");
   }
 }
 
@@ -574,5 +578,133 @@ TEST(BigPicturePromptTest, QualifiedButtonsUseTheirOwnBackendAndCompoundsAreNotG
   EXPECT_NE(GetBindingGlyph("`Button 4` | `Button 5`", "DualSense Wireless Controller", "DInput")
                 .find("Button 5"),
             std::string::npos);
+}
+TEST_F(BigPictureNavigationUITest, LibraryGridMatchesReferenceGeometryAndNavigatesFourColumns)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "back", 4};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"grid-view", "Grid", {}, true, {}, true, MenuIcon::Grid},
+                  {"list-view", "List", {}, true, {}, false, MenuIcon::List}};
+  for (int i = 0; i < 24; ++i)
+    page.items.push_back({"game:" + std::to_string(i), "Game title"});
+  Settle(page);
+  const auto* root = ImGui::FindWindowByName("###BigPictureLibrary");
+  ASSERT_NE(root, nullptr);
+  EXPECT_FLOAT_EQ(root->Pos.x, 0);
+  EXPECT_FLOAT_EQ(root->Pos.y, 0);
+  EXPECT_FLOAT_EQ(root->Size.x, 1280);
+  EXPECT_FLOAT_EQ(root->Size.y, 720);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                        GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_NEAR(rect.Min.x, 128, 1);
+  EXPECT_NEAR(rect.Min.y, 44, 1);
+  EXPECT_NEAR(rect.GetWidth(), 236, 1);
+  EXPECT_NEAR(rect.GetHeight(), 316, 1);
+  Press(page, ImGuiKey_RightArrow);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:1");
+  Press(page, ImGuiKey_GamepadDpadDown);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:5");
+  rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                   GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "game:5");
+  EXPECT_EQ(Press(page, ImGuiKey_F1).activated, "view-toggle");
+  EXPECT_EQ(Press(page, ImGuiKey_F2).activated, "settings");
+  EXPECT_EQ(Press(page, ImGuiKey_F3).activated, "options");
+  EXPECT_EQ(Press(page, ImGuiKey_F4).activated, "search");
+  EXPECT_EQ(Press(page, ImGuiKey_F5).activated, "refresh");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadL1).activated, "view-toggle");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadR1).activated, "options");
+}
+
+TEST_F(BigPictureNavigationUITest, LibraryViewChangesAndChildScreensRetainAndRevealTheSelectedGame)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "game:18", 4};
+  page.presentation = MenuPresentation::Library;
+  for (int i = 0; i < 80; ++i)
+    page.items.push_back({"game:" + std::to_string(i), "Game title", "GameCube"});
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:18");
+  EXPECT_GT(toolkit.GetMemory("library").scroll, 0);
+  page.columns = 1;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  MenuPage child{"settings", "Settings", {}, {{"back", "Back"}}};
+  Settle(child);
+  page.columns = 4;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  std::rotate(page.items.begin(), page.items.begin() + 20, page.items.end());
+  ++page.focus_revision;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  for (int i = 0; i < 5; ++i)
+    Frame(page, {false, 1.5f, 0.15f});
+  auto* window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, window->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, window->InnerRect.Max.y + 2);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:18");
+}
+
+TEST_F(BigPictureNavigationUITest, LibraryArtworkKeepsItsAspectAndOnlyLoadsVisibleCovers)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "0", 4};
+  page.presentation = MenuPresentation::Library;
+  for (int i = 0; i < 1000; ++i)
+  {
+    MenuItem item{std::to_string(i),
+                  "An intentionally long Japanese title 日本語の長いゲームタイトル",
+                  {},
+                  true,
+                  "cover"};
+    item.image_aspect = 1.5f;
+    page.items.push_back(item);
+  }
+  int requests = 0;
+  for (int i = 0; i < 5; ++i)
+  {
+    requests = 0;
+    ImGui::NewFrame();
+    toolkit.Draw(page, {}, "Select / Back", nullptr, [&](const std::string&) {
+      ++requests;
+      return ImTextureID{123};
+    });
+    ImGui::Render();
+  }
+  EXPECT_LT(requests, 20);
+  const auto* data = ImGui::GetDrawData();
+  bool found = false;
+  for (const auto* list : data->CmdLists)
+    for (const auto& command : list->CmdBuffer)
+      if (!command.TexRef._TexData && command.TexRef._TexID == ImTextureID{123} &&
+          command.ElemCount >= 6)
+      {
+        const auto first =
+            list->VtxBuffer[command.VtxOffset + list->IdxBuffer[command.IdxOffset]].pos;
+        ImRect box(first, first);
+        for (unsigned i = 0; i < 6; ++i)
+          box.Add(list->VtxBuffer[command.VtxOffset + list->IdxBuffer[command.IdxOffset + i]].pos);
+        EXPECT_NEAR(box.GetWidth() / box.GetHeight(), 1.5f, 0.01f);
+        EXPECT_LE(box.GetWidth(), 206.1f);
+        EXPECT_LE(box.GetHeight(), 272.1f);
+        found = true;
+      }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(BigPictureNavigationUITest, EmptyLibraryKeepsFolderSetupAccessible)
+{
+  MenuPage page{"library", "Game Grid", "Add a game folder to build your library.", {}, "back", 4};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
+  page.context = {"add-folder", "Add Game Folder"};
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_F3).activated, "options");
+  Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "add-folder");
 }
 }  // namespace

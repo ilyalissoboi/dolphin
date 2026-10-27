@@ -80,9 +80,9 @@ void DrawMenuIcon(ImDrawList* draw, MenuIcon icon, ImVec2 position, float size, 
     line(7, 22, 17, 22);
     break;
   case MenuIcon::Grid:
-    for (int y = 0; y < 3; ++y)
-      for (int x = 0; x < 3; ++x)
-        draw->AddRectFilled(p(3 + x * 7, 3 + y * 7), p(7 + x * 7, 7 + y * 7), color, scale);
+    rect(3, 3, 21, 21);
+    line(12, 3, 12, 21);
+    line(3, 12, 21, 12);
     break;
   case MenuIcon::List:
     for (int y = 5; y <= 19; y += 7)
