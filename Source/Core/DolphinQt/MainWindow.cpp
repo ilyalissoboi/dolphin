@@ -1621,6 +1621,9 @@ void MainWindow::StopStandalone(StandaloneStop next)
   {
     m_big_picture_requested = false;
     m_standalone_boot.reset();
+    m_standalone_continuation_checked = false;
+    m_continuation_boot.reset();
+    m_continuation_boot_path.clear();
   }
   m_standalone_stop = next;
   if (m_standalone)
@@ -1677,6 +1680,8 @@ void MainWindow::CompleteStandaloneStop(StandaloneStop next, bool failed)
   if (failed)
   {
     m_big_picture_requested = false;
+    m_continuation_boot.reset();
+    m_continuation_boot_path.clear();
     ModalMessageBox::warning(
         this, tr("Big Picture"),
         tr("Big Picture could not initialize or continue using the selected graphics backend. "
@@ -2577,6 +2582,8 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters, bool co
         m_continuation_boot_path = path;
         m_continuation_boot = std::move(parameters);
         QTimer::singleShot(0, this, [this] {
+          if (m_shutting_down || !m_continuation_boot)
+            return;
           if (!m_standalone)
             EnterBigPicture();
           if (!m_big_picture_requested)
