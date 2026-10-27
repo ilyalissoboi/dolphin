@@ -98,14 +98,17 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   else if (screen == Screen::FilePicker)
   {
     page.id = "file-picker";
+    page.presentation = MenuPresentation::FilePicker;
     page.reset_on_revision = true;
     page.focus_revision = library.picker_revision;
     page.title =
         text.library_actions[static_cast<std::size_t>(library.picker_folders_only ? O::AddFolder :
                                                       library.picker_disc         ? O::OpenDisc :
                                                                                     O::OpenFile)];
-    page.description = library.picker_library ? text.library_disc_games : tail(library.directory);
-    page.description += "\n" + library.picker_error;
+    if (!library.picker_folders_only && !library.picker_disc)
+      page.title = text.picker_title;
+    page.context.label = library.picker_library ? text.library_disc_games : library.directory;
+    page.description = library.picker_error;
     if (library.picker_loading)
       page.description += "\n" + text.library_scanning;
     if (library.picker_folders_only && !library.directory.empty() && !library.picker_loading)
@@ -122,8 +125,9 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     }
     if (!library.parent_directory.empty())
     {
-      add("parent", O::EnterDirectory, library.parent_directory, {}, true);
-      page.toolbar.back().label = text.library_parent;
+      add("parent", O::EnterDirectory, library.parent_directory);
+      page.items.back().label = text.library_parent;
+      page.items.back().icon = MenuIcon::Folder;
     }
     add("path", O::EditPath, {}, {}, true);
     if (library.picker_folders_only)
@@ -134,12 +138,14 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       if (file.directory)
       {
         add(id, O::EnterDirectory, file.path);
-        page.items.back().label = file.name + "/";
+        page.items.back().label = file.name;
+        page.items.back().icon = MenuIcon::FolderSolid;
       }
       else
       {
         auto* request = action(id, library.picker_disc ? Action::ChangeDisc : Action::Boot);
         page.items.back().label = file.name;
+        page.items.back().icon = MenuIcon::File;
         if (request)
         {
           request->path = file.path;

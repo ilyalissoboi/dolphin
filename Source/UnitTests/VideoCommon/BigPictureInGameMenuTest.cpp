@@ -355,5 +355,41 @@ TEST_F(BigPictureInGameMenuTest, StartGameOffersOnlyInstalledConsoleMenusAndCont
   EXPECT_EQ(menu.Activate({"ipl-5"})->slot, 5);
   EXPECT_FALSE(menu.Activate({"ipl-0"}));
   EXPECT_EQ(menu.Activate({"system-menu"})->action, Action::BootSystemMenu);
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Launch);
+  EXPECT_EQ(menu.page.default_focus, "open-file");
+  EXPECT_FALSE(
+      std::ranges::any_of(menu.page.items, [](const auto& item) { return item.id == "back"; }));
+  ASSERT_EQ(menu.page.toolbar.size(), 1u);
+  EXPECT_EQ(menu.page.toolbar.front().id, "back");
+  EXPECT_EQ(menu.page.items.front().image_key, "home:start-file");
+  EXPECT_EQ(menu.Activate({"back"})->action, Action::Back);
+}
+
+TEST_F(BigPictureInGameMenuTest, LaunchPickerRetainsParentTilesAndDirectoryRequests)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home, Screen::StartGame, Screen::FilePicker};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->directory = "C:/Games/日本語";
+  library->parent_directory = "C:/Games";
+  library->picker_revision = 42;
+  library->files = {{"game.rvz", "Game.rvz", false}};
+  snapshot.host.library = library;
+  auto menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::FilePicker);
+  ASSERT_NE(menu.page.background, nullptr);
+  EXPECT_EQ(menu.page.background->id, "start-game");
+  EXPECT_EQ(menu.page.context.label, library->directory);
+  EXPECT_EQ(menu.Activate({"parent"})->path, library->parent_directory);
+  EXPECT_EQ(menu.Activate({"parent"})->library_revision, 42u);
+  EXPECT_EQ(menu.Activate({"file:game.rvz"})->action, Action::Boot);
+  EXPECT_EQ(menu.Activate({"file:game.rvz"})->path, "game.rvz");
+  EXPECT_EQ(menu.Activate({"path"})->library_operation, LibraryOperation::EditPath);
+  snapshot.pending = Command{};
+  menu = Build();
+  EXPECT_TRUE(menu.requests.empty());
+  EXPECT_FALSE(menu.page.context.enabled);
+  EXPECT_TRUE(std::ranges::none_of(menu.page.items, &VideoCommon::BigPicture::MenuItem::enabled));
 }
 }  // namespace

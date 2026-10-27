@@ -1053,6 +1053,19 @@ void MainWindow::InitControllers()
   menu_text.game_list = tr("Game List").toStdString();
   menu_text.library_change_view = tr("Change View").toStdString();
   menu_text.library_select_game = tr("Select Game").toStdString();
+  menu_text.start_file = tr("Start File").toStdString();
+  menu_text.start_file_description =
+      tr("Launch a game by selecting a file or disc image.").toStdString();
+  menu_text.start_ipl_description = tr("Start the GameCube without a disc inserted.").toStdString();
+  menu_text.start_wii_description = tr("Start the installed Wii System Menu.").toStdString();
+  menu_text.picker_title = tr("Select Game File").toStdString();
+  menu_text.start_keyboard_hints = "\xe2\x8f\xb4\xe2\x8f\xb6 " + tr("Navigate").toStdString() +
+                                   "   \xe2\x90\xae " + tr("Select").toStdString() +
+                                   "   \xe2\x90\xaf " + tr("Back").toStdString();
+  menu_text.picker_keyboard_hints =
+      "\xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Change Selection").toStdString() + "   \xe2\x90\xba " +
+      tr("Parent Folder").toStdString() + "   \xe2\x90\xae " + tr("Select").toStdString() +
+      "   \xe2\x90\xaf " + tr("Cancel").toStdString();
   menu_text.library_keyboard_hints =
       "\xe2\x8f\xb5\xe2\x8f\xb7\xe2\x8f\xb4\xe2\x8f\xb6 " + menu_text.library_select_game +
       "   \xe2\x91\xa0 " + menu_text.library_change_view + "   \xe2\x91\xa1 " +

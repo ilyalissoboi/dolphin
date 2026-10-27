@@ -743,14 +743,19 @@ void OnScreenUI::DrawNavigation()
       !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
   const bool home = menu.page.id == "home";
   const bool library_view = menu.page.presentation == BigPicture::MenuPresentation::Library;
+  const bool launch = menu.page.presentation == BigPicture::MenuPresentation::Launch;
+  const bool picker = menu.page.presentation == BigPicture::MenuPresentation::FilePicker;
   const std::string prompts =
       m_navigation_input.IsKeyboard() ?
           (library_view ? text.library_keyboard_hints :
+           picker       ? text.picker_keyboard_hints :
+           launch       ? text.start_keyboard_hints :
            home         ? text.home_keyboard_prompts :
            text_input   ? text.library_keyboard_prompts :
                           text.keyboard_prompts) :
-          (library_view ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
-                          BigPicture::GetControllerPrompts(m_navigation, text, home));
+          (library_view     ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
+           launch || picker ? BigPicture::GetLaunchControllerPrompts(m_navigation, text, picker) :
+                              BigPicture::GetControllerPrompts(m_navigation, text, home));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
         if (path.starts_with("home:"))
@@ -817,7 +822,9 @@ void OnScreenUI::DrawNavigation()
             if (path == "home:logo")
               filename = "dolphin_logo.png";
             else if (path == "home:media-cdrom" || path == "home:start-game" ||
-                     path == "home:applications-system" || path == "home:exit")
+                     path == "home:applications-system" || path == "home:exit" ||
+                     path == "home:start-file" || path == "home:drive-cdrom" ||
+                     path == "home:start-bios")
               filename = "BigPicture/" + path.substr(5) + ".png";
             else
               return ImTextureID{};
