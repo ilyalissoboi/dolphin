@@ -71,6 +71,9 @@ private:
   void UpdateImguiTexture(ImTextureData* tex);
   void ProcessInput();
   void DrawNavigation();
+  std::string GetNavigationPrompts(const BigPicture::MenuPage& page,
+                                   const ::BigPicture::NavigationText& text, bool text_input) const;
+  ImTextureID GetNavigationTexture(const ::BigPicture::Snapshot& snapshot, const std::string& path);
   ImTextureID GetLibraryCover(const ::BigPicture::LibrarySnapshot& library,
                               const std::string& path);
   struct CoverTexture
@@ -80,16 +83,16 @@ private:
     u64 last_request_us = 0;
   };
   std::map<std::string, CoverTexture> m_cover_textures;
-  struct StateTexture
+  struct ImageTexture
   {
     std::shared_ptr<const ::BigPicture::LibraryImage> image;
     std::unique_ptr<AbstractTexture> texture;
     u64 last_frame = 0;
   };
-  std::array<StateTexture, ::BigPicture::STATE_SLOT_COUNT> m_state_textures;
+  std::array<ImageTexture, ::BigPicture::STATE_SLOT_COUNT> m_state_textures;
   std::shared_ptr<const ::BigPicture::AchievementsSnapshot> m_achievement_snapshot;
   std::map<std::string, std::shared_ptr<const ::BigPicture::LibraryImage>> m_achievement_images;
-  std::map<std::string, StateTexture> m_achievement_textures;
+  std::map<std::string, ImageTexture> m_achievement_textures;
   u64 m_cover_revision = 0;
   u64 m_cover_frame = 0;
   unsigned m_cover_uploads = 0;

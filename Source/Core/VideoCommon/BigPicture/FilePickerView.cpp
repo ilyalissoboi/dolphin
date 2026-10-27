@@ -214,12 +214,8 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
   foreground->AddRectFilled(ImVec2(0, display.y - footer), display,
                             ImGui::GetColorU32(palette.header));
   ImGui::PushFont(font, 14 * scale / font_scale);
-  const auto text_size = ImGui::CalcTextSize(prompts.c_str());
-  foreground->PushClipRect(ImVec2(15 * scale, display.y - footer), display, true);
-  foreground->AddText(ImVec2(std::max(15 * scale, display.x - text_size.x - 15 * scale),
-                             display.y - footer + (footer - text_size.y) * 0.5f),
-                      ImGui::GetColorU32(palette.header_text), prompts.c_str());
-  foreground->PopClipRect();
+  Style::DrawFooterText(foreground, ImVec2(15 * scale, display.y - footer), display, prompts,
+                        ImGui::GetColorU32(palette.header_text), 15 * scale);
   ImGui::PopFont();
   ImGui::PopFont();
   ImGui::PopStyleVar(6);

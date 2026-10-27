@@ -208,8 +208,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.items.back().icon = GetActionIcon(command.action);
     if (auto it = menu.requests.find("confirm"); it != menu.requests.end())
       it->second.confirmation_id = command.id;
-    if ((command.action == Action::Stop || command.action == Action::Exit) &&
-        snapshot.host.lifecycle != Lifecycle::Idle)
+    if (IsStopAction(command.action) && snapshot.host.lifecycle != Lifecycle::Idle)
     {
       page.items.back().label = text.exit_without_saving;
       if (snapshot.host.can_save_continuation)

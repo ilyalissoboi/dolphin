@@ -332,15 +332,9 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   }
   ImGui::PushFont(font, 14 * scale / font_scale);
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, ImGui::GetColorU32(palette.header));
-  const auto text_size = ImGui::CalcTextSize(prompts.c_str(), nullptr, false,
-                                             std::max(scale, display.x - padding * 2));
-  draw->PushClipRect(ImVec2(0, display.y - footer), display, true);
-  draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
-                ImVec2(std::max(padding, display.x - text_size.x - padding),
-                       display.y - footer + (footer - text_size.y) * 0.5f),
-                ImGui::GetColorU32(palette.header_text), prompts.c_str(), nullptr,
-                std::max(scale, display.x - padding * 2));
-  draw->PopClipRect();
+  Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
+                        ImGui::GetColorU32(palette.header_text), padding,
+                        std::max(scale, display.x - padding * 2));
   ImGui::PopFont();
   if (ImGui::IsKeyPressed(ImGuiKey_F1, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false))
     result.activated = "view-toggle";

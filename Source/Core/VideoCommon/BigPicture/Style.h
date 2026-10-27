@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <string>
 #include <string_view>
 
 #include <imgui.h>
@@ -86,5 +88,65 @@ constexpr const Palette& GetPalette(std::string_view id)
     if (id == ::BigPicture::THEME_CHOICES[i].id)
       return PALETTES[i];
   return DARK;
+}
+
+struct MenuStyleOptions
+{
+  ImVec4 background{0, 0, 0, 0};
+  ImVec2 item_spacing{0, 0};
+  float scrollbar_size = 12;
+  bool show_nav_cursor = true;
+};
+
+// Keep paired ImGui stack operations together when views share the same controls.
+class ScopedMenuStyle
+{
+public:
+  ScopedMenuStyle(const Palette& palette, const MenuStyleOptions& options)
+  {
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, options.background);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_NavCursor,
+                          options.show_nav_cursor ? palette.secondary : ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, options.item_spacing);
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, options.scrollbar_size);
+  }
+  ~ScopedMenuStyle()
+  {
+    ImGui::PopStyleVar(5);
+    ImGui::PopStyleColor(14);
+  }
+  ScopedMenuStyle(const ScopedMenuStyle&) = delete;
+  ScopedMenuStyle& operator=(const ScopedMenuStyle&) = delete;
+};
+
+// Uses the caller's current font and clip rectangle; each view retains its own footer geometry.
+// Returns the text position so settings pages can place their context label alongside it.
+inline ImVec2 DrawFooterText(ImDrawList* draw, ImVec2 clip_min, ImVec2 clip_max,
+                             const std::string& text, ImU32 color, float padding,
+                             float wrap_width = 0)
+{
+  const auto size = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrap_width);
+  const ImVec2 position(std::max(padding, clip_max.x - padding - size.x),
+                        clip_min.y + (clip_max.y - clip_min.y - size.y) * 0.5f);
+  draw->PushClipRect(clip_min, clip_max, true);
+  draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), position, color, text.c_str(), nullptr,
+                wrap_width);
+  draw->PopClipRect();
+  return position;
 }
 }  // namespace VideoCommon::BigPicture::Style

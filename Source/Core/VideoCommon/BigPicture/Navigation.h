@@ -19,10 +19,6 @@
 
 namespace VideoCommon::BigPicture
 {
-std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& status,
-                                      const ::BigPicture::NavigationText& text);
-std::string GetAchievementsControllerPrompts(const ::BigPicture::NavigationStatus& status,
-                                             const ::BigPicture::NavigationText& text);
 enum class MenuPresentation
 {
   List,
@@ -188,6 +184,10 @@ std::string GetBindingGlyph(std::string_view binding, std::string_view device,
 std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                  const ::BigPicture::NavigationText& text, bool home,
                                  bool pause = false);
+std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                      const ::BigPicture::NavigationText& text);
+std::string GetAchievementsControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                             const ::BigPicture::NavigationText& text);
 std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                         const ::BigPicture::NavigationText& text);
 std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& status,

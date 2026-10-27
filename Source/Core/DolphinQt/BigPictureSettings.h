@@ -79,6 +79,7 @@ private:
   std::string ControllerUnavailable() const;
   void ScanPresets();
   void Back();
+  std::string MenuId(bool game) const;
   UICommon::Settings::Service m_service;
   UICommon::Settings::Environment m_environment;
   Game m_game;

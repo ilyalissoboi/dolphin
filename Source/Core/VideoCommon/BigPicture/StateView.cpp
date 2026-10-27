@@ -62,25 +62,8 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   background.w = page.overlay ? 0.80f : 1.0f;
   ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), display,
                                                 ImGui::GetColorU32(background));
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.secondary);
-  ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(gap, 10 * scale));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12 * scale);
+  const Style::ScopedMenuStyle style(
+      palette, {.item_spacing = ImVec2(gap, 10 * scale), .scrollbar_size = 12 * scale});
   ImGui::PushFont(font, 22 * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
@@ -188,12 +171,8 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   memory.scroll = ImGui::GetScrollY() / scale;
   ImGui::EndChild();
   ImGui::PushFont(font, 14 * scale / font_scale);
-  const auto prompt_size = ImGui::CalcTextSize(prompts.c_str());
-  draw->PushClipRect(ImVec2(0, display.y - footer), display, true);
-  draw->AddText(ImVec2(std::max(margin, display.x - margin - prompt_size.x),
-                       display.y - footer + (footer - prompt_size.y) * 0.5f),
-                ImGui::GetColorU32(palette.header_text), prompts.c_str());
-  draw->PopClipRect();
+  Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
+                        ImGui::GetColorU32(palette.header_text), margin);
   ImGui::PopFont();
   if (!page.busy &&
       (ImGui::IsKeyPressed(ImGuiKey_F1, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false)))
@@ -203,8 +182,6 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   result.focused = memory.item;
   ImGui::End();
   ImGui::PopFont();
-  ImGui::PopStyleVar(5);
-  ImGui::PopStyleColor(14);
   return result;
 }
 }  // namespace VideoCommon::BigPicture

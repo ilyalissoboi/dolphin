@@ -60,25 +60,8 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   m_layout_height = display.y;
   m_layout_scale = scale;
 
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.secondary);
-  ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12 * scale);
+  const Style::ScopedMenuStyle style(
+      palette, {.background = palette.background, .scrollbar_size = 12 * scale});
   ImGui::PushFont(font, 22 * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
@@ -374,19 +357,16 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
   result.focused = memory.item;
   ImGui::PushFont(font, 14 * scale / font_scale);
-  const auto prompt_size = ImGui::CalcTextSize(prompts.c_str());
-  const float prompt_x = std::max(15 * scale, display.x - prompt_size.x - 15 * scale);
-  draw->PushClipRect(ImVec2(15 * scale, display.y - footer), display, true);
-  draw->AddText(ImVec2(prompt_x, display.y - footer + (footer - prompt_size.y) * 0.5f),
-                ImGui::GetColorU32(palette.header_text), prompts.c_str());
-  draw->PopClipRect();
+  const auto prompt =
+      Style::DrawFooterText(draw, ImVec2(15 * scale, display.y - footer), display, prompts,
+                            ImGui::GetColorU32(palette.header_text), 15 * scale);
   if (page.category_page)
   {
     draw->PushClipRect(ImVec2(15 * scale, display.y - footer),
-                       ImVec2(std::max(15 * scale, prompt_x - 20 * scale), display.y), true);
+                       ImVec2(std::max(15 * scale, prompt.x - 20 * scale), display.y), true);
     const auto end = page.description.find('\n');
-    draw->AddText(ImVec2(15 * scale, display.y - footer + (footer - prompt_size.y) * 0.5f),
-                  ImGui::GetColorU32(palette.header_text), page.description.c_str(),
+    draw->AddText(ImVec2(15 * scale, prompt.y), ImGui::GetColorU32(palette.header_text),
+                  page.description.c_str(),
                   page.description.c_str() +
                       (end == std::string::npos ? page.description.size() : end));
     draw->PopClipRect();
@@ -394,8 +374,6 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   ImGui::PopFont();
   ImGui::End();
   ImGui::PopFont();
-  ImGui::PopStyleVar(5);
-  ImGui::PopStyleColor(14);
   return result;
 }
 }  // namespace VideoCommon::BigPicture
