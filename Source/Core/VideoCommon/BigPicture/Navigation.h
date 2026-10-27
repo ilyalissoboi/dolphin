@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,6 +21,8 @@ namespace VideoCommon::BigPicture
 {
 std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                       const ::BigPicture::NavigationText& text);
+std::string GetAchievementsControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                             const ::BigPicture::NavigationText& text);
 enum class MenuPresentation
 {
   List,
@@ -30,6 +33,7 @@ enum class MenuPresentation
   FilePicker,
   Settings,
   States,
+  Achievements,
 };
 
 struct MenuItem
@@ -77,6 +81,8 @@ struct MenuPage
   bool category_page = false;
   bool busy = false;
   bool settings_text = false;
+  std::shared_ptr<const ::BigPicture::AchievementsSnapshot> achievements;
+  std::string empty_text;
 };
 
 struct MenuResult
@@ -119,6 +125,10 @@ public:
   void RestoreMemory(const std::string& page, FocusMemory memory);
 
 private:
+  MenuResult DrawAchievements(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                              const std::string& prompts, ImFont* font,
+                              const std::function<ImTextureID(const std::string&)>& image);
+  std::set<std::string> m_collapsed_achievement_groups;
   MenuResult DrawList(const MenuPage& page, ::BigPicture::NavigationOptions options,
                       const std::string& prompts, ImFont* font,
                       const std::function<ImTextureID(const std::string&)>& image);

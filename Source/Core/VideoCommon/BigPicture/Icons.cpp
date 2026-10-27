@@ -13,6 +13,10 @@ ImWchar GetMenuIconCodepoint(MenuIcon icon)
 {
   switch (icon)
   {
+  case MenuIcon::Locked:
+    return 0xf023;
+  case MenuIcon::Unlocked:
+    return 0xf09c;
   case MenuIcon::Play:
     return 0xf04b;
   case MenuIcon::Stop:
@@ -317,6 +321,8 @@ MenuIcon GetActionIcon(::BigPicture::Action action)
   using A = ::BigPicture::Action;
   switch (action)
   {
+  case A::Achievements:
+    return MenuIcon::Achievements;
   case A::Boot:
   case A::BootIPL:
   case A::BootSystemMenu:

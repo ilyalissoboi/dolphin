@@ -298,6 +298,24 @@ void AchievementManager::FetchGameBadges()
              },
              {.game_icon = true});
 
+  {
+    std::lock_guard lg{m_lock};
+    if (auto* subsets = rc_client_create_subset_list(m_client))
+    {
+      for (u32 i = 0; i < subsets->num_subsets; ++i)
+      {
+        const u32 id = subsets->subsets[i]->id;
+        FetchBadge(&m_subset_badges[id], RC_IMAGE_TYPE_GAME,
+                   [id](const AchievementManager& manager) {
+                     const auto* subset = rc_client_get_subset_info(manager.m_client, id);
+                     return subset ? std::string(subset->badge_name) : std::string{};
+                   },
+                   {.game_icon = true});
+      }
+      rc_client_destroy_subset_list(subsets);
+    }
+  }
+
   if (!rc_client_has_achievements(m_client))
     return;
 
@@ -640,6 +658,12 @@ const AchievementManager::Badge& AchievementManager::GetGameBadge() const
   return m_game_badge.data.empty() ? m_default_game_badge : m_game_badge;
 }
 
+const AchievementManager::Badge& AchievementManager::GetSubsetBadge(u32 id) const
+{
+  const auto it = m_subset_badges.find(id);
+  return it == m_subset_badges.end() || it->second.data.empty() ? GetGameBadge() : it->second;
+}
+
 const AchievementManager::Badge& AchievementManager::GetAchievementBadge(AchievementId id,
                                                                          bool locked) const
 {
@@ -765,6 +789,7 @@ void AchievementManager::CloseGame()
     m_game_badge.data.clear();
     m_unlocked_badges.clear();
     m_locked_badges.clear();
+    m_subset_badges.clear();
     m_leaderboard_map.clear();
     m_rich_presence.fill('\0');
     m_system.store(nullptr, std::memory_order_release);

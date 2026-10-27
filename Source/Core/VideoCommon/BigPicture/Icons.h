@@ -55,6 +55,8 @@ enum class MenuIcon
   Puzzle,
   StateSave,
   StateLoad,
+  Locked,
+  Unlocked,
 };
 
 // The same Font Awesome / PromptFont families as PCSX2, with a primitive fallback.

@@ -738,6 +738,7 @@ void OnScreenUI::DrawNavigation()
   {
     m_navigation_toolkit.Reset();
     m_state_textures = {};
+    m_achievement_textures.clear();
     m_navigation_generation = snapshot->generation;
   }
   const auto text = presentation.GetNavigationText();
@@ -745,6 +746,23 @@ void OnScreenUI::DrawNavigation()
     return;
   auto options = m_navigation.options;
   const auto menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
+  if (m_achievement_snapshot != menu.page.achievements)
+  {
+    m_achievement_snapshot = menu.page.achievements;
+    m_achievement_images.clear();
+    if (m_achievement_snapshot)
+      for (const auto& subset : m_achievement_snapshot->subsets)
+      {
+        m_achievement_images.emplace("achievement:subset:" + std::to_string(subset.id),
+                                     subset.badge);
+        for (const auto& group : subset.groups)
+          for (const auto& achievement : group.achievements)
+            m_achievement_images.emplace("achievement:badge:" + std::to_string(achievement.id),
+                                         achievement.badge);
+      }
+    std::erase_if(m_achievement_textures,
+                  [&](const auto& entry) { return !m_achievement_images.contains(entry.first); });
+  }
   if (menu.page.presentation == BigPicture::MenuPresentation::Settings &&
       m_navigation_toolkit.GetMemory(menu.page.id).item.empty())
   {
@@ -769,6 +787,7 @@ void OnScreenUI::DrawNavigation()
   const bool home = menu.page.id == "home";
   const bool pause = menu.page.presentation == BigPicture::MenuPresentation::Pause;
   const bool states = menu.page.presentation == BigPicture::MenuPresentation::States;
+  const bool achievements = menu.page.presentation == BigPicture::MenuPresentation::Achievements;
   const bool library_view = menu.page.presentation == BigPicture::MenuPresentation::Library;
   const bool launch = menu.page.presentation == BigPicture::MenuPresentation::Launch;
   const bool picker = menu.page.presentation == BigPicture::MenuPresentation::FilePicker;
@@ -787,6 +806,7 @@ void OnScreenUI::DrawNavigation()
       m_navigation_input.IsKeyboard() ?
           (pause        ? text.pause_keyboard_prompts :
            states       ? text.state_keyboard_hints :
+           achievements ? text.achievements_keyboard_hints :
            library_view ? text.library_keyboard_hints :
            settings     ? text.settings_keyboard_hints +
                               (setting_options ? "   " + text.settings_keyboard_options : "") :
@@ -796,6 +816,7 @@ void OnScreenUI::DrawNavigation()
            text_input || settings_text ? text.library_keyboard_prompts :
                                          text.keyboard_prompts) :
           (states           ? BigPicture::GetStateControllerPrompts(m_navigation, text) :
+           achievements     ? BigPicture::GetAchievementsControllerPrompts(m_navigation, text) :
            library_view     ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
            settings         ? BigPicture::GetSettingsControllerPrompts(m_navigation, text,
                                                                        setting_options) :
@@ -803,6 +824,40 @@ void OnScreenUI::DrawNavigation()
                               BigPicture::GetControllerPrompts(m_navigation, text, home, pause));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
+        if (path.starts_with("achievement:"))
+        {
+          const auto found = m_achievement_images.find(path);
+          if (found == m_achievement_images.end() || !found->second)
+            return ImTextureID{};
+          const auto& badge = found->second;
+          if (!badge->width || !badge->height || badge->width > 512 || badge->height > 512 ||
+              badge->rgba.size() != static_cast<std::size_t>(badge->width) * badge->height * 4)
+            return ImTextureID{};
+          if (!m_achievement_textures.contains(path) && m_achievement_textures.size() >= 64)
+          {
+            auto oldest =
+                std::ranges::min_element(m_achievement_textures, {},
+                                         [](const auto& entry) { return entry.second.last_frame; });
+            if (oldest->second.last_frame == m_cover_frame)
+              return ImTextureID{};
+            m_achievement_textures.erase(oldest);
+          }
+          auto& cached = m_achievement_textures[path];
+          if (cached.image != badge)
+          {
+            TextureConfig config;
+            config.width = badge->width;
+            config.height = badge->height;
+            auto texture = g_gfx->CreateTexture(config, "Achievement badge");
+            if (!texture)
+              return ImTextureID{};
+            texture->Load(0, badge->width, badge->height, badge->width, badge->rgba.data(),
+                          badge->rgba.size());
+            cached = {badge, std::move(texture)};
+          }
+          cached.last_frame = m_cover_frame;
+          return reinterpret_cast<ImTextureID>(cached.texture.get());
+        }
         if (path.starts_with("state:"))
         {
           std::size_t index;

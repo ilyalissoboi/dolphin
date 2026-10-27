@@ -1297,4 +1297,204 @@ TEST_F(BigPictureNavigationUITest, StateSlotTextStaysInsideThePaddedSelectionBox
   }
   EXPECT_TRUE(found_text);
 }
+MenuPage AchievementsFixture()
+{
+  auto data = std::make_shared<::BigPicture::AchievementsSnapshot>();
+  ::BigPicture::AchievementSubset subset;
+  subset.id = 1;
+  subset.title = "Example Game";
+  subset.summary = "You have unlocked 1 of 3 achievements, earning 5 of 20 possible points.";
+  subset.progress = 1.0f / 3;
+  subset.progress_label = "33%";
+  ::BigPicture::Achievement earned;
+  earned.id = 11;
+  earned.title = "First Victory";
+  earned.description = "Complete the first battle.";
+  earned.points = "5 points";
+  earned.unlocked = true;
+  earned.unlocked_at = "Unlocked: 10/27/2026 18:54";
+  earned.type = "Progression";
+  subset.groups.push_back({2, "Unlocked", {earned}});
+  earned.id = 12;
+  earned.title = "Almost There";
+  earned.unlocked = false;
+  earned.unlocked_at.clear();
+  earned.measured = "18/20";
+  earned.progress = 0.9f;
+  subset.groups.push_back({7, "Almost There", {earned}});
+  earned.id = 13;
+  earned.progress = 0.4f;
+  earned.measured = "2/5";
+  subset.groups.push_back({1, "Locked", {earned}});
+  data->subsets.push_back(subset);
+  subset.id = 2;
+  subset.title = "Bonus Challenge";
+  subset.groups.front().achievements.front().id = 21;
+  data->subsets.push_back(subset);
+  MenuPage page;
+  page.id = "achievements";
+  page.presentation = MenuPresentation::Achievements;
+  page.achievements = data;
+  return page;
+}
+
+TEST_F(BigPictureNavigationUITest, AchievementsNavigateSubsetsAndCollapseGroups)
+{
+  auto page = AchievementsFixture();
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).selected, "subset:1");
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "subset:1");
+  Press(page, ImGuiKey_Enter);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "group:1:2");
+  Press(page, ImGuiKey_Enter);
+  EXPECT_EQ(Press(page, ImGuiKey_DownArrow).focused, "group:1:7");
+  Press(page, ImGuiKey_UpArrow);
+  Press(page, ImGuiKey_Enter);
+  EXPECT_EQ(Press(page, ImGuiKey_DownArrow).focused, "achievement:11");
+  Press(page, ImGuiKey_GamepadR1);
+  EXPECT_EQ(toolkit.GetMemory(page.id).selected, "subset:2");
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "subset:2");
+  Press(page, ImGuiKey_GamepadL1);
+  EXPECT_EQ(toolkit.GetMemory(page.id).selected, "subset:1");
+  Press(page, ImGuiKey_PageDown);
+  EXPECT_EQ(toolkit.GetMemory(page.id).selected, "subset:2");
+  EXPECT_TRUE(Press(page, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, AchievementRefreshAndReturnKeepTheSelectedRow)
+{
+  auto page = AchievementsFixture();
+  Settle(page);
+  Press(page, ImGuiKey_Enter);
+  Press(page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "achievement:11");
+  auto changed = std::make_shared<::BigPicture::AchievementsSnapshot>(*page.achievements);
+  changed->subsets.front().groups.front().achievements.front().description = "Updated description.";
+  changed->subsets.front().progress = 0.66f;
+  page.achievements = changed;
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "achievement:11");
+  MenuPage parent{"pause", "Pause", {}, {{"achievements", "Achievements"}}};
+  Settle(parent);
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "achievement:11");
+  EXPECT_TRUE(Press(page, ImGuiKey_GamepadFaceRight).back);
+}
+
+TEST_F(BigPictureNavigationUITest, AchievementSelectionStaysVisibleAtMaximumScale)
+{
+  auto page = AchievementsFixture();
+  auto data = std::make_shared<::BigPicture::AchievementsSnapshot>(*page.achievements);
+  auto& rows = data->subsets.front().groups.front().achievements;
+  const auto first = rows.front();
+  for (int i = 0; i < 25; ++i)
+  {
+    auto row = first;
+    row.id = 100 + i;
+    rows.push_back(row);
+  }
+  page.achievements = data;
+  Settle(page);
+  Press(page, ImGuiKey_Enter);
+  for (int i = 0; i < 20; ++i)
+    Press(page, ImGuiKey_DownArrow);
+  const auto focused = toolkit.GetMemory(page.id).item;
+  for (int frame = 0; frame < 8; ++frame)
+    Frame(page, {false, 1.5f, 0.15f});
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, focused);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, GImGui->NavWindow->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+}
+
+TEST_F(BigPictureNavigationUITest, AchievementPointsAlignWithDescriptionForWrappedTitles)
+{
+  auto page = AchievementsFixture();
+  for (const auto* title :
+       {"Short Title", "A long achievement title that wraps across multiple lines and still "
+                       "keeps the point value aligned with the description below the title"})
+  {
+    toolkit.Reset();
+    auto data = std::make_shared<::BigPicture::AchievementsSnapshot>(*page.achievements);
+    data->subsets.resize(1);
+    data->subsets.front().groups.resize(1);
+    auto& row = data->subsets.front().groups.front().achievements.front();
+    row.title = title;
+    row.type.clear();
+    row.description = "MMMM";
+    row.points = "MMMM";
+    row.unlocked_at.clear();
+    page.achievements = data;
+    Settle(page);
+    Press(page, ImGuiKey_Enter);
+    Press(page, ImGuiKey_DownArrow);
+    ASSERT_EQ(toolkit.GetMemory(page.id).item, "achievement:11");
+    auto* window = GImGui->NavWindow;
+    ASSERT_NE(window, nullptr);
+    const auto rect = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+    float description_top = 10000;
+    float points_top = 10000;
+    const auto* glyph = ImGui::GetFont()->GetFontBaked(14)->FindGlyphNoFallback('M');
+    ASSERT_NE(glyph, nullptr);
+    const auto text_color = ImGui::GetColorU32(Style::GetPalette(page.theme).text);
+    for (const auto& vertex : window->DrawList->VtxBuffer)
+    {
+      if (vertex.col != text_color || vertex.uv.x != glyph->U0 || vertex.uv.y != glyph->V0)
+        continue;
+      if (vertex.pos.x >= rect.Min.x + 66 && vertex.pos.x < rect.Min.x + 170)
+        description_top = std::min(description_top, vertex.pos.y);
+      if (vertex.pos.x > rect.Max.x - 100)
+        points_top = std::min(points_top, vertex.pos.y);
+    }
+    EXPECT_LT(description_top, 10000);
+    EXPECT_LT(points_top, 10000);
+    EXPECT_FLOAT_EQ(description_top, points_top);
+  }
+}
+
+TEST_F(BigPictureNavigationUITest, CachedPercentageWithoutCurrentMeasurementDoesNotDrawABar)
+{
+  auto page = AchievementsFixture();
+  auto data = std::make_shared<::BigPicture::AchievementsSnapshot>(*page.achievements);
+  data->subsets.resize(1);
+  data->subsets.front().groups.resize(1);
+  auto& row = data->subsets.front().groups.front().achievements.front();
+  row.unlocked = false;
+  row.unlocked_at.clear();
+  row.progress = 0.75f;
+  row.measured.clear();
+  page.achievements = data;
+  Settle(page);
+  Press(page, ImGuiKey_Enter);
+  Press(page, ImGuiKey_DownArrow);
+  const auto has_progress_fill = [&] {
+    const auto fill = ImGui::GetColorU32(Style::GetPalette(page.theme).selected);
+    return std::ranges::any_of(GImGui->NavWindow->DrawList->VtxBuffer,
+                               [&](const auto& vertex) { return vertex.col == fill; });
+  };
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  EXPECT_FALSE(has_progress_fill());
+  auto refreshed = std::make_shared<::BigPicture::AchievementsSnapshot>(*data);
+  refreshed->subsets.front().groups.front().achievements.front().measured = "3/4";
+  page.achievements = refreshed;
+  Settle(page);
+  EXPECT_TRUE(has_progress_fill());
+}
+
+TEST_F(BigPictureNavigationUITest, EmptyAchievementViewRemainsDismissibleAndRestoresFontStyles)
+{
+  auto page = AchievementsFixture();
+  page.achievements.reset();
+  page.empty_text = "Log in to RetroAchievements to view achievements.";
+  const auto style = ImGui::GetStyle();
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "back");
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "back");
+  EXPECT_TRUE(Press(page, ImGuiKey_GamepadFaceRight).back);
+  EXPECT_FLOAT_EQ(ImGui::GetStyle().WindowPadding.x, style.WindowPadding.x);
+  EXPECT_FLOAT_EQ(ImGui::GetStyle().WindowPadding.y, style.WindowPadding.y);
+  EXPECT_EQ(ImGui::GetStyle().Colors[ImGuiCol_NavCursor].w, style.Colors[ImGuiCol_NavCursor].w);
+}
 }  // namespace

@@ -156,6 +156,7 @@ public:
   std::string_view GetGameDisplayName() const;
   rc_client_t* GetClient();
   const Badge& GetGameBadge() const;
+  const Badge& GetSubsetBadge(u32 id) const;
   const Badge& GetAchievementBadge(AchievementId id, bool locked) const;
   const LeaderboardStatus* GetLeaderboardInfo(AchievementId leaderboard_id);
   RichPresence GetRichPresence() const;
@@ -267,6 +268,7 @@ private:
   std::atomic_bool m_background_execution_allowed = true;
   Badge m_player_badge;
   Badge m_game_badge;
+  std::unordered_map<u32, Badge> m_subset_badges;
   bool m_display_welcome_message = false;
   std::unordered_map<AchievementId, Badge> m_unlocked_badges;
   std::unordered_map<AchievementId, Badge> m_locked_badges;

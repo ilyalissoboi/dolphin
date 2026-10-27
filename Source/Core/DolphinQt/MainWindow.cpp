@@ -490,6 +490,14 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           std::lock_guard lock(achievements.GetLock());
           if (Config::Get(Config::RA_ENABLED))
           {
+            state.achievements_logged_in =
+                achievements.HasAPIToken() && achievements.GetClient() &&
+                rc_client_get_user_info(achievements.GetClient()) != nullptr;
+            const auto current = m_big_picture_host ? m_big_picture_host->GetSnapshot() : nullptr;
+            if (state.achievements_logged_in && current &&
+                std::ranges::find(current->screens, BigPicture::Screen::Achievements) !=
+                    current->screens.end())
+              state.achievements = m_big_picture_achievements.Read();
             state.achievements_username = achievements.GetPlayerDisplayName();
             if ((state.lifecycle == BigPicture::Lifecycle::Running ||
                  state.lifecycle == BigPicture::Lifecycle::Paused) &&
@@ -1192,6 +1200,17 @@ void MainWindow::InitControllers()
       tr("Refresh List").toStdString() + "   \xe2\x90\xae " + tr("Start Game").toStdString() +
       "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.navigate = tr("Navigate").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::Achievements)] =
+      tr("Achievements").toStdString();
+  menu_text.reasons[static_cast<std::size_t>(BigPicture::UnavailableReason::LoginRequired)] =
+      tr("Log in to RetroAchievements to view achievements.").toStdString();
+  menu_text.achievements_empty = tr("No achievements are available for this game.").toStdString();
+  menu_text.achievements_loading = tr("Loading achievements...").toStdString();
+  menu_text.achievements_subsets = tr("Change Subset").toStdString();
+  menu_text.achievements_keyboard_hints =
+      "\xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Navigate").toStdString() + "   PgUp/PgDn " +
+      menu_text.achievements_subsets + "   \xe2\x90\xae " + tr("Select").toStdString() +
+      "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.return_to_game = tr("Return to Game").toStdString();
   menu_text.pause_keyboard_prompts =
       "\xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Change Selection").toStdString() + "   \xe2\x90\xae " +
@@ -2148,6 +2167,7 @@ void MainWindow::TogglePause()
 
 void MainWindow::OnStopComplete()
 {
+  m_big_picture_achievements.Clear();
   m_big_picture_state_slots_ready = false;
   m_big_picture_state_slots = {};
   m_big_picture_play_timer.invalidate();

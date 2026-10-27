@@ -79,8 +79,8 @@ TEST_F(BigPictureInGameMenuTest, PauseCarriesRunningGameMetadataAndUsesReference
   std::vector<std::string> ids;
   for (const auto& item : menu.page.items)
     ids.push_back(item.id);
-  EXPECT_EQ(ids, (std::vector<std::string>{"resume", "load", "save", "screenshot", "disc", "reset",
-                                           "preferences", "stop", "exit"}));
+  EXPECT_EQ(ids, (std::vector<std::string>{"resume", "load", "save", "screenshot", "achievements",
+                                           "disc", "reset", "preferences", "stop", "exit"}));
   EXPECT_EQ(menu.Activate({"stop"})->action, Action::Stop);
   EXPECT_EQ(menu.Activate({"exit"})->action, Action::Exit);
   EXPECT_FALSE(menu.requests.contains("global-preferences"));
@@ -90,6 +90,27 @@ TEST_F(BigPictureInGameMenuTest, PauseCarriesRunningGameMetadataAndUsesReference
                 VideoCommon::BigPicture::GetActionIcon(Action::Exit)));
   snapshot.pending = Command{snapshot.generation, 1, Action::Screenshot};
   EXPECT_TRUE(Build().requests.empty());
+}
+
+TEST_F(BigPictureInGameMenuTest, AchievementsAreDisabledUntilLoggedInAndUseTheInGameView)
+{
+  auto menu = Build();
+  const auto entry =
+      std::ranges::find(menu.page.items, "achievements", &VideoCommon::BigPicture::MenuItem::id);
+  ASSERT_NE(entry, menu.page.items.end());
+  EXPECT_FALSE(entry->enabled);
+  EXPECT_FALSE(menu.Activate({"achievements"}));
+  snapshot.host.achievements_logged_in = true;
+  ASSERT_TRUE(Build().Activate({"achievements"}));
+  EXPECT_EQ(Build().Activate({"achievements"})->action, Action::Achievements);
+  snapshot.host.achievements = std::make_shared<AchievementsSnapshot>();
+  snapshot.screens.push_back(Screen::Achievements);
+  menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Achievements);
+  EXPECT_EQ(menu.page.achievements, snapshot.host.achievements);
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
+  snapshot.host.achievements_logged_in = false;
+  EXPECT_FALSE(Build().page.achievements);
 }
 
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)

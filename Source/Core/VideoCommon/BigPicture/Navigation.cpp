@@ -230,6 +230,17 @@ std::string GetStateControllerPrompts(const ::BigPicture::NavigationStatus& stat
          "   " + hint(confirm, text.select) + "   " + hint(back, text.cancel);
 }
 
+std::string GetAchievementsControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                             const ::BigPicture::NavigationText& text)
+{
+  const auto glyph = [&](::BigPicture::NavButton button) {
+    return GetBindingGlyph(status.bindings[static_cast<std::size_t>(button)], status.device,
+                           status.device_source);
+  };
+  return glyph(::BigPicture::NavButton::Previous) + glyph(::BigPicture::NavButton::Next) + " " +
+         text.achievements_subsets + "   " + GetLaunchControllerPrompts(status, text, false);
+}
+
 std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                         const ::BigPicture::NavigationText& text)
 {
@@ -268,6 +279,7 @@ void NavigationToolkit::Reset()
   m_memory.clear();
   m_restore_frames = 0;
   m_header_height = 0;
+  m_collapsed_achievement_groups.clear();
 }
 
 std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
@@ -513,6 +525,8 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
     result = DrawLibrary(page, options, prompts, font, image);
   else if (page.presentation == MenuPresentation::States)
     result = DrawStates(page, options, prompts, font, image);
+  else if (page.presentation == MenuPresentation::Achievements)
+    result = DrawAchievements(page, options, prompts, font, image);
   else if (page.dialog)
     result = DrawDialog(page, options, prompts, font, image);
   else
