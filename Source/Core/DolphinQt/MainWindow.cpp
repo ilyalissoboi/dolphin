@@ -491,7 +491,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           if (Config::Get(Config::RA_ENABLED))
           {
             state.achievements_logged_in =
-                achievements.GetClient() &&
+                achievements.HasAPIToken() && achievements.GetClient() &&
                 rc_client_get_user_info(achievements.GetClient()) != nullptr;
             const auto current = m_big_picture_host ? m_big_picture_host->GetSnapshot() : nullptr;
             if (state.achievements_logged_in && current &&
