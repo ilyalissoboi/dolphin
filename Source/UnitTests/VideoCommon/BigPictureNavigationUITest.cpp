@@ -1517,4 +1517,44 @@ TEST_F(BigPictureNavigationUITest, EmptyAchievementViewRemainsDismissibleAndRest
   EXPECT_FLOAT_EQ(ImGui::GetStyle().WindowPadding.y, style.WindowPadding.y);
   EXPECT_EQ(ImGui::GetStyle().Colors[ImGuiCol_NavCursor].w, style.Colors[ImGuiCol_NavCursor].w);
 }
+
+TEST_F(BigPictureNavigationUITest, SharedViewStylesRestoreCallerColorsAndSpacing)
+{
+  auto& style = ImGui::GetStyle();
+  style.WindowPadding = ImVec2(9, 17);
+  style.ItemSpacing = ImVec2(3, 11);
+  style.ScrollbarSize = 19;
+  style.FontScaleMain = 1.25f;
+  const auto original = style;
+  for (const auto* theme : {"Dark", "Light"})
+  {
+    for (const auto presentation :
+         {MenuPresentation::States, MenuPresentation::Settings, MenuPresentation::Achievements})
+    {
+      MenuPage page{"style-test", "Settings", {}, {{"entry", "Entry"}}};
+      page.presentation = presentation;
+      page.theme = theme;
+      const int colors = GImGui->ColorStack.Size;
+      const int variables = GImGui->StyleVarStack.Size;
+      Settle(page);
+      EXPECT_EQ(GImGui->ColorStack.Size, colors);
+      EXPECT_EQ(GImGui->StyleVarStack.Size, variables);
+      EXPECT_FLOAT_EQ(style.WindowPadding.x, original.WindowPadding.x);
+      EXPECT_FLOAT_EQ(style.WindowPadding.y, original.WindowPadding.y);
+      EXPECT_FLOAT_EQ(style.WindowBorderSize, original.WindowBorderSize);
+      EXPECT_FLOAT_EQ(style.ChildBorderSize, original.ChildBorderSize);
+      EXPECT_FLOAT_EQ(style.ItemSpacing.x, original.ItemSpacing.x);
+      EXPECT_FLOAT_EQ(style.ItemSpacing.y, original.ItemSpacing.y);
+      EXPECT_FLOAT_EQ(style.ScrollbarSize, original.ScrollbarSize);
+      EXPECT_FLOAT_EQ(style.FontScaleMain, original.FontScaleMain);
+      for (int color = 0; color < ImGuiCol_COUNT; ++color)
+      {
+        EXPECT_FLOAT_EQ(style.Colors[color].x, original.Colors[color].x);
+        EXPECT_FLOAT_EQ(style.Colors[color].y, original.Colors[color].y);
+        EXPECT_FLOAT_EQ(style.Colors[color].z, original.Colors[color].z);
+        EXPECT_FLOAT_EQ(style.Colors[color].w, original.Colors[color].w);
+      }
+    }
+  }
+}
 }  // namespace

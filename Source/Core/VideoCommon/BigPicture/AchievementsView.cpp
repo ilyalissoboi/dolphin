@@ -82,25 +82,9 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   backdrop.w = page.overlay ? 0.88f : 1;
   ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), display,
                                                 ImGui::GetColorU32(backdrop));
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 6 * scale));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 10 * scale);
+  const Style::ScopedMenuStyle style(palette, {.item_spacing = ImVec2(0, 6 * scale),
+                                               .scrollbar_size = 10 * scale,
+                                               .show_nav_cursor = false});
   ImGui::PushFont(font, 22 * scale / font_scale);
   const auto color = [&](const auto& value) { return ImGui::GetColorU32(value); };
   const auto badge = [&](ImDrawList* draw, const std::string& key, ImVec2 pos, float size) {
@@ -377,20 +361,14 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   ImGui::EndChild();
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, color(palette.header));
   ImGui::PushFont(font, 14 * scale / font_scale);
-  const auto size = ImGui::CalcTextSize(prompts.c_str());
-  draw->PushClipRect(ImVec2(0, display.y - footer), display, true);
-  draw->AddText(ImVec2(std::max(margin, display.x - margin - size.x),
-                       display.y - footer + (footer - size.y) * 0.5f),
-                color(palette.header_text), prompts.c_str());
-  draw->PopClipRect();
+  Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
+                        color(palette.header_text), margin);
   ImGui::PopFont();
   result.back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
   result.focused = memory.item;
   ImGui::End();
   ImGui::PopFont();
-  ImGui::PopStyleVar(5);
-  ImGui::PopStyleColor(14);
   return result;
 }
 }  // namespace VideoCommon::BigPicture

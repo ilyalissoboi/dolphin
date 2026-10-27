@@ -39,6 +39,7 @@ private:
   void SetRoot();
   void Finish(Result result);
   void Dispatch(const Command& command);
+  void Reject(const Command& command, UnavailableReason reason);
 
   Host& m_host;
   Snapshot m_state;

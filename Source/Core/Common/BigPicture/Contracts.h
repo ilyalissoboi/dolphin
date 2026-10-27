@@ -90,11 +90,21 @@ enum class Action
   Count
 };
 
+constexpr bool IsContinuationAction(Action action)
+{
+  return action == Action::ContinueGame || action == Action::FreshBoot ||
+         action == Action::DeleteContinuation;
+}
+
+constexpr bool IsStopAction(Action action)
+{
+  return action == Action::Stop || action == Action::Exit;
+}
+
 constexpr bool IsBootAction(Action action)
 {
   return action == Action::Boot || action == Action::BootIPL || action == Action::BootSystemMenu ||
-         action == Action::ContinueGame || action == Action::FreshBoot ||
-         action == Action::DeleteContinuation;
+         IsContinuationAction(action);
 }
 enum class UnavailableReason
 {

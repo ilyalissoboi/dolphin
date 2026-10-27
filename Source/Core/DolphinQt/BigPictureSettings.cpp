@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <string_view>
+
+#include <fmt/format.h>
 
 #include <QDir>
 #include <QThread>
@@ -254,6 +257,34 @@ void BigPictureSettings::Back()
   }
 }
 
+std::string BigPictureSettings::MenuId(bool game) const
+{
+  std::string_view category, edit, controller, preset_folder;
+  switch (m_page)
+  {
+  case Page::Presets:
+    preset_folder = m_preset_folder;
+    [[fallthrough]];
+  case Page::Edit:
+  case Page::Text:
+    edit = m_edit;
+    [[fallthrough]];
+  case Page::Category:
+    category = m_category;
+    break;
+  case Page::Controller:
+  case Page::Devices:
+  case Page::Profiles:
+    controller = m_controller;
+    break;
+  default:
+    break;
+  }
+  // Keep the existing ID format: retained focus and scroll depend on these stable keys.
+  return fmt::format("settings-{}-{}-{}-{}-{}{}", static_cast<int>(m_page), category, edit,
+                     controller, preset_folder, game ? m_game.id : "global");
+}
+
 std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::ReadMenu()
 {
   Q_ASSERT(QThread::currentThread() == thread());
@@ -268,19 +299,7 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
   auto view = std::make_shared<BigPicture::SettingsMenuSnapshot>();
   view->revision = m_revision;
   const bool game = values->target == EditTarget::Game;
-  view->id =
-      "settings-" + std::to_string(static_cast<int>(m_page)) + "-" +
-      (m_page == Page::Category || m_page == Page::Edit || m_page == Page::Presets ||
-               m_page == Page::Text ?
-           m_category :
-           "") +
-      "-" +
-      (m_page == Page::Edit || m_page == Page::Presets || m_page == Page::Text ? m_edit : "") +
-      "-" +
-      (m_page == Page::Controller || m_page == Page::Devices || m_page == Page::Profiles ?
-           m_controller :
-           "") +
-      "-" + (m_page == Page::Presets ? m_preset_folder : "") + (game ? m_game.id : "global");
+  view->id = MenuId(game);
   view->title = S(tr("Settings"));
   view->description =
       S(game ? tr("Game settings: %1").arg(Q(m_game.title)) : tr("Global settings"));

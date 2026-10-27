@@ -190,6 +190,9 @@ private:
     Settings
   };
   void StopStandalone(StandaloneStop next);
+  BigPicture::HostState ReadBigPictureState();
+  BigPicture::Result ExecuteBigPictureCommand(const BigPicture::Command& command);
+  void ClearContinuationBoot();
   void PollStandalone();
   void CompleteStandaloneStop(StandaloneStop next, bool failed);
 
