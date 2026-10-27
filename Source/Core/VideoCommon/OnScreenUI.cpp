@@ -113,7 +113,8 @@ bool OnScreenUI::Initialize(u32 width, u32 height, float scale)
 
   m_imgui_last_frame_time = Common::Timer::NowUs();
   m_ready = true;
-  ::BigPicture::GetPresentationState().SetRendererReady(true);
+  // Software can initialize the OSD resources but cannot draw the modal menu.
+  ::BigPicture::GetPresentationState().SetRendererReady(g_gfx->SupportsUtilityDrawing());
   BeginImGuiFrameUnlocked(width, height);  // lock is already held
 
   return true;
