@@ -53,6 +53,25 @@ protected:
   std::uint64_t id = 0;
 };
 
+TEST_F(BigPictureControllerTest, AchievementsRequireAnActiveLoginAndReturnToPause)
+{
+  InGame();
+  Send(Action::Achievements);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::LoginRequired);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+  EXPECT_TRUE(host.executed.empty());
+  host.state.achievements_logged_in = true;
+  host.state.hardcore = true;
+  Send(Action::Achievements);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Achievements);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+  host.state.achievements_logged_in = false;
+  Send(Action::Achievements);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::LoginRequired);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
+}
+
 TEST_F(BigPictureControllerTest, OpeningAndNestedBackPreserveGuestPauseState)
 {
   InGame(Lifecycle::Paused);

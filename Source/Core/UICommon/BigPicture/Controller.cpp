@@ -16,6 +16,12 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
       state.lifecycle == Lifecycle::Booting || state.lifecycle == Lifecycle::Stopping;
   switch (action)
   {
+  case Action::Achievements:
+    if (!state.achievements_logged_in)
+      return UnavailableReason::LoginRequired;
+    return active        ? UnavailableReason::None :
+           transitioning ? UnavailableReason::Busy :
+                           UnavailableReason::NoGame;
   case Action::ChangeDisc:
     if (state.netplay)
       return UnavailableReason::NetPlay;
@@ -500,6 +506,7 @@ void Controller::Submit(const Command& command)
       return;
     }
     [[fallthrough]];
+  case Action::Achievements:
   case Action::SaveStates:
   case Action::LoadStates:
     if (m_state.mode == Mode::Desktop)
@@ -509,9 +516,10 @@ void Controller::Submit(const Command& command)
       Publish();
       return;
     }
-    m_state.screens.push_back(command.action == Action::Settings   ? Screen::Settings :
-                              command.action == Action::SaveStates ? Screen::SaveStates :
-                                                                     Screen::LoadStates);
+    m_state.screens.push_back(command.action == Action::Achievements ? Screen::Achievements :
+                              command.action == Action::Settings     ? Screen::Settings :
+                              command.action == Action::SaveStates   ? Screen::SaveStates :
+                                                                       Screen::LoadStates);
     break;
   case Action::Stop:
   case Action::Reset:

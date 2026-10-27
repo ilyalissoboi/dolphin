@@ -84,8 +84,12 @@ private:
   {
     std::shared_ptr<const ::BigPicture::LibraryImage> image;
     std::unique_ptr<AbstractTexture> texture;
+    u64 last_frame = 0;
   };
   std::array<StateTexture, ::BigPicture::STATE_SLOT_COUNT> m_state_textures;
+  std::shared_ptr<const ::BigPicture::AchievementsSnapshot> m_achievement_snapshot;
+  std::map<std::string, std::shared_ptr<const ::BigPicture::LibraryImage>> m_achievement_images;
+  std::map<std::string, StateTexture> m_achievement_textures;
   u64 m_cover_revision = 0;
   u64 m_cover_frame = 0;
   unsigned m_cover_uploads = 0;

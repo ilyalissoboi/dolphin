@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "Common/BigPicture/Achievements.h"
 #include "Common/BigPicture/Library.h"
 #include "Common/BigPicture/Settings.h"
 #include "Common/Settings/Descriptor.h"
@@ -38,7 +39,8 @@ enum class Screen
   Home,
   StartGame,
   ExitMenu,
-  About
+  About,
+  Achievements
 };
 enum class Lifecycle
 {
@@ -80,6 +82,7 @@ enum class Action
   StartGame,
   ExitMenu,
   About,
+  Achievements,
   Count
 };
 
@@ -99,6 +102,7 @@ enum class UnavailableReason
   DiscUnavailable,
   DesktopRequired,
   EmptySlot,
+  LoginRequired,
   Count
 };
 enum class ResultStatus
@@ -174,6 +178,8 @@ struct HostState
   std::string game_play_time;
   std::string game_rich_presence;
   std::string game_achievement_progress;
+  bool achievements_logged_in = false;
+  std::shared_ptr<const AchievementsSnapshot> achievements;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

@@ -152,6 +152,10 @@ struct NavigationText
   std::string global_settings;
   std::string game_settings;
   std::string state_keyboard_hints;
+  std::string achievements_empty;
+  std::string achievements_loading;
+  std::string achievements_keyboard_hints;
+  std::string achievements_subsets;
 };
 
 struct NavigationRequest

@@ -211,6 +211,19 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("back", Action::Back);
     return menu;
   }
+  else if (screen == Screen::Achievements)
+  {
+    page.id = "achievements";
+    page.title = snapshot.host.game_title;
+    page.presentation = MenuPresentation::Achievements;
+    page.overlay = true;
+    page.achievements = snapshot.host.achievements_logged_in ? snapshot.host.achievements : nullptr;
+    page.empty_text = !snapshot.host.achievements_logged_in ?
+                          reason_text(UnavailableReason::LoginRequired) :
+                      !page.achievements ? text.achievements_loading :
+                                           text.achievements_empty;
+    add("back", Action::Back, {}, true);
+  }
   else if (screen == Screen::SaveStates || screen == Screen::LoadStates)
   {
     const bool saving = screen == Screen::SaveStates;
@@ -314,6 +327,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("load", Action::LoadStates);
     add("save", Action::SaveStates);
     add("screenshot", Action::Screenshot);
+    add("achievements", Action::Achievements);
     add("disc", Action::ChangeDisc);
     if (menu.requests.contains("disc"))
     {

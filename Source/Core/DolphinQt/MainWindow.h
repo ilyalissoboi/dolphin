@@ -15,6 +15,7 @@
 
 #include "Common/BigPicture/Contracts.h"
 #include "Common/HookableEvent.h"
+#include "DolphinQt/BigPictureAchievements.h"
 #include "DolphinQt/BigPictureGraphicsConfig.h"
 
 #ifdef USE_RETRO_ACHIEVEMENTS
@@ -276,6 +277,7 @@ private:
   Core::System& m_system;
   std::unique_ptr<Ui::MainWindow> m_ui;
   BigPictureHost* m_big_picture_host = nullptr;
+  BigPictureAchievements m_big_picture_achievements;
   std::unique_ptr<BigPictureSettings> m_big_picture_settings;
   bool m_settings_post_processing = false;
   BigPictureLibrary* m_big_picture_library = nullptr;
