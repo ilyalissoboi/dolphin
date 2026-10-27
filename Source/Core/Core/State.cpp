@@ -7,7 +7,6 @@
 #include <bit>
 #include <cmath>
 #include <filesystem>
-#include <locale>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
@@ -314,7 +313,8 @@ static std::string SystemTimeAsDoubleToString(double time)
     return "";
 
   // fmt is locale agnostic by default, so explicitly use current locale.
-  return fmt::format(Common::GetEnvironmentLocale(), "{:%x %X}", *local_time);
+  // Using L for locale-dependent formatting.
+  return fmt::format(Common::GetEnvironmentLocale(), "{:L%x %X}", *local_time);
 }
 
 static std::string MakeStateFilename(u32 number)

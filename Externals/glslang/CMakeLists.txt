@@ -17,7 +17,6 @@ if (TARGET glslang)
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}"
   )
-  dolphin_disable_warnings(glslang)
 endif()
 
 # Only built for SlangCompileTest; its C API shim trips MSVC's /WX on strncpy (C4996).
