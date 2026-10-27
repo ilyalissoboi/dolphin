@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -23,6 +24,8 @@ enum class MenuPresentation
   Landing,
   Pause,
   Library,
+  Launch,
+  FilePicker,
 };
 
 struct MenuItem
@@ -58,6 +61,7 @@ struct MenuPage
   bool overlay = false;
   std::string theme = "Dark";
   std::string account_name;
+  std::shared_ptr<const MenuPage> background;
 };
 
 struct MenuResult
@@ -72,6 +76,7 @@ struct FocusMemory
   std::string item;
   // Logical reference pixels, so a resize/DPI change does not change the retained position.
   float scroll = 0;
+  std::uint64_t revision = 0;
 };
 
 struct MenuLayout
@@ -101,7 +106,11 @@ private:
                          const std::function<ImTextureID(const std::string&)>& image);
   MenuResult DrawLanding(const MenuPage& page, ::BigPicture::NavigationOptions options,
                          const std::string& prompts, ImFont* font,
-                         const std::function<ImTextureID(const std::string&)>& image);
+                         const std::function<ImTextureID(const std::string&)>& image,
+                         bool passive = false);
+  MenuResult DrawFilePicker(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                            const std::string& prompts, ImFont* font,
+                            const std::function<ImTextureID(const std::string&)>& image);
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
@@ -139,4 +148,6 @@ std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                  const ::BigPicture::NavigationText& text, bool home);
 std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                         const ::BigPicture::NavigationText& text);
+std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                       const ::BigPicture::NavigationText& text, bool picker);
 }  // namespace VideoCommon::BigPicture

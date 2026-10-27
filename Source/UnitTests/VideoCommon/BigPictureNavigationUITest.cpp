@@ -707,4 +707,140 @@ TEST_F(BigPictureNavigationUITest, EmptyLibraryKeepsFolderSetupAccessible)
   Press(page, ImGuiKey_DownArrow);
   EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "add-folder");
 }
+
+TEST_F(BigPictureNavigationUITest, LaunchTilesNavigateAndBackLivesInTheHeader)
+{
+  MenuPage page{"start-game",
+                "Start Game",
+                {},
+                {{"file", "Start File"}, {"ipl", "GameCube IPL"}, {"wii", "Wii System Menu"}},
+                "file"};
+  page.presentation = MenuPresentation::Launch;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "file");
+  Press(page, ImGuiKey_GamepadDpadRight);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "ipl");
+  Press(page, ImGuiKey_UpArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "back");
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_LE(rect.Max.y, 44);
+  EXPECT_LE(rect.Max.x, 54);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "back");
+  EXPECT_TRUE(Press(page, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, PickerIsolatesFocusRestoresSelectionAndHandlesParentShortcut)
+{
+  auto launch = std::make_shared<MenuPage>(MenuPage{
+      "start-game", "Start Game", {}, {{"file", "Start File"}, {"ipl", "GameCube IPL"}}, "file"});
+  launch->presentation = MenuPresentation::Launch;
+  launch->toolbar = {{"back", "Back"}};
+  Settle(*launch);
+  MenuPage picker{"file-picker",
+                  "Select Game File",
+                  {},
+                  {{"parent", "Parent Folder"}, {"folder", "Games"}, {"game", "Game.rvz"}},
+                  "folder"};
+  picker.presentation = MenuPresentation::FilePicker;
+  picker.focus_revision = 1;
+  picker.background = launch;
+  picker.toolbar = {{"path", "Enter Path"}, {"roots", "Locations"}};
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadDpadDown).focused, "game");
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadFaceDown).activated, "game");
+  EXPECT_EQ(toolkit.GetMemory("start-game").item, "file");
+  EXPECT_EQ(Press(picker, ImGuiKey_Backspace).activated, "parent");
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadL1).activated, "parent");
+  MenuPage keyboard{"keyboard", "Enter Path", {}, {{"done", "Done"}}, "done"};
+  Settle(keyboard);
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "game");
+  ++picker.focus_revision;
+  picker.items = {{"new", "New folder"}};
+  picker.default_focus = "new";
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "new");
+  EXPECT_EQ(Press(picker, ImGuiKey_Backspace).activated, "roots");
+  EXPECT_TRUE(Press(picker, ImGuiKey_Escape).back);
+  Settle(*launch);
+  EXPECT_EQ(Press(*launch, ImGuiKey_Enter).activated, "file");
+}
+
+TEST_F(BigPictureNavigationUITest, LaunchFitsAllConsoleRegionsAndScaling)
+{
+  MenuPage page{"start-game", "Start Game"};
+  page.presentation = MenuPresentation::Launch;
+  page.toolbar = {{"back", "Back"}};
+  for (int i = 0; i < 7; ++i)
+    page.items.push_back({std::to_string(i), "Installed console menu"});
+  for (const auto size : {ImVec2(1280, 720), ImVec2(1634, 977), ImVec2(3440, 1440)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    for (int frame = 0; frame < 4; ++frame)
+      Frame(page, {false, 1.5f, 0.15f});
+    ASSERT_NE(GImGui->NavWindow, nullptr);
+    const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                                GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+    EXPECT_GE(rect.Min.x, 0);
+    EXPECT_GE(rect.Min.y, 0);
+    EXPECT_LE(rect.Max.x, size.x);
+    EXPECT_LE(rect.Max.y, size.y);
+  }
+}
+
+TEST(BigPicturePromptTest, LaunchAndPickerHintsUseBoundButtonsAndOnlySupportedShortcuts)
+{
+  ::BigPicture::NavigationStatus status;
+  status.device = "DualSense Wireless Controller";
+  status.device_source = "DInput";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Confirm)] = "`Button 2`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Back)] = "`Button 1`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Previous)] = "`Button 4`";
+  ::BigPicture::NavigationText text;
+  text.navigate = "Navigate";
+  text.select = "Select";
+  text.back = "Back";
+  text.library_cancel = "Cancel";
+  text.library_parent = "Parent Folder";
+  const auto picker = GetLaunchControllerPrompts(status, text, true);
+  EXPECT_NE(picker.find("\xe2\x86\xb0 Parent Folder"), std::string::npos);
+  EXPECT_NE(picker.find("\xe2\x87\xa2 Select"), std::string::npos);
+  EXPECT_NE(picker.find("\xe2\x87\xa3 Cancel"), std::string::npos);
+  EXPECT_EQ(picker.find("Button"), std::string::npos);
+  const auto launch = GetLaunchControllerPrompts(status, text, false);
+  EXPECT_EQ(launch.find("Parent Folder"), std::string::npos);
+  EXPECT_NE(launch.find("\xe2\x87\xa3 Back"), std::string::npos);
+  status.options.swap_confirm_back = true;
+  EXPECT_NE(GetLaunchControllerPrompts(status, text, false).find("\xe2\x87\xa3 Select"),
+            std::string::npos);
+}
+
+TEST_F(BigPictureNavigationUITest, PickerRestoresAndRevealsSelectionInLongListings)
+{
+  MenuPage picker{"file-picker", "Select Game File", {}, {}, "0"};
+  picker.presentation = MenuPresentation::FilePicker;
+  picker.focus_revision = 17;
+  for (int i = 0; i < 80; ++i)
+    picker.items.push_back({std::to_string(i), "A long file name 日本語.rvz"});
+  Settle(picker);
+  for (int i = 0; i < 26; ++i)
+    Press(picker, ImGuiKey_DownArrow);
+  EXPECT_EQ(toolkit.GetMemory(picker.id).item, "26");
+  EXPECT_GT(toolkit.GetMemory(picker.id).scroll, 0);
+  MenuPage child{"keyboard", "Enter Path", {}, {{"done", "Done"}}};
+  Settle(child);
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "26");
+  for (int frame = 0; frame < 5; ++frame)
+    Frame(picker, {false, 1.5f, 0.15f});
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, GImGui->NavWindow->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+  EXPECT_EQ(toolkit.GetMemory(picker.id).item, "26");
+}
 }  // namespace

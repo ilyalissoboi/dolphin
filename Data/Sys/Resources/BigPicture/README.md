@@ -1,8 +1,9 @@
 # Big Picture artwork and fonts
 
-The four home-screen icons are the same artwork used by the local PCSX2 fork at
+The home-screen and launch icons are the same artwork used by the local PCSX2 fork at
 adca25d5995fbec3dbabbc061518d332a5ea935b, in bin/resources/fullscreenui:
-media-cdrom.svg, start-game.svg, applications-system.svg, and exit.svg.
+media-cdrom.svg, start-game.svg, applications-system.svg, exit.svg, start-file.svg,
+drive-cdrom.svg, and start-bios.svg.
 Their original SVG Repo metadata is retained in the SVG sources. They are
 redistributed from PCSX2 under its GPL-3.0-or-later terms; see COPYING.GPLv3.
 The original applications-system artwork is also offered under CC0 at

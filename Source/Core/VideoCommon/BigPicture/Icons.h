@@ -33,6 +33,7 @@ enum class MenuIcon
   Filter,
   Theme,
   Check,
+  FolderSolid,
 };
 
 // Small, independently drawn symbols; no icon-font dependency or external artwork.

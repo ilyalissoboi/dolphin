@@ -134,6 +134,13 @@ struct NavigationText
   std::string library_keyboard_hints;
   std::string library_change_view;
   std::string library_select_game;
+  std::string start_file;
+  std::string start_file_description;
+  std::string start_ipl_description;
+  std::string start_wii_description;
+  std::string start_keyboard_hints;
+  std::string picker_title;
+  std::string picker_keyboard_hints;
 };
 
 struct NavigationRequest

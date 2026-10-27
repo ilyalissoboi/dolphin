@@ -82,6 +82,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   {
     page.id = "start-game";
     page.title = text.home_labels[1];
+    page.presentation = MenuPresentation::Launch;
+    page.default_focus = "open-file";
     if (snapshot.host.library)
     {
       add("open-file", Action::Library);
@@ -93,11 +95,16 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     }
     else
       add("open-file", Action::OpenGame);
+    page.items.back().label = text.start_file;
+    if (page.items.back().enabled)
+      page.items.back().detail = text.start_file_description;
+    page.items.back().image_key = "home:start-file";
     if (!snapshot.host.launch_path.empty())
     {
       add("boot", Action::Boot, snapshot.host.launch_title);
       if (auto it = menu.requests.find("boot"); it != menu.requests.end())
         it->second.path = snapshot.host.launch_path;
+      page.items.back().image_key = "home:drive-cdrom";
     }
     for (int i : {0, 1, 2, 5})
     {
@@ -105,12 +112,26 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
         continue;
       const auto id = "ipl-" + std::to_string(i);
       add(id, Action::BootIPL, i == 0 ? "NTSC-J" : i == 1 ? "NTSC-U" : i == 2 ? "PAL" : "DEV");
+      page.items.back().label += std::string(" (") +
+                                 (i == 0 ? "NTSC-J" :
+                                  i == 1 ? "NTSC-U" :
+                                  i == 2 ? "PAL" :
+                                           "DEV") +
+                                 ")";
+      if (page.items.back().enabled)
+        page.items.back().detail = text.start_ipl_description;
+      page.items.back().image_key = "home:start-bios";
       if (auto it = menu.requests.find(id); it != menu.requests.end())
         it->second.slot = static_cast<int>(i);
     }
     if (snapshot.host.boot_system_menu_available)
+    {
       add("system-menu", Action::BootSystemMenu);
-    add("back", Action::Back);
+      if (page.items.back().enabled)
+        page.items.back().detail = text.start_wii_description;
+      page.items.back().image_key = "home:start-bios";
+    }
+    add("back", Action::Back, {}, true);
   }
   else if (screen == Screen::ExitMenu)
   {
@@ -123,7 +144,19 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   else if (snapshot.host.library &&
            (screen == Screen::Library || screen == Screen::LibraryOptions ||
             screen == Screen::FilePicker || screen == Screen::TextInput))
-    return BuildLibraryMenu(snapshot, text);
+  {
+    auto library_menu = BuildLibraryMenu(snapshot, text);
+    if (screen == Screen::FilePicker && snapshot.screens.size() >= 2 &&
+        snapshot.screens[snapshot.screens.size() - 2] == Screen::StartGame)
+    {
+      auto parent = snapshot;
+      parent.screens.pop_back();
+      parent.pending.reset();
+      library_menu.page.background =
+          std::make_shared<MenuPage>(BuildInGameMenu(parent, text, options).page);
+    }
+    return library_menu;
+  }
   else if (screen == Screen::Confirmation && snapshot.confirmation)
   {
     const auto& command = *snapshot.confirmation;

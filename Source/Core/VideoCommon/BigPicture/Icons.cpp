@@ -103,6 +103,11 @@ void DrawMenuIcon(ImDrawList* draw, MenuIcon icon, ImVec2 position, float size, 
     line(20, 21, 2, 21);
     line(2, 21, 2, 6);
     break;
+  case MenuIcon::FolderSolid:
+    draw->AddRectFilled(p(1, 7), p(23, 22), color, 2 * scale);
+    draw->AddRectFilled(p(1, 3), p(11, 12), color, 2 * scale);
+    draw->AddRectFilled(p(9, 5), p(23, 12), color, 2 * scale);
+    break;
   case MenuIcon::Back:
     line(3, 12, 22, 12);
     line(3, 12, 10, 5);

@@ -4,6 +4,11 @@
 
 ### Big Picture
 
+Start Game now uses large PCSX2-style launch tiles with Back at the left of the top bar.
+Installed GameCube IPLs, the Wii System Menu and the selected-game shortcut remain available.
+The controller file picker uses a scrollable panel over the launch screen, with directory
+icons, a current-path row, parent-folder shortcuts and keyboard/controller button hints.
+
 HDR output now correctly converts UI artwork and tint colors from sRGB to linear light,
 fixing washed-out covers, logos and other images in Big Picture mode.
 

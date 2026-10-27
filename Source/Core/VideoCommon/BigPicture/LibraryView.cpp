@@ -157,8 +157,8 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
     button(item,
            item.id == "back" ? 5 * scale : display.x - (page.toolbar.size() - i) * 62 * scale);
   }
-  draw->AddText(ImVec2(63 * scale, 6 * scale), ImGui::GetColorU32(palette.header_text),
-                page.title.c_str());
+  draw->AddText(ImVec2(63 * scale, (header - ImGui::GetTextLineHeight()) * 0.5f),
+                ImGui::GetColorU32(palette.header_text), page.title.c_str());
   ImGui::PushFont(font, 14 * scale / font_scale);
   const float footer =
       std::max(34 * scale, ImGui::CalcTextSize(prompts.c_str(), nullptr, false,
