@@ -115,6 +115,12 @@ void Load(Core::System& system, u32 slot);
 void SaveAs(Core::System& system, std::string filename);
 void LoadAs(Core::System& system, std::string filename);
 
+// A continuation is separate from numbered slots and the user's undo-save backup.
+std::string GetContinuationPath(const std::string& game_id);
+bool DeleteContinuation(const std::string& filename);
+// Host-thread operation: captures and finishes writing before returning. Failure must cancel stop.
+bool SaveContinuation(Core::System& system, const std::string& filename);
+
 void LoadLastSaved(Core::System& system, int i = 1);
 void SaveFirstSaved(Core::System& system);
 void UndoSaveState(Core::System& system);

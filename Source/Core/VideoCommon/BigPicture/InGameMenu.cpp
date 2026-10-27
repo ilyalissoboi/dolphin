@@ -163,6 +163,21 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     }
     return library_menu;
   }
+  else if (screen == Screen::Continuation)
+  {
+    page.id = "continuation";
+    page.title = text.continuation_title;
+    page.description = snapshot.host.continuation_title + "\n" + text.continuation_description;
+    page.dialog = true;
+    page.default_focus = "continue";
+    add("continue", Action::ContinueGame);
+    page.items.back().icon = MenuIcon::Play;
+    add("fresh", Action::FreshBoot);
+    page.items.back().icon = MenuIcon::Reset;
+    add("delete", Action::DeleteContinuation);
+    page.items.back().icon = MenuIcon::Stop;
+    add("back", Action::Back);
+  }
   else if (screen == Screen::Confirmation && snapshot.confirmation)
   {
     const auto& command = *snapshot.confirmation;
@@ -193,6 +208,22 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.items.back().icon = GetActionIcon(command.action);
     if (auto it = menu.requests.find("confirm"); it != menu.requests.end())
       it->second.confirmation_id = command.id;
+    if ((command.action == Action::Stop || command.action == Action::Exit) &&
+        snapshot.host.lifecycle != Lifecycle::Idle)
+    {
+      page.items.back().label = text.exit_without_saving;
+      if (snapshot.host.can_save_continuation)
+      {
+        add("save-and-exit", Action::Confirm);
+        page.items.back().label = text.exit_and_save;
+        page.items.back().icon = GetActionIcon(Action::SaveState);
+        if (auto it = menu.requests.find("save-and-exit"); it != menu.requests.end())
+        {
+          it->second.confirmation_id = command.id;
+          it->second.slot = 1;
+        }
+      }
+    }
     add("cancel", Action::Cancel);
     page.items.back().label = text.cancel;
     page.items.back().icon = MenuIcon::Back;
@@ -324,6 +355,10 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.achievement_progress = snapshot.host.game_achievement_progress;
     page.default_focus = "resume";
     add("resume", Action::Resume);
+    // Returning to the game is an explicit resume, including after a state load or an
+    // external pause invalidated the pause menu's ownership of the paused state.
+    if (const auto resume = menu.requests.find("resume"); resume != menu.requests.end())
+      menu.requests["back"] = resume->second;
     add("load", Action::LoadStates);
     add("save", Action::SaveStates);
     add("screenshot", Action::Screenshot);

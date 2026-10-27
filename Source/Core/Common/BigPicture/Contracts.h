@@ -40,7 +40,8 @@ enum class Screen
   StartGame,
   ExitMenu,
   About,
-  Achievements
+  Achievements,
+  Continuation
 };
 enum class Lifecycle
 {
@@ -83,12 +84,17 @@ enum class Action
   ExitMenu,
   About,
   Achievements,
+  ContinueGame,
+  FreshBoot,
+  DeleteContinuation,
   Count
 };
 
 constexpr bool IsBootAction(Action action)
 {
-  return action == Action::Boot || action == Action::BootIPL || action == Action::BootSystemMenu;
+  return action == Action::Boot || action == Action::BootIPL || action == Action::BootSystemMenu ||
+         action == Action::ContinueGame || action == Action::FreshBoot ||
+         action == Action::DeleteContinuation;
 }
 enum class UnavailableReason
 {
@@ -180,6 +186,10 @@ struct HostState
   std::string game_achievement_progress;
   bool achievements_logged_in = false;
   std::shared_ptr<const AchievementsSnapshot> achievements;
+  bool can_save_continuation = false;
+  bool continuation_pending = false;
+  bool can_load_continuation = false;
+  std::string continuation_title;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

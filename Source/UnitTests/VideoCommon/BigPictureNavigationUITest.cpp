@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include "VideoCommon/BigPicture/InGameMenu.h"
 #include "VideoCommon/BigPicture/Navigation.h"
 #include "VideoCommon/BigPicture/Style.h"
 
@@ -80,6 +81,25 @@ TEST_F(BigPictureNavigationUITest, KeyboardAndControllerNavigateHierarchyAndRest
   EXPECT_EQ(Press(root, ImGuiKey_GamepadFaceDown).activated, "close");
   Settle(child);
   EXPECT_EQ(toolkit.GetMemory("settings").item, "two");
+}
+
+TEST_F(BigPictureNavigationUITest, EscapeOnPauseRequestsResumeAndSubmenuEscapeRequestsBack)
+{
+  ::BigPicture::Snapshot snapshot;
+  snapshot.mode = ::BigPicture::Mode::InGame;
+  snapshot.host.lifecycle = ::BigPicture::Lifecycle::Paused;
+  snapshot.screens = {::BigPicture::Screen::Pause};
+  auto menu = BuildInGameMenu(snapshot, {}, {});
+  Settle(menu.page);
+  const auto resume = menu.Activate(Press(menu.page, ImGuiKey_Escape));
+  ASSERT_TRUE(resume);
+  EXPECT_EQ(resume->action, ::BigPicture::Action::Resume);
+  snapshot.screens.push_back(::BigPicture::Screen::SaveStates);
+  menu = BuildInGameMenu(snapshot, {}, {});
+  Settle(menu.page);
+  const auto back = menu.Activate(Press(menu.page, ImGuiKey_Escape));
+  ASSERT_TRUE(back);
+  EXPECT_EQ(back->action, ::BigPicture::Action::Back);
 }
 
 TEST_F(BigPictureNavigationUITest, DialogDefaultsToCancelAndSwapPreservesLogicalActions)

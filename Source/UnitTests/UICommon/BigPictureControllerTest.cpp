@@ -72,6 +72,107 @@ TEST_F(BigPictureControllerTest, AchievementsRequireAnActiveLoginAndReturnToPaus
   EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
 }
 
+TEST_F(BigPictureControllerTest, StopContinuationChoiceIsBoundToConfirmationAndRechecksSupport)
+{
+  InGame();
+  host.state.can_save_continuation = true;
+  Send(Action::Stop);
+  const auto confirmation = controller.GetSnapshot()->confirmation->id;
+  auto stale = Make(Action::Confirm, 1);
+  stale.confirmation_id = confirmation + 1;
+  controller.Submit(stale);
+  EXPECT_TRUE(host.executed.empty());
+  Send(Action::Confirm, -1);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  EXPECT_TRUE(host.executed.empty());
+  host.state.can_save_continuation = false;
+  Send(Action::Confirm, 1);
+  EXPECT_TRUE(host.executed.empty());
+  EXPECT_TRUE(controller.GetSnapshot()->confirmation);
+  host.state.can_save_continuation = true;
+  Send(Action::Confirm, 1);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed.back().action, Action::Stop);
+  EXPECT_EQ(host.executed.back().slot, 1);
+  EXPECT_EQ(host.executed.back().confirmation_id, confirmation);
+}
+
+TEST_F(BigPictureControllerTest, ExitWithoutContinuationRemainsAvailableWhenSavingIsUnavailable)
+{
+  InGame();
+  Send(Action::Exit);
+  Send(Action::Confirm);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed.back().action, Action::Exit);
+  EXPECT_EQ(host.executed.back().slot, 0);
+}
+
+TEST_F(BigPictureControllerTest, ContinuationPromptIsModalAndRechecksLoadingPolicy)
+{
+  host.state.continuation_pending = true;
+  host.state.can_load_continuation = true;
+  controller.Refresh();
+  ASSERT_EQ(controller.GetSnapshot()->screens.back(), Screen::Continuation);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Library);
+  Send(Action::Boot, 0, "another.iso");
+  EXPECT_TRUE(host.executed.empty());
+  host.state.can_load_continuation = false;
+  Send(Action::ContinueGame);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Hardcore);
+  EXPECT_TRUE(host.executed.empty());
+  host.execute = [&](const Command& command) {
+    host.state.continuation_pending = false;
+    host.state.lifecycle = Lifecycle::Booting;
+    return Result{command, ResultStatus::Dispatched};
+  };
+  Send(Action::FreshBoot);
+  EXPECT_EQ(host.executed.back().action, Action::FreshBoot);
+  controller.Refresh();
+  EXPECT_TRUE(controller.GetSnapshot()->pending);
+  host.state.lifecycle = Lifecycle::Running;
+  controller.Refresh();
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+}
+
+TEST_F(BigPictureControllerTest, DeferredBootShowsContinuationChoiceWithoutReportingBootFailure)
+{
+  Send(Action::OpenMenu);
+  host.execute = [&](const Command& command) {
+    host.state.continuation_pending = true;
+    host.state.can_load_continuation = true;
+    return Result{command, ResultStatus::Succeeded};
+  };
+  Send(Action::Boot, 0, "game.iso");
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  controller.Refresh();
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Continuation);
+  EXPECT_FALSE(controller.GetSnapshot()->error);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+}
+
+TEST_F(BigPictureControllerTest, FailedContinuationDeletionCanBeDismissedAndRetried)
+{
+  host.state.continuation_pending = true;
+  controller.Refresh();
+  host.execute = [](const Command& command) {
+    return Result{command, ResultStatus::Failed, UnavailableReason::None, "Read only"};
+  };
+  Send(Action::DeleteContinuation);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Error);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Continuation);
+  EXPECT_TRUE(host.state.continuation_pending);
+  host.execute = [&](const Command& command) {
+    host.state.continuation_pending = false;
+    return Result{command, ResultStatus::Cancelled};
+  };
+  Send(Action::Back);
+  controller.Refresh();
+  EXPECT_FALSE(host.state.continuation_pending);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Home);
+}
+
 TEST_F(BigPictureControllerTest, OpeningAndNestedBackPreserveGuestPauseState)
 {
   InGame(Lifecycle::Paused);

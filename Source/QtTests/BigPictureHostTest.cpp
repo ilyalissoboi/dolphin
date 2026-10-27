@@ -152,6 +152,47 @@ TEST(BigPictureHostTest, ClosingMenuOnlyResumesItsOwnPause)
   EXPECT_EQ(state.lifecycle, Lifecycle::Running);
 }
 
+TEST(BigPictureHostTest, PauseScreenBackResumesAlreadyPausedAndInvalidatedSessions)
+{
+  for (const auto initial : {Lifecycle::Paused, Lifecycle::Running})
+  {
+    HostState state{initial};
+    int explicit_resumes = 0;
+    int implicit_resumes = 0;
+    BigPictureHost host(
+        nullptr, [&] { return state; },
+        [&](const Command& command) {
+          if (command.action == Action::Resume)
+          {
+            ++explicit_resumes;
+            state.lifecycle = Lifecycle::Running;
+            ++state.pause_revision;
+            return Result{command, ResultStatus::Succeeded};
+          }
+          return Result{command, ResultStatus::Dispatched};
+        },
+        [&](bool pause) {
+          state.lifecycle = pause ? Lifecycle::Paused : Lifecycle::Running;
+          ++state.pause_revision;
+          if (!pause)
+            ++implicit_resumes;
+        });
+    host.RequestAction(host.GetSnapshot()->generation, Action::OpenMenu);
+    QCoreApplication::processEvents();
+    // Loading a state or pausing externally must not prevent the pause screen's return action.
+    ++state.pause_revision;
+    host.Refresh();
+    // The pause screen maps Escape/Back to this explicit action.
+    host.RequestAction(host.GetSnapshot()->generation, Action::Resume);
+    QCoreApplication::processEvents();
+    EXPECT_EQ(state.lifecycle, Lifecycle::Running);
+    EXPECT_EQ(host.GetSnapshot()->mode, Mode::Desktop);
+    EXPECT_TRUE(host.GetSnapshot()->screens.empty());
+    EXPECT_EQ(explicit_resumes, 1);
+    EXPECT_EQ(implicit_resumes, 0);
+  }
+}
+
 TEST(BigPictureHostTest, ExternalPauseResumeAndFocusLossInvalidateMenuPauseOwnership)
 {
   for (int change = 0; change < 3; ++change)
