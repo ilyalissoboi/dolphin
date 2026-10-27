@@ -4,6 +4,16 @@
 
 ### Big Picture
 
+HDR output now correctly converts UI artwork and tint colors from sRGB to linear light,
+fixing washed-out covers, logos and other images in Big Picture mode.
+
+The game library now uses a PCSX2-style cover grid with a compact back/grid/list header,
+large covers, single-line titles and fixed control hints. Grid/list switching retains the
+selected game, and the list view includes its cover and details. F1 changes view, F2 opens
+settings, F3 opens Library Options, F4 searches and F5 refreshes; configured controller page
+buttons change view/open options. Search, filters and folder setup remain in Library Options.
+Cover decoding supports thumbnails up to 512 × 768 without enlarging small source images.
+
 The initial screen now follows PCSX2's four-action layout: Game List, Start Game, Settings,
 and Exit. It uses the same home icons, Roboto text and PromptFont keycaps, with Dolphin branding,
 a local clock, and the signed-in RetroAchievements display name and avatar when available.

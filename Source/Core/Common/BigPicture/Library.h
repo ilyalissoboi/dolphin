@@ -12,6 +12,9 @@
 
 namespace BigPicture
 {
+constexpr std::uint32_t MAX_COVER_WIDTH = 512;
+constexpr std::uint32_t MAX_COVER_HEIGHT = 768;
+
 enum class LibraryOperation
 {
   None,

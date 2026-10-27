@@ -35,6 +35,7 @@ struct MenuItem
   bool active = false;
   MenuIcon icon = MenuIcon::None;
   std::string preview_detail;
+  float image_aspect = 2.0f / 3.0f;
 };
 
 struct MenuPage
@@ -95,6 +96,9 @@ public:
   FocusMemory GetMemory(const std::string& page) const;
 
 private:
+  MenuResult DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                         const std::string& prompts, ImFont* font,
+                         const std::function<ImTextureID(const std::string&)>& image);
   MenuResult DrawLanding(const MenuPage& page, ::BigPicture::NavigationOptions options,
                          const std::string& prompts, ImFont* font,
                          const std::function<ImTextureID(const std::string&)>& image);
@@ -106,6 +110,8 @@ private:
   float m_layout_height = 0;
   float m_layout_scale = 0;
   std::uint64_t m_focus_revision = 0;
+  int m_library_columns = 0;
+  bool m_library_grid = false;
 };
 
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is
@@ -131,4 +137,6 @@ std::string GetBindingGlyph(std::string_view binding, std::string_view device,
                             std::string_view source = {});
 std::string GetControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                  const ::BigPicture::NavigationText& text, bool home);
+std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                        const ::BigPicture::NavigationText& text);
 }  // namespace VideoCommon::BigPicture

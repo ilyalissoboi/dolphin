@@ -129,6 +129,11 @@ struct NavigationText
   std::string navigate;
   std::string about_title;
   std::string about_description;
+  std::string game_grid;
+  std::string game_list;
+  std::string library_keyboard_hints;
+  std::string library_change_view;
+  std::string library_select_game;
 };
 
 struct NavigationRequest

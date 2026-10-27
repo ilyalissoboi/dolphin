@@ -584,6 +584,7 @@ void OnScreenUI::ProcessInput()
       ImGuiKey_Space,     ImGuiKey_Enter,     ImGuiKey_Escape,     ImGuiKey_KeypadEnter,
       ImGuiKey_A,         ImGuiKey_C,         ImGuiKey_V,          ImGuiKey_X,
       ImGuiKey_Y,         ImGuiKey_Z,         ImGuiKey_F11,        ImGuiKey_F1,
+      ImGuiKey_F2,        ImGuiKey_F3,        ImGuiKey_F4,         ImGuiKey_F5,
   };
 
   auto input = ::BigPicture::GetPresentationState().TakeInput();
@@ -615,8 +616,8 @@ void OnScreenUI::ProcessInput()
       {
         static constexpr ImWchar prompt_ranges[] = {
             0x2198, 0x2199, 0x219c, 0x219d, 0x21b0, 0x21b3, 0x21ba, 0x21bb, 0x21ce,
-            0x21ce, 0x21d0, 0x21d3, 0x21e0, 0x21e8, 0x23f4, 0x23f4, 0x23f6, 0x23f6,
-            0x242e, 0x242f, 0x243a, 0x243c, 0x2460, 0x2460, 0x246a, 0x246a, 0};
+            0x21ce, 0x21d0, 0x21d3, 0x21e0, 0x21e8, 0x23f4, 0x23f7, 0x242e, 0x242f,
+            0x243a, 0x243c, 0x2460, 0x2464, 0x246a, 0x246a, 0};
         ImFontConfig config;
         config.GlyphExcludeRanges = prompt_ranges;
         m_menu_font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 0, &config);
@@ -656,7 +657,7 @@ void OnScreenUI::ProcessInput()
   }
 
   m_dolphin_to_imgui_map.clear();
-  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F1); dolphin_key++)
+  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F5); dolphin_key++)
   {
     const int imgui_key = dolphin_to_imgui_map[DolphinKey(dolphin_key)];
     if (imgui_key >= 0)
@@ -741,11 +742,15 @@ void OnScreenUI::DrawNavigation()
   const bool text_input =
       !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
   const bool home = menu.page.id == "home";
-  const std::string prompts = m_navigation_input.IsKeyboard() ?
-                                  (home       ? text.home_keyboard_prompts :
-                                   text_input ? text.library_keyboard_prompts :
-                                                text.keyboard_prompts) :
-                                  BigPicture::GetControllerPrompts(m_navigation, text, home);
+  const bool library_view = menu.page.presentation == BigPicture::MenuPresentation::Library;
+  const std::string prompts =
+      m_navigation_input.IsKeyboard() ?
+          (library_view ? text.library_keyboard_hints :
+           home         ? text.home_keyboard_prompts :
+           text_input   ? text.library_keyboard_prompts :
+                          text.keyboard_prompts) :
+          (library_view ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
+                          BigPicture::GetControllerPrompts(m_navigation, text, home));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
         if (path.starts_with("home:"))
@@ -923,7 +928,8 @@ ImTextureID OnScreenUI::GetLibraryCover(const ::BigPicture::LibrarySnapshot& lib
   if (!cached.texture && m_cover_uploads < 2 && it != library.covers.end())
   {
     const auto& image = *it->second;
-    if (image.width && image.height && image.width <= 256 && image.height <= 384 &&
+    if (image.width && image.height && image.width <= ::BigPicture::MAX_COVER_WIDTH &&
+        image.height <= ::BigPicture::MAX_COVER_HEIGHT &&
         image.rgba.size() == static_cast<std::size_t>(image.width) * image.height * 4)
     {
       ++m_cover_uploads;

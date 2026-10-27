@@ -1049,6 +1049,17 @@ void MainWindow::InitControllers()
                                     "   \xe2\x90\xba " + tr("Game List").toStdString() +
                                     "   \xe2\x90\xae " + tr("Select").toStdString() +
                                     "   \xe2\x90\xaf " + tr("Exit").toStdString();
+  menu_text.game_grid = tr("Game Grid").toStdString();
+  menu_text.game_list = tr("Game List").toStdString();
+  menu_text.library_change_view = tr("Change View").toStdString();
+  menu_text.library_select_game = tr("Select Game").toStdString();
+  menu_text.library_keyboard_hints =
+      "\xe2\x8f\xb5\xe2\x8f\xb7\xe2\x8f\xb4\xe2\x8f\xb6 " + menu_text.library_select_game +
+      "   \xe2\x91\xa0 " + menu_text.library_change_view + "   \xe2\x91\xa1 " +
+      tr("Settings").toStdString() + "   \xe2\x91\xa2 " + tr("Library Options").toStdString() +
+      "   \xe2\x91\xa3 " + tr("Search").toStdString() + "   \xe2\x91\xa4 " +
+      tr("Refresh List").toStdString() + "   \xe2\x90\xae " + tr("Start Game").toStdString() +
+      "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.navigate = tr("Navigate").toStdString();
   menu_text.about_title = tr("About Dolphin").toStdString();
   menu_text.about_description = Common::GetScmRevStr() + "\n\n" +
