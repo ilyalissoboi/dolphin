@@ -4,6 +4,7 @@
 #include "Core/State.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <filesystem>
 #include <locale>
@@ -22,6 +23,7 @@
 #include <lzo/lzo1x.h>
 
 #include "Common/BigPicture/PresentationState.h"
+#include "Common/BigPicture/StatePreview.h"
 #include "Common/Buffer.h"
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
@@ -55,9 +57,11 @@
 
 #include "UICommon/UICommon.h"
 
+#include "VideoCommon/AsyncRequests.h"
 #include "VideoCommon/BigPicture/Runtime.h"
 #include "VideoCommon/FrameDumpFFMpeg.h"
 #include "VideoCommon/OnScreenDisplay.h"
+#include "VideoCommon/Present.h"
 #include "VideoCommon/VideoBackendBase.h"
 
 namespace State
@@ -75,6 +79,7 @@ static const u32 OUT_LEN = IN_LEN + (IN_LEN / 16) + 64 + 3;
 static unsigned char __LZO_MMODEL out[OUT_LEN];
 
 static AfterLoadCallbackFunc s_on_after_load_callback;
+static Common::HookableEvent<> s_after_save_event;
 
 static Common::EventHook s_flush_unsaved_data_hook;
 
@@ -96,6 +101,7 @@ struct CompressAndDumpStateArgs
   Common::UniqueBuffer<u8> buffer;
   std::string filename;
   std::shared_lock<decltype(s_state_saves_in_progress)> task_lock;
+  std::shared_ptr<const BigPicture::LibraryImage> preview;
 };
 
 // Queue for compressing and writing savestates to disk.
@@ -373,7 +379,7 @@ static void CreateExtendedHeader(StateExtendedHeader& extended_header, size_t un
   // If more fields are added to StateExtendedHeader, set them here.
 }
 
-static void WriteHeadersToFile(size_t uncompressed_size, File::IOFile& f)
+static u64 WriteHeadersToFile(size_t uncompressed_size, File::IOFile& f)
 {
   StateHeader header{};
   SConfig::GetInstance().GetGameID().copy(header.legacy_header.game_id,
@@ -393,10 +399,12 @@ static void WriteHeadersToFile(size_t uncompressed_size, File::IOFile& f)
 
   f.WriteArray(&extended_header.base_header, 1);
   // If StateExtendedHeader is amended to include more than the base, add WriteBytes() calls here.
+  return std::bit_cast<u64>(header.legacy_header.time);
 }
 
 static void CompressAndDumpState(Core::System& system, const CompressAndDumpStateArgs& save_args)
 {
+  const Common::ScopeGuard notify([] { s_after_save_event.Trigger(); });
   const auto& buffer = save_args.buffer;
   const std::string& filename = save_args.filename;
 
@@ -419,7 +427,7 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
     return;
   }
 
-  WriteHeadersToFile(buffer.size(), f);
+  const u64 timestamp = WriteHeadersToFile(buffer.size(), f);
 
   if (s_use_compression)
     CompressBufferToFile(buffer, f);
@@ -450,6 +458,9 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
       if (!File::Rename(dtmname, last_state_dtmname))
         Core::DisplayMessage("Failed to move previous state's dtm to state undo backup", 1000);
     }
+    // Missing or stale previews are harmless; the reader validates their state timestamp.
+    if (!File::Exists(filename) && File::Exists(filename + ".preview"))
+      File::Rename(filename + ".preview", last_state_filename + ".preview");
   }
 
   auto& movie = system.GetMovie();
@@ -470,6 +481,8 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   }
   else
   {
+    if (save_args.preview)
+      BigPicture::WriteStatePreview(filename + ".preview", timestamp, *save_args.preview);
     const std::filesystem::path temp_path(StringToPath(filename));
     Core::DisplayMessage(fmt::format("Saved State to {}", PathToString(temp_path.filename())),
                          2000);
@@ -502,6 +515,8 @@ static void SaveAsFromCore(Core::System& system, std::string filename)
         .buffer = std::move(buffer),
         .filename = std::move(filename),
         .task_lock = GetStateSaveTaskLock(),
+        .preview = AsyncRequests::GetInstance()->PushBlockingEvent(
+            [] { return g_presenter ? g_presenter->CaptureStateThumbnail() : nullptr; }),
     };
     Core::DisplayMessage("Saving State...", 1000);
     s_compress_and_dump_thread.EmplaceItem(std::move(dump_args));
@@ -668,7 +683,10 @@ SlotInfo GetSlotInfo(u32 slot)
     return {true, false, {}};
   auto description = SystemTimeAsDoubleToString(header.legacy_header.time);
   const bool readable = !description.empty();
-  return {true, readable, std::move(description)};
+  return {true, readable, std::move(description),
+          readable ? BigPicture::ReadStatePreview(filename + ".preview",
+                                                  std::bit_cast<u64>(header.legacy_header.time)) :
+                     nullptr};
 }
 
 static bool DecompressLZ4(Common::UniqueBuffer<u8>& raw_buffer, u64 size, File::IOFile& f)
@@ -921,6 +939,11 @@ void LoadAs(Core::System& system, std::string filename)
 void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback)
 {
   s_on_after_load_callback = std::move(callback);
+}
+
+Common::EventHook AddAfterSaveCallback(std::function<void()> callback)
+{
+  return s_after_save_event.Register(std::move(callback));
 }
 
 void Init(Core::System& system)

@@ -474,12 +474,20 @@ TEST_F(BigPictureNavigationUITest, LongSettingsHelpLeavesRoomForOtherRows)
 
 TEST(BigPictureIconsTest, SystemIconsMatchPCSX2PromptFontCodepoints)
 {
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::CPU), 0x235e);
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Controller), 0x2360);
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Keyboard), 0x2361);
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Memory), 0x2364);
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Audio), 0x2365);
-  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Image), 0x2366);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::CPU), 0x235eu);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Controller), 0x2360u);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Keyboard), 0x2361u);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Memory), 0x2364u);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Audio), 0x2365u);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Image), 0x2366u);
+}
+
+TEST(BigPictureFontsTest, RichPresenceDecodesSupplementaryUnicodeWithoutReplacement)
+{
+  static_assert(sizeof(ImWchar) == 4);
+  unsigned int codepoint = 0;
+  EXPECT_EQ(ImTextCharFromUtf8(&codepoint, "\xf0\x9f\x8c\x8a", nullptr), 4);
+  EXPECT_EQ(codepoint, 0x1f30au);
 }
 
 TEST_F(BigPictureNavigationUITest, SettingsSummaryBoundsIncludeExplicitParagraphBreaks)
@@ -556,6 +564,102 @@ TEST_F(BigPictureNavigationUITest, CardsRemainRevealableAtMaximumScaleAndSafeAre
     EXPECT_GE(selected.Min.y, window->InnerRect.Min.y - 2);
     EXPECT_LE(selected.Max.y, window->InnerRect.Max.y + 2);
   }
+}
+
+TEST_F(BigPictureNavigationUITest, PauseActionsFitAt720pAndRemainNavigableWithOverscan)
+{
+  MenuPage page{"root", "Pause"};
+  page.presentation = MenuPresentation::Pause;
+  page.overlay = true;
+  page.context = {"game", "A very long running game title that must not cover the clock",
+                  "game.rvz\nGMSE01 | Revision 0"};
+  page.play_time = "This Session: 0h 12m 3s\nAll Time: 22h 0m 0s";
+  for (int i = 0; i < 9; ++i)
+  {
+    page.items.push_back({std::to_string(i), "Action " + std::to_string(i)});
+    page.items.back().icon = MenuIcon::Play;
+  }
+  Settle(page);
+  auto* window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  EXPECT_EQ(window->ScrollMax.y, 0);
+  for (int i = 0; i < 8; ++i)
+    Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "8");
+  EXPECT_TRUE(Press(page, ImGuiKey_Escape).back);
+  for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160), ImVec2(3440, 1440)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    toolkit.InvalidateFocus();
+    for (int frame = 0; frame < 6; ++frame)
+      Frame(page, {false, 1.5f, 0.15f});
+    window = GImGui->NavWindow;
+    ASSERT_NE(window, nullptr);
+    const auto selected = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+    EXPECT_GE(selected.Min.y, window->InnerRect.Min.y - 2);
+    EXPECT_LE(selected.Max.y, window->InnerRect.Max.y + 2);
+  }
+}
+
+TEST(BigPicturePromptsTest, PausePromptsUseReturnToGameAndRespectConfirmBackSwap)
+{
+  ::BigPicture::NavigationStatus status;
+  status.device = "Xbox";
+  status.device_source = "XInput";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Confirm)] = "Button A";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Back)] = "Button B";
+  ::BigPicture::NavigationText text;
+  text.select = "Select";
+  text.return_to_game = "Return to Game";
+  text.previous = "Previous Page";
+  text.next = "Next Page";
+  const auto normal = GetControllerPrompts(status, text, false, true);
+  EXPECT_NE(normal.find("Return to Game"), std::string::npos);
+  EXPECT_EQ(normal.find("Previous Page"), std::string::npos);
+  EXPECT_EQ(normal.find("Next Page"), std::string::npos);
+  status.options.swap_confirm_back = true;
+  EXPECT_NE(GetControllerPrompts(status, text, false, true), normal);
+}
+
+TEST_F(BigPictureNavigationUITest, SharedFooterStaysThinAsSafeAreaChanges)
+{
+  MenuPage page{"footer", "Menu", {}, {{"resume", "Resume Game"}}};
+  for (const auto presentation : {MenuPresentation::Pause, MenuPresentation::List})
+  {
+    page.presentation = presentation;
+    for (const float safe_area : {0.0f, 0.05f, 0.15f})
+    {
+      for (int frame = 0; frame < 4; ++frame)
+        Frame(page, {false, 1.0f, safe_area});
+      const auto* footer = ImGui::GetForegroundDrawList();
+      ASSERT_GE(footer->VtxBuffer.Size, 4);
+      EXPECT_FLOAT_EQ(footer->VtxBuffer[0].pos.x, 0);
+      EXPECT_FLOAT_EQ(footer->VtxBuffer[0].pos.y, 720 - Style::FOOTER_HEIGHT);
+      EXPECT_FLOAT_EQ(footer->VtxBuffer[2].pos.x, 1280);
+      EXPECT_FLOAT_EQ(footer->VtxBuffer[2].pos.y, 720);
+    }
+  }
+}
+
+TEST_F(BigPictureNavigationUITest, ArrivingAchievementMetadataKeepsTheSelectedPauseActionVisible)
+{
+  MenuPage page{"pause-metadata", "Pause"};
+  page.presentation = MenuPresentation::Pause;
+  for (int i = 0; i < 9; ++i)
+    page.items.push_back({std::to_string(i), "Action " + std::to_string(i)});
+  Settle(page);
+  Press(page, ImGuiKey_UpArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "8");
+  page.rich_presence = "Exploring Delfino Plaza";
+  page.achievement_progress = "3/50 achievements | 15/500 points";
+  for (int frame = 0; frame < 6; ++frame)
+    Frame(page);
+  auto* window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  const auto selected = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(selected.Min.y, window->InnerRect.Min.y - 2);
+  EXPECT_LE(selected.Max.y, window->InnerRect.Max.y + 2);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "8");
 }
 
 TEST(BigPictureThemeTest, EveryThemeKeepsNormalHeaderAndSelectionTextReadable)
@@ -1130,5 +1234,67 @@ TEST_F(BigPictureNavigationUITest, SettingsRetainAndRevealRowsAcrossNestedPagesA
   page.items.erase(page.items.begin() + 24);
   Settle(page);
   EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "0");
+}
+TEST_F(BigPictureNavigationUITest, StateGridNavigatesInThreeColumnsAndRestoresSelection)
+{
+  MenuPage page{"save-states", "Save State", {}, {}, "slot-1"};
+  page.presentation = MenuPresentation::States;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"refresh", "Refresh", {}, true, {}, false, MenuIcon::Reset}};
+  for (int i = 1; i <= 10; ++i)
+    page.items.push_back({"slot-" + std::to_string(i), "Save Slot " + std::to_string(i)});
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_RightArrow).focused, "slot-2");
+  EXPECT_EQ(Press(page, ImGuiKey_DownArrow).focused, "slot-5");
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "slot-5");
+  EXPECT_EQ(Press(page, ImGuiKey_F1).activated, "refresh");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadL1).activated, "refresh");
+  MenuPage parent{"root", "Pause", {}, {{"save", "Save State"}}};
+  Settle(parent);
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "slot-5");
+  EXPECT_TRUE(Press(page, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, StateGridSkipsEmptyLoadsAndRevealsSelectionAfterScaling)
+{
+  MenuPage page{"load-states", "Load State", {}, {}, "slot-1"};
+  page.presentation = MenuPresentation::States;
+  for (int i = 1; i <= 10; ++i)
+    page.items.push_back(
+        {"slot-" + std::to_string(i), "Load Slot " + std::to_string(i), {}, i != 2});
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_RightArrow).focused, "slot-3");
+  toolkit.RestoreMemory(page.id, {"slot-10", 100000});
+  for (int frame = 0; frame < 6; ++frame)
+    Frame(page, {false, 1.5f, 0.15f});
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "slot-10");
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, GImGui->NavWindow->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+}
+TEST_F(BigPictureNavigationUITest, StateSlotTextStaysInsideThePaddedSelectionBox)
+{
+  MenuPage page{
+      "state-padding", "Save State", {}, {{"slot-1", "Slot 1", "10/27/2026 18:54:02"}}, "slot-1"};
+  page.presentation = MenuPresentation::States;
+  Settle(page);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  auto* window = GImGui->NavWindow;
+  const auto selection = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+  const auto text_color = ImGui::GetColorU32(Style::GetPalette(page.theme).text);
+  bool found_text = false;
+  for (const auto& vertex : window->DrawList->VtxBuffer)
+  {
+    if (vertex.col != text_color)
+      continue;
+    found_text = true;
+    EXPECT_GE(vertex.pos.x, selection.Min.x + 10);
+    EXPECT_LE(vertex.pos.x, selection.Max.x - 10);
+    EXPECT_LE(vertex.pos.y, selection.Max.y - 10);
+  }
+  EXPECT_TRUE(found_text);
 }
 }  // namespace

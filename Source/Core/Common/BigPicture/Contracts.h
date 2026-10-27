@@ -145,6 +145,7 @@ struct StateSlot
   bool occupied = false;
   bool readable = false;
   std::string description;
+  std::shared_ptr<const LibraryImage> preview;
 };
 
 struct HostState
@@ -169,6 +170,10 @@ struct HostState
   std::string menu_theme = "Dark";
   std::string achievements_username;
   std::shared_ptr<const LibraryImage> achievements_avatar;
+  std::string game_details;
+  std::string game_play_time;
+  std::string game_rich_presence;
+  std::string game_achievement_progress;
 };
 
 // Value-only contracts: no Qt, emulator objects, config-layer pointers or GPU resources.

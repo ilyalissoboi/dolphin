@@ -22,6 +22,8 @@ constexpr float SHORT_ROW_HEIGHT = 46;
 constexpr float PADDING = 15;
 constexpr float GAP = 10;
 constexpr float ROUNDING = 6;
+constexpr float ICON_SIZE = 22;
+constexpr float ACTION_COLUMN_WIDTH = 500;
 
 struct Palette
 {

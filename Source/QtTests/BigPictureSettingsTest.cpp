@@ -491,6 +491,42 @@ TEST_F(BigPictureSettingsTest, ActiveGameEditsUseTheActiveLayerAndShippedFallbac
   EXPECT_TRUE(Config::GetLayer(Config::LayerType::GlobalGame)->Get(Config::GFX_VSYNC));
 }
 
+TEST_F(BigPictureSettingsTest, OpeningFromPauseSelectsGameContextAndReusesTheGlobalCatalog)
+{
+  Config::AddLayer(std::make_unique<GameLoader>(Config::LayerType::GlobalGame));
+  Config::AddLayer(std::make_unique<GameLoader>(Config::LayerType::LocalGame));
+  Config::SetBase(Config::GFX_VSYNC, true);
+  menu->SetGame({"RTEST1", 0, "Running game", true});
+  environment.emulating = true;
+  menu->SetEnvironment(environment);
+  ASSERT_TRUE(menu->Open(true));
+  EXPECT_EQ(menu->ReadSnapshot()->target, EditTarget::Game);
+  EXPECT_TRUE(Row("Display").active);
+  EXPECT_FALSE(menu->ReadMenu()->back);
+  EXPECT_NE(menu->ReadMenu()->description.find("Running game"), std::string::npos);
+  ASSERT_EQ(Activate("Display"), Status::Success);
+  const auto game_display = menu->ReadMenu();
+  ASSERT_EQ(Activate("display.vsync"), Status::Success);
+  ASSERT_EQ(Activate("off"), Status::Success);
+  EXPECT_FALSE(Config::Get(Config::GFX_VSYNC));
+  EXPECT_TRUE(Config::GetBase(Config::GFX_VSYNC));
+  ASSERT_EQ(Activate("inherit"), Status::Success);
+  EXPECT_TRUE(Config::Get(Config::GFX_VSYNC));
+  ASSERT_TRUE(menu->Open());
+  EXPECT_EQ(menu->ReadSnapshot()->target, EditTarget::Base);
+  ASSERT_EQ(Activate("Display"), Status::Success);
+  const auto global_display = menu->ReadMenu();
+  for (const auto& row : game_display->rows)
+    EXPECT_TRUE(std::ranges::any_of(global_display->rows,
+                                    [&](const auto& global) { return global.id == row.id; }));
+}
+
+TEST_F(BigPictureSettingsTest, OpeningGameSettingsWithoutAGameCannotFallBackToGlobalEdits)
+{
+  menu->SetGame({});
+  EXPECT_FALSE(menu->Open(true));
+}
+
 TEST_F(BigPictureSettingsTest, MissingProfilesAndUnsafeControllerChangesNeverReplaceMappings)
 {
   const auto path = MakeProfile("Test", "Test/0/Profile");

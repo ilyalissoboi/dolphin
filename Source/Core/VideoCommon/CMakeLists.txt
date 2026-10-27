@@ -41,6 +41,7 @@ add_library(videocommon
   BigPicture/Runtime.cpp
   BigPicture/Runtime.h
   BigPicture/Navigation.cpp
+  BigPicture/StateView.cpp
   BigPicture/Navigation.h
   BigPicture/Style.h
   BigPicture/Icons.cpp

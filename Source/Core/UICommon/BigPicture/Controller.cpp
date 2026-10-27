@@ -314,7 +314,8 @@ void Controller::Submit(const Command& command)
     Publish();
     return;
   }
-  if ((command.action == Action::Boot && command.path.empty()) ||
+  if (((command.action == Action::Boot || command.action == Action::ChangeDisc) &&
+       command.path.empty()) ||
       ((command.action == Action::SaveState || command.action == Action::LoadState) &&
        (command.slot < 1 || command.slot > 10)))
   {

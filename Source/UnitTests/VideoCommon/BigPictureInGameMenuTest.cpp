@@ -44,25 +44,52 @@ protected:
   NavigationText text;
 };
 
-TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitCloseSeparately)
+TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitBackSeparately)
 {
   const auto menu = Build();
   EXPECT_EQ(menu.page.default_focus, "resume");
   EXPECT_EQ(menu.Activate({"resume"})->action, Action::Resume);
-  EXPECT_EQ(menu.Activate({"close"})->action, Action::Back);
   EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
   EXPECT_EQ(menu.Activate({"save"})->action, Action::SaveStates);
   EXPECT_EQ(menu.Activate({"load"})->action, Action::LoadStates);
   EXPECT_EQ(menu.Activate({"screenshot"})->action, Action::Screenshot);
   EXPECT_FALSE(menu.Activate({"disc"}));
   const auto disc =
-      std::ranges::find(menu.page.items, "disc", [](const auto& item) { return item.id; });
+      std::ranges::find(menu.page.items, "disc", &VideoCommon::BigPicture::MenuItem::id);
   ASSERT_NE(disc, menu.page.items.end());
   EXPECT_EQ(disc->detail, "Not a disc game");
-  ASSERT_TRUE(menu.Activate({"preferences"}));
-  EXPECT_EQ(menu.Activate({"preferences"})->slot, 1);
-  ASSERT_TRUE(menu.Activate({"global-preferences"}));
-  EXPECT_EQ(menu.Activate({"global-preferences"})->slot, 0);
+}
+
+TEST_F(BigPictureInGameMenuTest, PauseCarriesRunningGameMetadataAndUsesReferenceActionOrder)
+{
+  snapshot.host.game_title = "Super Mario Sunshine";
+  snapshot.host.game_path = "sunshine.rvz";
+  snapshot.host.game_details = "sunshine.rvz\nGMSE01 | Revision 0";
+  snapshot.host.game_play_time = "This Session: 0h 12m 3s\nAll Time: 22h 0m 0s";
+  snapshot.host.game_rich_presence = "Exploring Delfino Plaza";
+  snapshot.host.game_achievement_progress = "3/50 achievements | 15/500 points";
+  const auto menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Pause);
+  EXPECT_EQ(menu.page.context.label, snapshot.host.game_title);
+  EXPECT_EQ(menu.page.context.image_key, snapshot.host.game_path);
+  EXPECT_EQ(menu.page.context.detail, snapshot.host.game_details);
+  EXPECT_EQ(menu.page.play_time, snapshot.host.game_play_time);
+  EXPECT_EQ(menu.page.rich_presence, snapshot.host.game_rich_presence);
+  EXPECT_EQ(menu.page.achievement_progress, snapshot.host.game_achievement_progress);
+  std::vector<std::string> ids;
+  for (const auto& item : menu.page.items)
+    ids.push_back(item.id);
+  EXPECT_EQ(ids, (std::vector<std::string>{"resume", "load", "save", "screenshot", "disc", "reset",
+                                           "preferences", "stop", "exit"}));
+  EXPECT_EQ(menu.Activate({"stop"})->action, Action::Stop);
+  EXPECT_EQ(menu.Activate({"exit"})->action, Action::Exit);
+  EXPECT_FALSE(menu.requests.contains("global-preferences"));
+  EXPECT_NE(VideoCommon::BigPicture::GetMenuIconCodepoint(
+                VideoCommon::BigPicture::GetActionIcon(Action::Stop)),
+            VideoCommon::BigPicture::GetMenuIconCodepoint(
+                VideoCommon::BigPicture::GetActionIcon(Action::Exit)));
+  snapshot.pending = Command{snapshot.generation, 1, Action::Screenshot};
+  EXPECT_TRUE(Build().requests.empty());
 }
 
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)
@@ -161,7 +188,7 @@ TEST_F(BigPictureInGameMenuTest, EverySettingsCategoryHasADistinctGlyphAndNoExtr
     if (item.id == "back")
       continue;
     const auto glyph = VideoCommon::BigPicture::GetMenuIconCodepoint(item.icon);
-    EXPECT_NE(glyph, 0) << item.id;
+    EXPECT_NE(glyph, 0u) << item.id;
     EXPECT_TRUE(glyphs.insert(glyph).second) << item.id;
   }
 }
@@ -174,6 +201,8 @@ TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnre
   snapshot.host.state_slots[9] = {true, true, "Saved date"};
   auto menu = Build();
   EXPECT_EQ(menu.page.items.size(), 10u);
+  EXPECT_EQ(menu.page.columns, 3);
+  EXPECT_TRUE(menu.page.overlay);
   EXPECT_EQ(menu.page.toolbar.size(), 2u);
   EXPECT_FALSE(menu.Activate({"slot-1"}));
   EXPECT_FALSE(menu.Activate({"slot-2"}));
@@ -182,10 +211,21 @@ TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnre
   ASSERT_TRUE(menu.Activate({"slot-10"}));
   EXPECT_EQ(menu.Activate({"slot-10"})->slot, 10);
   EXPECT_EQ(menu.Activate({"slot-10"})->action, Action::LoadState);
+  EXPECT_EQ(menu.page.default_focus, "slot-10");
   snapshot.screens.back() = Screen::SaveStates;
   menu = Build();
   EXPECT_EQ(menu.Activate({"slot-1"})->slot, 1);
   EXPECT_EQ(menu.Activate({"slot-1"})->action, Action::SaveState);
+}
+
+TEST_F(BigPictureInGameMenuTest, AnEmptyLoadBrowserFocusesRefreshInsteadOfADisabledSlot)
+{
+  snapshot.screens.push_back(Screen::LoadStates);
+  EXPECT_EQ(Build().page.default_focus, "refresh");
+  snapshot.host.state_slots_ready = true;
+  EXPECT_EQ(Build().page.default_focus, "refresh");
+  snapshot.host.state_slots[4] = {true, true, "Saved"};
+  EXPECT_EQ(Build().page.default_focus, "slot-5");
 }
 
 TEST_F(BigPictureInGameMenuTest, GlobalThemeReachesPauseLibraryAndSettingsPages)
@@ -346,6 +386,32 @@ TEST_F(BigPictureInGameMenuTest, InGameDiscActionOpensControllerPickerWhenLibrar
   const auto menu = Build();
   EXPECT_EQ(menu.Activate({"disc"})->action, Action::Library);
   EXPECT_EQ(menu.Activate({"disc"})->library_operation, LibraryOperation::OpenDisc);
+}
+
+TEST_F(BigPictureInGameMenuTest, MissingDiscPickerNeverCreatesADesktopFallback)
+{
+  snapshot.host.can_change_disc = true;
+  const auto menu = Build();
+  EXPECT_FALSE(menu.Activate({"disc"}));
+  const auto disc =
+      std::ranges::find(menu.page.items, "disc", &VideoCommon::BigPicture::MenuItem::id);
+  ASSERT_NE(disc, menu.page.items.end());
+  EXPECT_FALSE(disc->enabled);
+}
+
+TEST_F(BigPictureInGameMenuTest, GameAndGlobalSettingsUseTheSameSettingsRenderer)
+{
+  snapshot.screens = {Screen::Settings};
+  snapshot.host.settings_menu = std::make_shared<SettingsMenuSnapshot>();
+  const auto game = Build().page;
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  const auto global = Build().page;
+  EXPECT_TRUE(game.overlay);
+  EXPECT_FALSE(global.overlay);
+  EXPECT_EQ(game.theme, global.theme);
+  EXPECT_EQ(game.presentation, global.presentation);
+  EXPECT_EQ(game.columns, global.columns);
 }
 TEST_F(BigPictureInGameMenuTest, LibraryPolicyDisablesCardsWithoutCreatingFallbackRequests)
 {

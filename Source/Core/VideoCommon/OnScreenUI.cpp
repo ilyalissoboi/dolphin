@@ -3,6 +3,8 @@
 
 #include "VideoCommon/OnScreenUI.h"
 
+#include <charconv>
+
 #include "Common/BigPicture/PresentationState.h"
 #include "Common/CommonPaths.h"
 #include "Common/EnumMap.h"
@@ -734,6 +736,7 @@ void OnScreenUI::DrawNavigation()
   if (m_navigation_generation != snapshot->generation)
   {
     m_navigation_toolkit.Reset();
+    m_state_textures = {};
     m_navigation_generation = snapshot->generation;
   }
   const auto text = presentation.GetNavigationText();
@@ -763,6 +766,8 @@ void OnScreenUI::DrawNavigation()
   const bool text_input =
       !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
   const bool home = menu.page.id == "home";
+  const bool pause = menu.page.presentation == BigPicture::MenuPresentation::Pause;
+  const bool states = menu.page.presentation == BigPicture::MenuPresentation::States;
   const bool library_view = menu.page.presentation == BigPicture::MenuPresentation::Library;
   const bool launch = menu.page.presentation == BigPicture::MenuPresentation::Launch;
   const bool picker = menu.page.presentation == BigPicture::MenuPresentation::FilePicker;
@@ -779,7 +784,9 @@ void OnScreenUI::DrawNavigation()
   }
   const std::string prompts =
       m_navigation_input.IsKeyboard() ?
-          (library_view ? text.library_keyboard_hints :
+          (pause        ? text.pause_keyboard_prompts :
+           states       ? text.state_keyboard_hints :
+           library_view ? text.library_keyboard_hints :
            settings     ? text.settings_keyboard_hints +
                               (setting_options ? "   " + text.settings_keyboard_options : "") :
            picker       ? text.picker_keyboard_hints :
@@ -787,13 +794,41 @@ void OnScreenUI::DrawNavigation()
            home         ? text.home_keyboard_prompts :
            text_input || settings_text ? text.library_keyboard_prompts :
                                          text.keyboard_prompts) :
-          (library_view     ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
+          (states           ? BigPicture::GetStateControllerPrompts(m_navigation, text) :
+           library_view     ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
            settings         ? BigPicture::GetSettingsControllerPrompts(m_navigation, text,
                                                                        setting_options) :
            launch || picker ? BigPicture::GetLaunchControllerPrompts(m_navigation, text, picker) :
-                              BigPicture::GetControllerPrompts(m_navigation, text, home));
+                              BigPicture::GetControllerPrompts(m_navigation, text, home, pause));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
+        if (path.starts_with("state:"))
+        {
+          std::size_t index;
+          const auto [end, error] =
+              std::from_chars(path.data() + 6, path.data() + path.size(), index);
+          if (error != std::errc{} || end != path.data() + path.size() ||
+              index >= m_state_textures.size())
+            return ImTextureID{};
+          const auto& preview = snapshot->host.state_slots[index].preview;
+          auto& cached = m_state_textures[index];
+          if (!preview || !preview->width || !preview->height || preview->width > 320 ||
+              preview->height > 240 || preview->rgba.size() != preview->width * preview->height * 4)
+            return ImTextureID{};
+          if (cached.image != preview)
+          {
+            TextureConfig config;
+            config.width = preview->width;
+            config.height = preview->height;
+            auto texture = g_gfx->CreateTexture(config, "State preview");
+            if (!texture)
+              return ImTextureID{};
+            texture->Load(0, preview->width, preview->height, preview->width, preview->rgba.data(),
+                          preview->rgba.size());
+            cached = {preview, std::move(texture)};
+          }
+          return reinterpret_cast<ImTextureID>(cached.texture.get());
+        }
         if (path.starts_with("home:"))
         {
           const auto upload = [&](const ::BigPicture::LibraryImage& image) {
