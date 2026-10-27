@@ -4,6 +4,7 @@
 #include "DolphinQt/MainWindow.h"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -15,6 +16,7 @@
 #include <QIcon>
 #include <QMenuBar>
 #include <QMimeData>
+#include <QPushButton>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -280,6 +282,25 @@ static std::vector<std::string> StringListToStdVector(const QStringList& list)
   return result;
 }
 
+static std::string ContinuationPathForBoot(const BootParameters& boot)
+{
+  if (const auto* disc = std::get_if<BootParameters::Disc>(&boot.parameters))
+    return State::GetContinuationPath(disc->volume->GetGameID(disc->volume->GetGamePartition()));
+  if (const auto* executable = std::get_if<BootParameters::Executable>(&boot.parameters))
+    return State::GetContinuationPath(SConfig::MakeGameID(
+        QFileInfo(QString::fromStdString(executable->path)).fileName().toStdString()));
+  if (const auto* wad = std::get_if<DiscIO::VolumeWAD>(&boot.parameters))
+    return State::GetContinuationPath(fmt::format("title-{:016x}", wad->GetTMD().GetTitleId()));
+  if (const auto* title = std::get_if<BootParameters::NANDTitle>(&boot.parameters))
+    return State::GetContinuationPath(fmt::format("title-{:016x}", title->id));
+  return {};
+}
+
+static bool ContinuationLoadingAllowed()
+{
+  return !NetPlay::IsNetPlayRunning() && !AchievementManager::GetInstance().IsHardcoreModeActive();
+}
+
 MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boot_parameters,
                        const std::string& movie_path, bool start_big_picture)
     : QMainWindow(nullptr), m_system(system), m_ui(std::make_unique<Ui::MainWindow>())
@@ -375,6 +396,13 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         if (state.lifecycle == BigPicture::Lifecycle::Idle && m_standalone_boot)
           state.lifecycle = BigPicture::Lifecycle::Booting;
         state.netplay = NetPlay::IsNetPlayRunning();
+        state.can_save_continuation = CanSaveContinuation();
+        state.continuation_pending = m_continuation_boot != nullptr;
+        state.continuation_title = QFileInfo(QString::fromStdString(m_continuation_boot_path))
+                                       .completeBaseName()
+                                       .toStdString();
+        state.can_load_continuation =
+            ContinuationLoadingAllowed() && !m_system.GetMovie().IsMovieActive();
         state.hardcore = AchievementManager::GetInstance().IsHardcoreModeActive();
         UICommon::Settings::Environment environment;
         environment.emulating = state.lifecycle != BigPicture::Lifecycle::Idle;
@@ -646,6 +674,8 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
             return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
                     tr("The Wii System Menu is not installed.").toStdString()};
           BootWiiSystemMenu();
+          if (m_continuation_boot)
+            return {command, ResultStatus::Succeeded};
           if (Core::IsUninitialized(m_system) && !m_standalone_boot)
             return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
                     tr("Failed to init core").toStdString()};
@@ -657,10 +687,42 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
                         .arg(QString::fromStdString(command.path))
                         .toStdString()};
           StartGame(command.path, ScanForSecondDisc::Yes);
+          if (m_continuation_boot)
+            return {command, ResultStatus::Succeeded};
           if (Core::IsUninitialized(m_system) && !m_standalone_boot)
             return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
                     tr("Failed to init core").toStdString()};
           break;
+        case Action::ContinueGame:
+        case Action::FreshBoot:
+        case Action::DeleteContinuation:
+        {
+          if (!m_continuation_boot)
+            return {command, ResultStatus::Stale};
+          if (command.action == Action::ContinueGame &&
+              (!File::Exists(m_continuation_boot_path) || !ContinuationLoadingAllowed() ||
+               m_system.GetMovie().IsMovieActive()))
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                    tr("The continuation state is unavailable or loading states is disabled.")
+                        .toStdString()};
+          if (command.action == Action::DeleteContinuation &&
+              !State::DeleteContinuation(m_continuation_boot_path))
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                    tr("Could not delete the continuation state.").toStdString()};
+          if (command.action == Action::ContinueGame)
+            m_continuation_boot->boot_session_data.SetSavestateData(m_continuation_boot_path,
+                                                                    DeleteSavestateAfterBoot::No);
+          auto boot = std::move(m_continuation_boot);
+          StartGame(std::move(boot), true);
+          return {command, Core::IsUninitialized(m_system) && !m_standalone_boot ?
+                               ResultStatus::Failed :
+                               ResultStatus::Dispatched};
+        }
+        case Action::Back:
+        case Action::Cancel:
+          m_continuation_boot.reset();
+          m_continuation_boot_path.clear();
+          return {command, ResultStatus::Cancelled};
         case Action::Resume:
           Core::SetState(m_system, Core::State::Running);
           return {command, Core::GetState(m_system) == Core::State::Running ?
@@ -677,11 +739,14 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
               return {command, ResultStatus::Dispatched};
             }
           }
-          if (!RequestStopWithConfirmation(true))
+          if (!RequestStopWithConfirmation(true, command.slot == 1))
           {
             if (command.action == Action::Exit)
               m_exit_requested = false;
-            return {command, ResultStatus::Cancelled};
+            return {command, command.slot == 1 ? ResultStatus::Failed : ResultStatus::Cancelled,
+                    BigPicture::UnavailableReason::None,
+                    tr("Could not create the continuation state. The game is still open.")
+                        .toStdString()};
           }
           break;
         case Action::Reset:
@@ -1202,6 +1267,17 @@ void MainWindow::InitControllers()
   menu_text.navigate = tr("Navigate").toStdString();
   menu_text.actions[static_cast<std::size_t>(BigPicture::Action::Achievements)] =
       tr("Achievements").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::ContinueGame)] =
+      tr("Continue from Save State").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::FreshBoot)] =
+      tr("Start Fresh").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::DeleteContinuation)] =
+      tr("Delete Continuation and Start Fresh").toStdString();
+  menu_text.continuation_title = tr("Continue Game?").toStdString();
+  menu_text.continuation_description =
+      tr("A continuation save state is available. Start Fresh keeps it for later.").toStdString();
+  menu_text.exit_and_save = tr("Exit and Save State").toStdString();
+  menu_text.exit_without_saving = tr("Exit Without Saving").toStdString();
   menu_text.reasons[static_cast<std::size_t>(BigPicture::UnavailableReason::LoginRequired)] =
       tr("Log in to RetroAchievements to view achievements.").toStdString();
   menu_text.achievements_empty = tr("No achievements are available for this game.").toStdString();
@@ -1545,6 +1621,9 @@ void MainWindow::StopStandalone(StandaloneStop next)
   {
     m_big_picture_requested = false;
     m_standalone_boot.reset();
+    m_standalone_continuation_checked = false;
+    m_continuation_boot.reset();
+    m_continuation_boot_path.clear();
   }
   m_standalone_stop = next;
   if (m_standalone)
@@ -1601,6 +1680,8 @@ void MainWindow::CompleteStandaloneStop(StandaloneStop next, bool failed)
   if (failed)
   {
     m_big_picture_requested = false;
+    m_continuation_boot.reset();
+    m_continuation_boot_path.clear();
     ModalMessageBox::warning(
         this, tr("Big Picture"),
         tr("Big Picture could not initialize or continue using the selected graphics backend. "
@@ -1610,7 +1691,7 @@ void MainWindow::CompleteStandaloneStop(StandaloneStop next, bool failed)
   {
     auto boot = std::move(m_standalone_boot);
     if (boot)
-      StartGame(std::move(boot));
+      StartGame(std::move(boot), std::exchange(m_standalone_continuation_checked, false));
     m_big_picture_host->Refresh();
     if (Core::IsUninitialized(m_system) && m_big_picture_requested)
       QTimer::singleShot(0, this, &MainWindow::EnterBigPicture);
@@ -2167,6 +2248,7 @@ void MainWindow::TogglePause()
 
 void MainWindow::OnStopComplete()
 {
+  m_continuation_path.clear();
   m_big_picture_achievements.Clear();
   m_big_picture_state_slots_ready = false;
   m_big_picture_state_slots = {};
@@ -2214,10 +2296,28 @@ void MainWindow::OnStopComplete()
 
 bool MainWindow::RequestStop()
 {
+  if (m_big_picture_requested && !Core::IsUninitialized(m_system) && g_video_backend->SupportsUI())
+  {
+    const auto action = m_exit_requested ? BigPicture::Action::Exit : BigPicture::Action::Stop;
+    m_exit_requested = false;
+    const auto snapshot = m_big_picture_host->GetSnapshot();
+    if (snapshot->mode == BigPicture::Mode::Desktop)
+      m_big_picture_host->RequestAction(snapshot->generation, BigPicture::Action::OpenMenu);
+    m_big_picture_host->RequestAction(snapshot->generation, action);
+    return false;  // Completion belongs to the Big Picture confirmation.
+  }
   return RequestStopWithConfirmation(false);
 }
 
-bool MainWindow::RequestStopWithConfirmation(bool confirmed)
+bool MainWindow::CanSaveContinuation() const
+{
+  const auto state = Core::GetState(m_system);
+  return (state == Core::State::Running || state == Core::State::Paused) && !m_stop_requested &&
+         !m_continuation_path.empty() && !NetPlay::IsNetPlayRunning() &&
+         !m_system.GetMovie().IsMovieActive();
+}
+
+bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuation)
 {
   if (Core::IsUninitialized(m_system))
   {
@@ -2235,10 +2335,12 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed)
 
   if (!m_render_widget->isFullScreen())
     m_render_widget_geometry = m_render_widget->saveGeometry();
-  else if (!m_big_picture_requested || m_exit_requested)
+  else if (!m_big_picture_requested)
     FullScreen();
 
-  bool confirm_on_stop = !confirmed && Config::Get(Config::MAIN_CONFIRM_ON_STOP);
+  const auto original_state = Core::GetState(m_system);
+  bool confirm_on_stop =
+      !confirmed && (Config::Get(Config::MAIN_CONFIRM_ON_STOP) || CanSaveContinuation());
 #ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
   confirm_on_stop = confirm_on_stop || AchievementManager::GetInstance().CheckForModifications();
 #endif  // RC_CLIENT_SUPPORTS_RAINTEGRATION
@@ -2283,11 +2385,22 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed)
 #endif  // RC_CLIENT_SUPPORTS_RAINTEGRATION
     else
     {
-      message = tr("Do you want to stop the current emulation?");
+      message = m_exit_requested ? tr("Do you want to stop emulation and exit Dolphin?") :
+                                   tr("Do you want to stop the current emulation?");
     }
-    auto confirm = ModalMessageBox::question(confirm_parent, tr("Confirm"), message,
-                                             QMessageBox::Yes | QMessageBox::No,
-                                             QMessageBox::NoButton, Qt::ApplicationModal);
+    ModalMessageBox dialog(confirm_parent, Qt::ApplicationModal);
+    dialog.setWindowTitle(m_exit_requested ? tr("Exit Dolphin") : tr("Stop Emulation"));
+    dialog.setIcon(QMessageBox::Question);
+    dialog.setText(message);
+    dialog.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    dialog.setDefaultButton(QMessageBox::No);
+    auto* continuation = new QCheckBox(tr("Create a continuation save state"), &dialog);
+    continuation->setEnabled(CanSaveContinuation());
+    continuation->setToolTip(tr("Keep a separate state to continue this game next time. "
+                                "Unavailable during NetPlay, movies or shutdown."));
+    dialog.setCheckBox(continuation);
+    const auto confirm = dialog.exec();
+    save_continuation = continuation->isEnabled() && continuation->isChecked();
 
     // If a user confirmed stopping the emulation, we do not capture the cursor again,
     // even if the render widget will stay alive for a while.
@@ -2309,6 +2422,20 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed)
       // This needs to be after SetCursorLockedOnNextActivation(false) as it depends on it
       m_render_widget->SetWaitingForMessageBox(false);
     }
+  }
+
+  if (save_continuation &&
+      (!CanSaveContinuation() || !State::SaveContinuation(m_system, m_continuation_path)))
+  {
+    Core::SetState(m_system, original_state);
+    if (!m_big_picture_requested)
+    {
+      m_render_widget->SetCursorLockedOnNextActivation(was_cursor_locked);
+      ModalMessageBox::critical(confirm_parent, tr("Continuation Save Failed"),
+                                tr("Could not create the continuation state. The game is still "
+                                   "open. Try again or choose to stop without saving."));
+    }
+    return false;
   }
 
   OnStopRecording();
@@ -2438,13 +2565,74 @@ void MainWindow::StartGame(const std::vector<std::string>& paths,
       paths, boot_session_data ? std::move(*boot_session_data) : BootSessionData()));
 }
 
-void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
+void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters, bool continuation_checked)
 {
-  if (m_shutting_down)
+  if (m_shutting_down || m_continuation_boot)
     return;
+  if (parameters && Core::IsUninitialized(m_system) && !continuation_checked &&
+      !parameters->boot_session_data.GetSavestatePath() &&
+      !parameters->boot_session_data.GetNetplaySettings() && !NetPlay::IsNetPlayRunning() &&
+      !m_system.GetMovie().IsMovieActive())
+  {
+    const auto path = ContinuationPathForBoot(*parameters);
+    if (!path.empty() && File::Exists(path))
+    {
+      if (m_big_picture_requested)
+      {
+        m_continuation_boot_path = path;
+        m_continuation_boot = std::move(parameters);
+        QTimer::singleShot(0, this, [this] {
+          if (m_shutting_down || !m_continuation_boot)
+            return;
+          if (!m_standalone)
+            EnterBigPicture();
+          if (!m_big_picture_requested)
+          {
+            auto boot = std::move(m_continuation_boot);
+            m_continuation_boot_path.clear();
+            if (boot)
+              StartGame(std::move(boot));
+            return;
+          }
+          m_big_picture_host->Refresh();
+        });
+        return;
+      }
+      ModalMessageBox dialog(this, Qt::ApplicationModal);
+      dialog.setWindowTitle(tr("Continue Game?"));
+      dialog.setIcon(QMessageBox::Question);
+      dialog.setText(tr("A continuation save state is available for this game."));
+      dialog.setInformativeText(tr("Start Fresh keeps the continuation for later."));
+      auto* resume = dialog.addButton(tr("Continue from Save State"), QMessageBox::AcceptRole);
+      resume->setEnabled(ContinuationLoadingAllowed());
+      if (!resume->isEnabled())
+        resume->setToolTip(tr("Loading save states is unavailable in Hardcore mode or NetPlay."));
+      auto* fresh = dialog.addButton(tr("Start Fresh"), QMessageBox::AcceptRole);
+      auto* remove =
+          dialog.addButton(tr("Delete Continuation and Start Fresh"), QMessageBox::DestructiveRole);
+      dialog.addButton(QMessageBox::Cancel);
+      dialog.setDefaultButton(resume->isEnabled() ? resume : fresh);
+      dialog.exec();
+      if (dialog.clickedButton() == resume && resume->isEnabled())
+        parameters->boot_session_data.SetSavestateData(path, DeleteSavestateAfterBoot::No);
+      else if (dialog.clickedButton() == remove)
+      {
+        if (!State::DeleteContinuation(path))
+        {
+          ModalMessageBox::critical(this, tr("Error"),
+                                    tr("Could not delete the continuation state."));
+          return;
+        }
+      }
+      else if (dialog.clickedButton() != fresh)
+        return;
+      continuation_checked = true;
+    }
+  }
   if (Core::IsUninitialized(m_system) && m_standalone)
   {
     m_standalone_boot = std::move(parameters);
+    m_standalone_continuation_checked = continuation_checked;
     StopStandalone(StandaloneStop::Boot);
     m_big_picture_host->Refresh();
     return;
@@ -2504,6 +2692,7 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
   ShowRenderWidget(true);
 
   // Boot up, show an error if it fails to load the game.
+  m_continuation_path = parameters ? ContinuationPathForBoot(*parameters) : std::string{};
   m_big_picture_state_slots_ready = false;
   m_big_picture_state_slots = {};
   m_big_picture_disc_game =
@@ -3124,8 +3313,9 @@ bool MainWindow::eventFilter(QObject* object, QEvent* event)
       static_cast<QCloseEvent*>(event)->ignore();
       return true;
     }
-    if (RequestStop() && object == this)
-      m_exit_requested = true;
+    m_exit_requested = object == this;
+    if (!RequestStop())
+      m_exit_requested = false;
 
     static_cast<QCloseEvent*>(event)->ignore();
     return true;

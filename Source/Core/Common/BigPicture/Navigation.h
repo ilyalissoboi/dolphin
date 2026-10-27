@@ -156,6 +156,10 @@ struct NavigationText
   std::string achievements_loading;
   std::string achievements_keyboard_hints;
   std::string achievements_subsets;
+  std::string continuation_title;
+  std::string continuation_description;
+  std::string exit_and_save;
+  std::string exit_without_saving;
 };
 
 struct NavigationRequest

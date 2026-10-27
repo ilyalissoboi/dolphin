@@ -44,12 +44,12 @@ protected:
   NavigationText text;
 };
 
-TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitBackSeparately)
+TEST_F(BigPictureInGameMenuTest, RootBackExplicitlyResumesAndSubmenuBackNavigates)
 {
   const auto menu = Build();
   EXPECT_EQ(menu.page.default_focus, "resume");
   EXPECT_EQ(menu.Activate({"resume"})->action, Action::Resume);
-  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Resume);
   EXPECT_EQ(menu.Activate({"save"})->action, Action::SaveStates);
   EXPECT_EQ(menu.Activate({"load"})->action, Action::LoadStates);
   EXPECT_EQ(menu.Activate({"screenshot"})->action, Action::Screenshot);
@@ -58,6 +58,8 @@ TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitBackSeparate
       std::ranges::find(menu.page.items, "disc", &VideoCommon::BigPicture::MenuItem::id);
   ASSERT_NE(disc, menu.page.items.end());
   EXPECT_EQ(disc->detail, "Not a disc game");
+  snapshot.screens.push_back(Screen::SaveStates);
+  EXPECT_EQ(Build().Activate({{}, true})->action, Action::Back);
 }
 
 TEST_F(BigPictureInGameMenuTest, PauseCarriesRunningGameMetadataAndUsesReferenceActionOrder)
@@ -111,6 +113,46 @@ TEST_F(BigPictureInGameMenuTest, AchievementsAreDisabledUntilLoggedInAndUseTheIn
   EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
   snapshot.host.achievements_logged_in = false;
   EXPECT_FALSE(Build().page.achievements);
+}
+
+TEST_F(BigPictureInGameMenuTest, StopAndExitOfferSeparateContinuationChoices)
+{
+  for (const auto action : {Action::Stop, Action::Exit})
+  {
+    snapshot.screens = {Screen::Pause, Screen::Confirmation};
+    snapshot.confirmation = Command{snapshot.generation, 123, action};
+    snapshot.host.can_save_continuation = true;
+    auto menu = Build();
+    EXPECT_EQ(menu.page.default_focus, "cancel");
+    const auto save = menu.Activate({"save-and-exit"});
+    ASSERT_TRUE(save);
+    EXPECT_EQ(save->action, Action::Confirm);
+    EXPECT_EQ(save->slot, 1);
+    EXPECT_EQ(save->confirmation_id, 123u);
+    EXPECT_EQ(menu.Activate({"confirm"})->slot, 0);
+    snapshot.host.can_save_continuation = false;
+    EXPECT_FALSE(Build().Activate({"save-and-exit"}));
+    EXPECT_TRUE(Build().Activate({"confirm"}));
+  }
+}
+
+TEST_F(BigPictureInGameMenuTest, ContinuationPromptOffersResumeFreshDeleteAndCancel)
+{
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.host.continuation_pending = true;
+  snapshot.host.can_load_continuation = true;
+  snapshot.screens = {Screen::Continuation};
+  auto menu = Build();
+  EXPECT_TRUE(menu.page.dialog);
+  EXPECT_EQ(menu.Activate({"continue"})->action, Action::ContinueGame);
+  EXPECT_EQ(menu.Activate({"fresh"})->action, Action::FreshBoot);
+  EXPECT_EQ(menu.Activate({"delete"})->action, Action::DeleteContinuation);
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
+  snapshot.host.can_load_continuation = false;
+  menu = Build();
+  EXPECT_FALSE(menu.Activate({"continue"}));
+  EXPECT_TRUE(menu.Activate({"fresh"}));
+  EXPECT_TRUE(menu.Activate({"delete"}));
 }
 
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)

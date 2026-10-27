@@ -28,6 +28,7 @@
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
 #include "Common/Contains.h"
+#include "Common/Event.h"
 #include "Common/FileUtil.h"
 #include "Common/IOFile.h"
 #include "Common/LocaleUtil.h"
@@ -102,6 +103,7 @@ struct CompressAndDumpStateArgs
   std::string filename;
   std::shared_lock<decltype(s_state_saves_in_progress)> task_lock;
   std::shared_ptr<const BigPicture::LibraryImage> preview;
+  bool* continuation_result = nullptr;  // Only used by the synchronous continuation writer.
 };
 
 // Queue for compressing and writing savestates to disk.
@@ -321,6 +323,26 @@ static std::string MakeStateFilename(u32 number)
                      SConfig::GetInstance().GetGameID(), number);
 }
 
+std::string GetContinuationPath(const std::string& game_id)
+{
+  if (game_id.empty() || game_id.find_first_of("/\\:*?\"<>|") != std::string::npos ||
+      std::ranges::any_of(game_id, [](unsigned char c) { return c < 0x20; }))
+    return {};
+  return File::GetUserPath(D_STATESAVES_IDX) + game_id + ".continue.sav";
+}
+
+bool DeleteContinuation(const std::string& filename)
+{
+  if (!File::Exists(filename))
+    return true;
+  if (!File::Delete(filename))
+    return false;
+  for (const auto* suffix : {".dtm", ".preview"})
+    if (File::Exists(filename + suffix))
+      File::Delete(filename + suffix);
+  return true;
+}
+
 static std::vector<SlotWithTimestamp> GetUsedSlotsWithTimestamp()
 {
   std::vector<SlotWithTimestamp> result;
@@ -336,7 +358,7 @@ static std::vector<SlotWithTimestamp> GetUsedSlotsWithTimestamp()
   return result;
 }
 
-static void CompressBufferToFile(std::span<const u8> raw_buffer, File::IOFile& f)
+static bool CompressBufferToFile(std::span<const u8> raw_buffer, File::IOFile& f)
 {
   u64 total_bytes_compressed = 0;
 
@@ -354,7 +376,7 @@ static void CompressBufferToFile(std::span<const u8> raw_buffer, File::IOFile& f
     if (compressed_len == 0)
     {
       PanicAlertFmtT("Internal LZ4 Error - compression failed");
-      break;
+      return false;
     }
 
     // The size of the data to write is 'compressed_len'
@@ -365,6 +387,7 @@ static void CompressBufferToFile(std::span<const u8> raw_buffer, File::IOFile& f
     if (total_bytes_compressed == raw_buffer.size())
       break;
   }
+  return f.IsGood();
 }
 
 static void CreateExtendedHeader(StateExtendedHeader& extended_header, size_t uncompressed_size)
@@ -421,6 +444,13 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   } while (File::Exists(temp_filename));
 
   File::IOFile f(temp_filename, "wb");
+  const Common::ScopeGuard cleanup([&] {
+    if (File::Exists(temp_filename))
+    {
+      f.Close();
+      File::Delete(temp_filename);
+    }
+  });
   if (!f)
   {
     Core::DisplayMessage("Failed to create state file", 2000);
@@ -430,12 +460,30 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   const u64 timestamp = WriteHeadersToFile(buffer.size(), f);
 
   if (s_use_compression)
-    CompressBufferToFile(buffer, f);
+  {
+    if (!CompressBufferToFile(buffer, f))
+      return;
+  }
   else
     f.WriteBytes(buffer.data(), buffer.size());
 
   if (!f.IsGood())
+  {
     Core::DisplayMessage("Failed to write state file", 2000);
+    return;
+  }
+
+  if (save_args.continuation_result)
+  {
+    // Replace only after the complete new state is on disk. Never rotate lastState.sav.
+    if (!f.Close() || !File::RenameSync(temp_filename, filename))
+    {
+      File::Delete(temp_filename);
+      return;
+    }
+    *save_args.continuation_result = true;
+    return;
+  }
 
   const std::string last_state_filename = File::GetUserPath(D_STATESAVES_IDX) + "lastState.sav";
   const std::string last_state_dtmname = last_state_filename + ".dtm";
@@ -498,7 +546,8 @@ static auto SuspendUIPresentation()
   });
 }
 
-static void SaveAsFromCore(Core::System& system, std::string filename)
+static void SaveAsFromCore(Core::System& system, std::string filename,
+                           bool* continuation_result = nullptr)
 {
   const auto ui_lock = SuspendUIPresentation();
   // Try with a buffer a bit larger than the previous state.
@@ -515,8 +564,11 @@ static void SaveAsFromCore(Core::System& system, std::string filename)
         .buffer = std::move(buffer),
         .filename = std::move(filename),
         .task_lock = GetStateSaveTaskLock(),
-        .preview = AsyncRequests::GetInstance()->PushBlockingEvent(
-            [] { return g_presenter ? g_presenter->CaptureStateThumbnail() : nullptr; }),
+        .preview =
+            continuation_result ? nullptr : AsyncRequests::GetInstance()->PushBlockingEvent([] {
+              return g_presenter ? g_presenter->CaptureStateThumbnail() : nullptr;
+            }),
+        .continuation_result = continuation_result,
     };
     Core::DisplayMessage("Saving State...", 1000);
     s_compress_and_dump_thread.EmplaceItem(std::move(dump_args));
@@ -533,6 +585,25 @@ void SaveAs(Core::System& system, std::string filename)
       system, [&system, filename = std::move(filename), lock = GetStateSaveTaskLock()]() mutable {
         SaveAsFromCore(system, std::move(filename));
       });
+}
+
+bool SaveContinuation(Core::System& system, const std::string& filename)
+{
+  if (filename.empty() || !Core::IsRunning(system) || NetPlay::IsNetPlayRunning() ||
+      system.GetMovie().IsMovieActive())
+    return false;
+  Common::Event complete;
+  bool saved = false;
+  // DoState uses blocking GPU requests. Run on the real CPU owner, with no host pause/GPU
+  // locks held while waiting for capture and disk completion.
+  Core::RunOnCPUThread(system, [&] {
+    s_compress_and_dump_thread.WaitForCompletion();
+    SaveAsFromCore(system, filename, &saved);
+    s_compress_and_dump_thread.WaitForCompletion();
+    complete.Set();
+  });
+  complete.Wait();
+  return saved;
 }
 
 static bool GetVersionFromLZO(StateHeader& header, File::IOFile& f)

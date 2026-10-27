@@ -132,7 +132,8 @@ private:
 
   // May ask for confirmation. Returns whether or not it actually stopped.
   bool RequestStop();
-  bool RequestStopWithConfirmation(bool confirmed);
+  bool RequestStopWithConfirmation(bool confirmed, bool save_continuation = false);
+  bool CanSaveContinuation() const;
   void ForceStop();
   void Reset();
   void FrameAdvance();
@@ -206,7 +207,7 @@ private:
                  std::unique_ptr<BootSessionData> boot_session_data = nullptr);
   void StartGame(const std::vector<std::string>& paths,
                  std::unique_ptr<BootSessionData> boot_session_data = nullptr);
-  void StartGame(std::unique_ptr<BootParameters>&& parameters);
+  void StartGame(std::unique_ptr<BootParameters>&& parameters, bool continuation_checked = false);
   void ShowRenderWidget(bool preserve_window = false);
   void HideRenderWidget(bool reinit = true, bool is_exit = false);
 
@@ -307,6 +308,10 @@ private:
   bool m_shutting_down = false;
   std::uint64_t m_standalone_serial = 0;
   std::unique_ptr<BootParameters> m_standalone_boot;
+  bool m_standalone_continuation_checked = false;
+  std::unique_ptr<BootParameters> m_continuation_boot;
+  std::string m_continuation_path;
+  std::string m_continuation_boot_path;
 
 #ifdef HAVE_XRANDR
   std::unique_ptr<X11Utils::XRRConfiguration> m_xrr_config;

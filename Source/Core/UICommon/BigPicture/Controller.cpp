@@ -3,6 +3,7 @@
 
 #include "UICommon/BigPicture/Controller.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace BigPicture
@@ -16,6 +17,16 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
       state.lifecycle == Lifecycle::Booting || state.lifecycle == Lifecycle::Stopping;
   switch (action)
   {
+  case Action::ContinueGame:
+  case Action::FreshBoot:
+  case Action::DeleteContinuation:
+    if (!state.continuation_pending || state.lifecycle != Lifecycle::Idle)
+      return UnavailableReason::InvalidArgument;
+    if (state.netplay)
+      return UnavailableReason::NetPlay;
+    if (action == Action::ContinueGame && !state.can_load_continuation)
+      return UnavailableReason::Hardcore;
+    return UnavailableReason::None;
   case Action::Achievements:
     if (!state.achievements_logged_in)
       return UnavailableReason::LoginRequired;
@@ -99,6 +110,10 @@ void Controller::Publish()
   {
     const auto action = static_cast<Action>(i);
     m_state.availability[i] = GetAvailability(action, m_state.host);
+    if (m_state.host.continuation_pending && action != Action::ContinueGame &&
+        action != Action::FreshBoot && action != Action::DeleteContinuation &&
+        action != Action::Back && action != Action::Cancel && action != Action::Fullscreen)
+      m_state.availability[i] = UnavailableReason::Busy;
     if ((action == Action::Confirm && !m_state.confirmation) ||
         (m_state.mode == Mode::Desktop &&
          (action == Action::Settings || action == Action::SaveStates ||
@@ -174,6 +189,19 @@ void Controller::Refresh()
   {
     ++m_state.generation;
     SetRoot();
+  }
+
+  if (m_state.host.continuation_pending && m_state.host.lifecycle == Lifecycle::Idle &&
+      std::ranges::find(m_state.screens, Screen::Continuation) == m_state.screens.end())
+  {
+    ++m_state.generation;
+    m_state.mode = Mode::Library;
+    m_state.screens.push_back(Screen::Continuation);
+  }
+  else if (!m_state.host.continuation_pending)
+  {
+    if (std::erase(m_state.screens, Screen::Continuation) && m_state.screens.empty())
+      SetRoot();
   }
 
   if (m_state.pending)
@@ -311,6 +339,15 @@ void Controller::Submit(const Command& command)
     Publish();
     return;
   }
+  if (m_state.host.continuation_pending && command.action != Action::ContinueGame &&
+      command.action != Action::FreshBoot && command.action != Action::DeleteContinuation &&
+      command.action != Action::Back && command.action != Action::Cancel &&
+      command.action != Action::Fullscreen)
+  {
+    m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::Busy};
+    Publish();
+    return;
+  }
   if (command.action == Action::Fullscreen)
   {
     // A presentation change must preserve modal approval, errors and the screen stack.
@@ -404,6 +441,14 @@ void Controller::Submit(const Command& command)
     auto confirmed = *m_state.confirmation;
     if (command.action == Action::Confirm)
     {
+      if ((confirmed.action == Action::Stop || confirmed.action == Action::Exit) &&
+          (command.slot < 0 || command.slot > 1))
+      {
+        m_state.result =
+            Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+        Publish();
+        return;
+      }
       if (command.confirmation_id != confirmed.id)
       {
         m_state.result = Result{command, ResultStatus::Stale};
@@ -413,6 +458,17 @@ void Controller::Submit(const Command& command)
       const auto current_reason = GetAvailability(confirmed.action, m_state.host);
       if (current_reason == UnavailableReason::None)
       {
+        if ((confirmed.action == Action::Stop || confirmed.action == Action::Exit) &&
+            command.slot == 1)
+        {
+          if (!m_state.host.can_save_continuation)
+          {
+            m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::Busy};
+            Publish();
+            return;
+          }
+          confirmed.slot = 1;
+        }
         confirmed.confirmation_id = confirmed.id;
         Dispatch(confirmed);
       }
@@ -450,6 +506,12 @@ void Controller::Submit(const Command& command)
     break;
   case Action::Back:
   case Action::Cancel:
+    if (m_state.host.continuation_pending && !m_state.screens.empty() &&
+        m_state.screens.back() == Screen::Continuation)
+    {
+      Dispatch(command);
+      return;
+    }
     if (m_state.mode == Mode::Library && m_state.screens.size() == 1 &&
         m_state.screens.back() == Screen::Home)
     {
