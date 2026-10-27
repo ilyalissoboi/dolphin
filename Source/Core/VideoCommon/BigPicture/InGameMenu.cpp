@@ -137,6 +137,12 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   {
     page.id = "exit-menu";
     page.title = text.home_labels[3];
+    page.dialog = true;
+    page.default_focus = "desktop";
+    auto home = snapshot;
+    home.screens = {Screen::Home};
+    home.pending.reset();
+    page.background = std::make_shared<MenuPage>(BuildInGameMenu(home, text, options).page);
     add("desktop", Action::ReturnToDesktop);
     add("exit", Action::Exit);
     add("back", Action::Back);
@@ -174,12 +180,22 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
       page.description += "\n" + text.slot_labels[command.slot - 1];
     page.dialog = true;
     page.default_focus = "cancel";
+    if (command.action == Action::Exit && snapshot.host.lifecycle == Lifecycle::Idle)
+    {
+      auto home = snapshot;
+      home.screens = {Screen::Home};
+      home.confirmation.reset();
+      home.pending.reset();
+      page.background = std::make_shared<MenuPage>(BuildInGameMenu(home, text, options).page);
+    }
     add("confirm", Action::Confirm);
     page.items.back().label = text.confirm;
+    page.items.back().icon = GetActionIcon(command.action);
     if (auto it = menu.requests.find("confirm"); it != menu.requests.end())
       it->second.confirmation_id = command.id;
     add("cancel", Action::Cancel);
     page.items.back().label = text.cancel;
+    page.items.back().icon = MenuIcon::Back;
     return menu;
   }
   else if (screen == Screen::Error)
@@ -283,6 +299,11 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     add("save", Action::SaveStates);
     add("load", Action::LoadStates);
     add("preferences", Action::Settings);
+    page.items.back().label = text.game_settings;
+    if (auto it = menu.requests.find("preferences"); it != menu.requests.end())
+      it->second.slot = 1;
+    add("global-preferences", Action::Settings);
+    page.items.back().label = text.global_settings;
     add("disc", Action::ChangeDisc, text.desktop_disc_help);
     if (snapshot.host.library && menu.requests.contains("disc"))
     {

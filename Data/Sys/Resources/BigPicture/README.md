@@ -21,4 +21,10 @@ promptfont.otf: PromptFont, SIL Open Font License 1.1; see promptfont-LICENSE.tx
 Source: https://github.com/Shinmera/promptfont .
 The font supplies the keyboard keycaps in the home-screen footer.
 
+fa-solid-900.ttf: Font Awesome Free, SIL Open Font License 1.1; see
+FontAwesome-LICENSE.txt. This is the same font file as bin/resources/fonts/fa-solid-900.ttf
+in the local PCSX2 fork. The settings tabs and menu controls use its semantic icons
+alongside PromptFont's system and controller glyphs.
+Source and license: https://github.com/FortAwesome/Font-Awesome .
+
 The Dolphin logo uses the existing ../dolphin_logo.png resource.

@@ -4,6 +4,7 @@
 #include "DolphinQt/BigPictureSettings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 #include <QDir>
@@ -55,7 +56,24 @@ std::string Display(const Value& value)
 std::string ValueLabel(const State& state)
 {
   const auto choice = std::ranges::find(state.descriptor.choices, state.value, &Choice::value);
-  return choice != state.descriptor.choices.end() ? choice->label : Display(state.display_value);
+  if (choice != state.descriptor.choices.end())
+    return choice->label;
+  if (state.descriptor.range)
+  {
+    const auto& range = *state.descriptor.range;
+    const double stored = std::visit(
+        [](const auto& v) -> double {
+          if constexpr (std::is_arithmetic_v<std::decay_t<decltype(v)>>)
+            return static_cast<double>(v);
+          else
+            return 0;
+        },
+        state.value);
+    return S(QString::number(stored * range.scale + range.offset)) + range.unit;
+  }
+  if (state.descriptor.reverse && std::holds_alternative<bool>(state.value))
+    return Display(!std::get<bool>(state.value));
+  return Display(state.value);
 }
 bool ValidGameId(const std::string& id)
 {
@@ -88,14 +106,18 @@ BigPictureSettings::~BigPictureSettings()
 {
   m_worker.StopAndCancel();
 }
-void BigPictureSettings::Open()
+bool BigPictureSettings::Open(bool game)
 {
   Q_ASSERT(QThread::currentThread() == thread());
   m_service.SetContext({EditTarget::Base});
   if (!m_game.active)
     m_game_context = {};
+  if (game && (!ValidGameId(m_game.id) || !m_service.SetContext(GameContext())))
+    return false;
   m_page = Page::Home;
+  m_category = game ? "Display" : "Interface";
   ++m_revision;
+  return true;
 }
 void BigPictureSettings::SetGame(Game game)
 {
@@ -106,6 +128,7 @@ void BigPictureSettings::SetGame(Game game)
   m_game_context = {};
   m_game = std::move(game);
   m_page = Page::Home;
+  m_category = "Interface";
   ++m_revision;
 }
 void BigPictureSettings::SetEnvironment(UICommon::Settings::Environment environment)
@@ -215,6 +238,9 @@ void BigPictureSettings::Back()
   case Page::Edit:
     m_page = Page::Category;
     break;
+  case Page::Text:
+    m_page = Page::Edit;
+    break;
   case Page::Devices:
   case Page::Profiles:
     m_page = Page::Controller;
@@ -244,9 +270,13 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
   const bool game = values->target == EditTarget::Game;
   view->id =
       "settings-" + std::to_string(static_cast<int>(m_page)) + "-" +
-      (m_page == Page::Category || m_page == Page::Edit || m_page == Page::Presets ? m_category :
-                                                                                     "") +
-      "-" + (m_page == Page::Edit || m_page == Page::Presets ? m_edit : "") + "-" +
+      (m_page == Page::Category || m_page == Page::Edit || m_page == Page::Presets ||
+               m_page == Page::Text ?
+           m_category :
+           "") +
+      "-" +
+      (m_page == Page::Edit || m_page == Page::Presets || m_page == Page::Text ? m_edit : "") +
+      "-" +
       (m_page == Page::Controller || m_page == Page::Devices || m_page == Page::Profiles ?
            m_controller :
            "") +
@@ -264,7 +294,8 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
     row.active =
         (op == O::Global && !game) || (op == O::Game && game) ||
         (op == O::Category && row.navigation->value == m_category &&
-         (m_page == Page::Category || m_page == Page::Edit || m_page == Page::Presets)) ||
+         (m_page == Page::Home || m_page == Page::Category || m_page == Page::Edit ||
+          m_page == Page::Presets)) ||
         (op == O::Controllers && (m_page == Page::Controllers || m_page == Page::Controller ||
                                   m_page == Page::Devices || m_page == Page::Profiles));
     (toolbar ? view->toolbar : view->rows).push_back(std::move(row));
@@ -280,47 +311,68 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                                       false;
     view->rows.push_back(std::move(row));
   };
-  if (m_page != Page::Home)
+  if (m_page != Page::Home && m_page != Page::Category && m_page != Page::Controllers)
     view->back = BigPicture::SettingsRequest{m_revision, O::Back};
-  nav("global", tr("Global settings"), O::Global, {}, {}, true, true);
-  nav("game", tr("Game settings"), O::Game, {},
-      ValidGameId(m_game.id) ? m_game.title : S(tr("Select a game in the library first.")),
-      ValidGameId(m_game.id), true);
-  if (m_page != Page::Home)
+  if (m_page == Page::Text)
   {
-    for (const auto& [category, label] :
-         {std::pair{"Interface", tr("Interface and menu")}, std::pair{"Audio", tr("Audio")},
-          std::pair{"Display", tr("Display")}, std::pair{"PostProcessing", tr("Post-processing")}})
+    view->text_input = true;
+    view->title = S(tr("Enter Value"));
+    view->draft = m_draft;
+    view->description += "\n" + m_text_error;
+    nav("text-done", tr("Done"), O::TextDone, {}, {}, true, true);
+    nav("text-erase", tr("Erase"), O::TextErase, {}, {}, true, true);
+    nav("text-clear", tr("Clear"), O::TextClear, {}, {}, true, true);
+    const std::string characters =
+        "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/\\:._-@+~()[]{}!#$%&=,;' ";
+    for (std::size_t i = 0; i < characters.size(); ++i)
+      nav("text-key-" + std::to_string(i),
+          characters[i] == ' ' ? tr("Space") : Q(std::string(1, characters[i])), O::TextKey,
+          std::string(1, characters[i]));
+    view->default_focus = "text-key-0";
+    return view;
+  }
+  const std::pair<const char*, QString> categories[] = {
+      {"Interface", tr("Interface Settings")},
+      {"General", tr("General Settings")},
+      {"Display", tr("Display Settings")},
+      {"Enhancements", tr("Enhancements")},
+      {"GraphicsHacks", tr("Graphics Hacks")},
+      {"GraphicsAdvanced", tr("Advanced Graphics")},
+      {"PostProcessing", tr("Post-processing Settings")},
+      {"OSD", tr("On-Screen Display")},
+      {"Audio", tr("Audio Settings")},
+      {"GameCube", tr("GameCube Settings")},
+      {"Wii", tr("Wii Settings")},
+      {"Paths", tr("Folder Settings")},
+      {"MemoryCards", tr("Memory Card Sync")},
+      {"Achievements", tr("Achievements")},
+      {"Advanced", tr("Advanced Settings")},
+      {"Triforce", tr("Triforce Settings")}};
+  const auto category_of = [](const State& state) {
+    if (state.descriptor.id == "display.post_processing_preset")
+      return std::string("PostProcessing");
+    if (state.descriptor.id == "display.internal_resolution")
+      return std::string("Enhancements");
+    const auto& original =
+        UICommon::Settings::GetCatalog().Find(state.descriptor.id)->descriptor.category;
+    return original == "Graphics" ? std::string("GraphicsHacks") : original;
+  };
+  for (const auto& [category, label] : categories)
+    if (std::ranges::any_of(values->settings, [&](const auto& state) {
+          return category_of(state) == category && (!game || state.descriptor.per_game);
+        }))
       nav(category, label, O::Category, category, {}, true, true);
-    nav("controllers", tr("Controllers"), O::Controllers, {}, {}, true, true);
-  }
-  if (m_page == Page::Home)
+  nav("controllers", tr("Controllers"), O::Controllers, {}, {}, true, true);
+  if (m_page == Page::Home || m_page == Page::Category)
   {
-    if (ValidGameId(m_game.id))
-      view->description += "\n" + S(tr("Selected game: %1").arg(Q(m_game.title)));
-    else
-      view->description += "\n" + S(tr("Select a game in the library to edit game settings."));
-    for (const auto& [category, label] :
-         {std::pair{"Interface", tr("Interface and menu")}, std::pair{"Audio", tr("Audio")},
-          std::pair{"Display", tr("Display")}, std::pair{"PostProcessing", tr("Post-processing")}})
-      nav(category, label, O::Category, category);
-    nav("controllers", tr("Controllers"), O::Controllers);
-  }
-  else if (m_page == Page::Category)
-  {
-    view->title = S(m_category == "Interface"      ? tr("Interface and menu") :
-                    m_category == "Audio"          ? tr("Audio") :
-                    m_category == "PostProcessing" ? tr("Post-processing") :
-                                                     tr("Display"));
+    view->category_page = true;
+    for (const auto& [id, label] : categories)
+      if (m_category == id)
+        view->title = S(label);
     view->preferences = m_category == "Interface" && !game;
     for (const auto& state : values->settings)
     {
-      const bool preset = state.descriptor.id == "display.post_processing_preset";
-      if ((m_category == "PostProcessing" && !preset) ||
-          (m_category != "PostProcessing" &&
-           (preset ||
-            UICommon::Settings::GetCatalog().Find(state.descriptor.id)->descriptor.category !=
-                m_category)))
+      if (category_of(state) != m_category || (game && !state.descriptor.per_game))
         continue;
       std::string detail = ValueLabel(state);
       if (detail.empty())
@@ -332,7 +384,44 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
       if (!state.enabled)
         detail += "\n" + state.disabled_reason;
       nav(state.descriptor.id, Q(state.descriptor.label), O::Edit, state.descriptor.id, detail);
+      auto& row = view->rows.back();
+      row.category = m_category;
+      row.value = ValueLabel(state);
+      row.help = state.descriptor.help;
+      row.value_enabled = state.enabled;
+      if (!state.value_available)
+        row.help += "\n" + S(tr("Stored value unavailable"));
+      if (game)
+        row.help += "\n" + S(state.overridden ? tr("Override") : tr("Inherited"));
+      if (!state.enabled)
+        row.help += "\n" + state.disabled_reason;
+      if (state.descriptor.control == Control::Toggle)
+      {
+        row.toggle = std::get<bool>(state.display_value);
+        if (state.enabled)
+          row.edit =
+              Request{values->revision, state.descriptor.id, Operation::SetDisplay, !*row.toggle};
+      }
+      row.section =
+          !state.descriptor.section.empty() ?
+              state.descriptor.section :
+              S(m_category == "Interface" ?
+                    (state.descriptor.id == "interface.big_picture_theme" ? tr("Appearance") :
+                     state.descriptor.id == "interface.start_big_picture" ? tr("Startup") :
+                                                                            tr("Interface")) :
+                m_category == "Audio"                                ? tr("Audio Output") :
+                m_category == "PostProcessing"                       ? tr("Post-processing") :
+                state.descriptor.id == "display.backend"             ? tr("Renderer") :
+                state.descriptor.id == "display.internal_resolution" ? tr("Enhancements") :
+                m_category == "Display"                              ? tr("Presentation") :
+                                                                       Q(view->title));
     }
+    if (m_category == "Interface")
+      std::stable_sort(view->rows.begin(), view->rows.end(), [](const auto& a, const auto& b) {
+        return a.id == "interface.big_picture_theme" && b.id != "interface.big_picture_theme";
+      });
+    if (!view->rows.empty())
+      view->default_focus = view->rows.front().id;
   }
   else if (m_page == Page::Edit || m_page == Page::Presets)
   {
@@ -425,6 +514,47 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
             state.enabled);
         edit("off", tr("Off"), state, std::string{});
       }
+      else if (state.descriptor.control == Control::Number)
+      {
+        if (!state.descriptor.ticks.empty())
+        {
+          for (std::size_t i = 0; i < state.descriptor.ticks.size(); ++i)
+            edit("tick-" + std::to_string(i), Q(Display(state.descriptor.ticks[i])), state,
+                 state.descriptor.ticks[i]);
+        }
+        else if (state.descriptor.range)
+        {
+          const auto& range = *state.descriptor.range;
+          const double current = std::visit(
+              [](const auto& v) -> double {
+                if constexpr (std::is_arithmetic_v<std::decay_t<decltype(v)>>)
+                  return static_cast<double>(v);
+                else
+                  return 0;
+              },
+              state.display_value);
+          for (const int steps : {-10, -1, 1, 10})
+          {
+            const double value = std::clamp(current + steps * range.step * range.scale,
+                                            range.minimum * range.scale + range.offset,
+                                            range.maximum * range.scale + range.offset);
+            const auto id = "adjust-" + std::to_string(steps);
+            edit(id,
+                 steps < 0 ? tr("Decrease by %1").arg(std::abs(steps) * range.step * range.scale) :
+                             tr("Increase by %1").arg(steps * range.step * range.scale),
+                 state, false, Operation::SetDisplay, S(tr("New value: %1").arg(value)));
+            view->rows.back().edit->display_value = value;
+            view->rows.back().enabled &= value != current;
+          }
+          nav("enter-value", tr("Enter Value"), O::TextStart, {}, {}, state.enabled);
+          view->default_focus = "adjust-1";
+        }
+      }
+      else if (state.descriptor.control == Control::Text ||
+               state.descriptor.control == Control::Path)
+        nav("enter-value",
+            state.descriptor.control == Control::Path ? tr("Enter Path") : tr("Enter Value"),
+            O::TextStart, {}, {}, state.enabled);
       edit("reset", tr("Reset to default"), state, false, Operation::ResetDefault);
       if (game)
       {
@@ -463,9 +593,12 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
               "Profile selection replaces the controller mapping. Menu controls remain separate."));
       if (m_page == Page::Controller)
       {
-        nav("devices", tr("Input device"), O::Devices, {},
-            game ? S(tr("Per-game devices come from the selected profile.")) : device,
-            !game && unavailable.empty());
+        if (!game)
+        {
+          nav("devices", tr("Input device"), O::Devices, {}, device, unavailable.empty());
+          view->rows.back().value = device;
+          view->rows.back().help = S(tr("Select the input device for this controller."));
+        }
         std::string profile_value;
         if (game)
         {
@@ -479,6 +612,9 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
         }
         nav("profiles", game ? tr("Game profile") : tr("Load profile"), O::Profiles, {},
             profile_value, unavailable.empty());
+        view->rows.back().value = profile_value.empty() ? S(tr("None")) : profile_value;
+        view->rows.back().help = S(game ? tr("Choose a profile to apply at the next game start.") :
+                                          tr("Load an existing controller profile."));
         if (game)
           nav("clear-profile", tr("Use inherited profile"), O::ClearProfile, {}, {},
               unavailable.empty() && m_game_context.layer->Exists(ProfileLocation(*target)));
@@ -490,7 +626,10 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           view->description +=
               "\n" + S(tr("Stored device is disconnected; it has been preserved."));
         for (const auto& available : m_devices)
+        {
           nav("device-" + available, Q(available), O::Device, available, {}, unavailable.empty());
+          view->rows.back().active = available == device;
+        }
         nav("refresh", tr("Refresh devices"), O::Refresh);
       }
       else
@@ -517,7 +656,10 @@ Result BigPictureSettings::Apply(const Request& request)
   Q_ASSERT(QThread::currentThread() == thread());
   auto result = m_service.Apply(request);
   if (result.status == Status::Success)
+  {
     m_service.Save();
+    emit SettingApplied(Q(request.id));
+  }
   return result;
 }
 Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
@@ -531,8 +673,11 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     return row.enabled && row.navigation && row.navigation->operation == request.operation &&
            row.navigation->value == request.value;
   };
-  if (!(view->back && request.operation == O::Back) && !std::ranges::any_of(view->rows, matches) &&
-      !std::ranges::any_of(view->toolbar, matches))
+  const bool text_key =
+      m_page == Page::Text && request.operation == O::TextKey && request.value.size() <= 4096 &&
+      request.value.find('\0') == std::string::npos && S(Q(request.value)) == request.value;
+  if (!text_key && !(view->back && request.operation == O::Back) &&
+      !std::ranges::any_of(view->rows, matches) && !std::ranges::any_of(view->toolbar, matches))
     return Status::Unavailable;
   const auto targets = Targets();
   const auto* target = Target(targets);
@@ -581,6 +726,74 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     else
       g_controller_interface.RefreshDevices();
     break;
+  case O::TextStart:
+  {
+    const auto values = ReadSnapshot();
+    const auto state =
+        std::ranges::find(values->settings, m_edit, [](const auto& s) { return s.descriptor.id; });
+    if (state == values->settings.end() || !state->enabled)
+      return Status::Unavailable;
+    m_draft = Display(state->display_value);
+    m_text_error.clear();
+    m_page = Page::Text;
+    break;
+  }
+  case O::TextKey:
+    if (m_page != Page::Text || m_draft.size() + request.value.size() > 4096)
+      return Status::InvalidValue;
+    m_draft += request.value;
+    m_text_error.clear();
+    return Status::Success;
+  case O::TextErase:
+  {
+    auto text = Q(m_draft);
+    if (!text.isEmpty())
+    {
+      const int count = text.size() >= 2 && text.at(text.size() - 1).isLowSurrogate() &&
+                                text.at(text.size() - 2).isHighSurrogate() ?
+                            2 :
+                            1;
+      text.chop(count);
+      m_draft = S(text);
+    }
+    m_text_error.clear();
+    return Status::Success;
+  }
+  case O::TextClear:
+    m_draft.clear();
+    m_text_error.clear();
+    return Status::Success;
+  case O::TextDone:
+  {
+    const auto values = ReadSnapshot();
+    const auto state =
+        std::ranges::find(values->settings, m_edit, [](const auto& s) { return s.descriptor.id; });
+    if (state == values->settings.end() || !state->enabled)
+      return Status::Unavailable;
+    Request edit_request{values->revision, m_edit};
+    if (state->descriptor.control == Control::Number)
+    {
+      bool valid = false;
+      edit_request.display_value = Q(m_draft).toDouble(&valid);
+      if (!valid || !std::isfinite(edit_request.display_value))
+      {
+        m_text_error = S(tr("Enter a valid number."));
+        return Status::Success;
+      }
+      edit_request.operation = Operation::SetDisplay;
+    }
+    else
+      edit_request.value = m_draft;
+    const auto result = Apply(edit_request);
+    if (result.status != Status::Success)
+    {
+      m_text_error = S(tr("The value is not valid for this setting."));
+      return Status::Success;
+    }
+    m_page = Page::Edit;
+    m_text_error.clear();
+    break;
+  }
   case O::Device:
   case O::Profile:
   case O::ClearProfile:

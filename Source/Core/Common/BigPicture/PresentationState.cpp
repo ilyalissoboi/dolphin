@@ -45,6 +45,9 @@ void PresentationState::Publish(std::shared_ptr<const Snapshot> snapshot)
     m_requested_frames = 0;
   }
   m_snapshot = std::move(snapshot);
+  if (!m_snapshot || m_snapshot->mode == Mode::Desktop ||
+      std::ranges::find(m_snapshot->screens, Screen::Settings) == m_snapshot->screens.end())
+    m_settings_focus.clear();
   m_menu_visible = modal;
   if (modal || !m_snapshot)
     m_menu_pending = false;
@@ -161,6 +164,26 @@ NavigationText PresentationState::GetNavigationText() const
 {
   std::lock_guard lock(m_mutex);
   return m_navigation_text;
+}
+
+std::optional<SettingsFocus> PresentationState::GetSettingsFocus(const std::string& page) const
+{
+  std::lock_guard lock(m_mutex);
+  const auto it = m_settings_focus.find(page);
+  return it == m_settings_focus.end() ? std::nullopt : std::optional(it->second);
+}
+
+void PresentationState::SetSettingsFocus(std::string page, SettingsFocus focus)
+{
+  std::lock_guard lock(m_mutex);
+  if (!m_snapshot || m_snapshot->mode == Mode::Desktop ||
+      std::ranges::find(m_snapshot->screens, Screen::Settings) == m_snapshot->screens.end())
+    return;
+  // Only value data survives a graphics-owner replacement. Bound unusual preset-folder
+  // histories, and clear everything when the Settings session closes.
+  if (!m_settings_focus.contains(page) && m_settings_focus.size() >= 128)
+    m_settings_focus.erase(m_settings_focus.begin());
+  m_settings_focus[std::move(page)] = std::move(focus);
 }
 
 void PresentationState::SetMenuFontPaths(std::vector<std::string> paths)

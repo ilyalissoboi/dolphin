@@ -72,7 +72,8 @@ std::optional<Value> FromDisplay(const Descriptor& descriptor, double display)
             return std::nullopt;
           return Value{static_cast<float>(stored)};
         }
-        else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, u32>)
+        else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, u32> ||
+                           std::is_same_v<T, u64> || std::is_same_v<T, s64>)
         {
           if (!std::isfinite(stored) || stored < std::numeric_limits<T>::lowest() ||
               stored > std::numeric_limits<T>::max() ||

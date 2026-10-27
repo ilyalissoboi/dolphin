@@ -28,6 +28,11 @@ enum class SettingsOperation
   ClearProfile,
   Refresh,
   PresetFolder,
+  TextStart,
+  TextKey,
+  TextErase,
+  TextClear,
+  TextDone,
   Count
 };
 struct SettingsRequest
@@ -45,6 +50,12 @@ struct SettingsRow
   std::optional<SettingsRequest> navigation;
   std::optional<Common::Settings::Request> edit;
   bool active = false;
+  std::string value;
+  std::string help;
+  std::string section;
+  std::optional<bool> toggle;
+  bool value_enabled = true;
+  std::string category;
 };
 // Translated, value-only menu data. Profile/controller objects and config layers stay on the host.
 struct SettingsMenuSnapshot
@@ -58,5 +69,8 @@ struct SettingsMenuSnapshot
   std::optional<SettingsRequest> back;
   std::string default_focus;
   bool preferences = false;
+  bool category_page = false;
+  bool text_input = false;
+  std::string draft;
 };
 }  // namespace BigPicture

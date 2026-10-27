@@ -26,6 +26,7 @@ enum class MenuPresentation
   Library,
   Launch,
   FilePicker,
+  Settings,
 };
 
 struct MenuItem
@@ -39,6 +40,11 @@ struct MenuItem
   MenuIcon icon = MenuIcon::None;
   std::string preview_detail;
   float image_aspect = 2.0f / 3.0f;
+  std::string value;
+  std::string section;
+  std::optional<bool> toggle;
+  bool value_enabled = true;
+  bool has_options = false;
 };
 
 struct MenuPage
@@ -62,6 +68,9 @@ struct MenuPage
   std::string theme = "Dark";
   std::string account_name;
   std::shared_ptr<const MenuPage> background;
+  bool category_page = false;
+  bool busy = false;
+  bool settings_text = false;
 };
 
 struct MenuResult
@@ -69,6 +78,7 @@ struct MenuResult
   std::optional<std::string> activated;
   bool back = false;
   std::string focused;
+  bool fullscreen = false;
 };
 
 struct FocusMemory
@@ -77,6 +87,7 @@ struct FocusMemory
   // Logical reference pixels, so a resize/DPI change does not change the retained position.
   float scroll = 0;
   std::uint64_t revision = 0;
+  std::string selected;
 };
 
 struct MenuLayout
@@ -99,8 +110,15 @@ public:
   void InvalidateFocus() { m_current_page.clear(); }
   void Reset();
   FocusMemory GetMemory(const std::string& page) const;
+  void RestoreMemory(const std::string& page, FocusMemory memory);
 
 private:
+  MenuResult DrawList(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                      const std::string& prompts, ImFont* font,
+                      const std::function<ImTextureID(const std::string&)>& image);
+  MenuResult DrawDialog(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                        const std::string& prompts, ImFont* font,
+                        const std::function<ImTextureID(const std::string&)>& image);
   MenuResult DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOptions options,
                          const std::string& prompts, ImFont* font,
                          const std::function<ImTextureID(const std::string&)>& image);
@@ -111,6 +129,8 @@ private:
   MenuResult DrawFilePicker(const MenuPage& page, ::BigPicture::NavigationOptions options,
                             const std::string& prompts, ImFont* font,
                             const std::function<ImTextureID(const std::string&)>& image);
+  MenuResult DrawSettings(const MenuPage& page, ::BigPicture::NavigationOptions options,
+                          const std::string& prompts, ImFont* font);
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
@@ -121,6 +141,7 @@ private:
   std::uint64_t m_focus_revision = 0;
   int m_library_columns = 0;
   bool m_library_grid = false;
+  bool m_settings_busy = false;
 };
 
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is
@@ -150,4 +171,7 @@ std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& st
                                         const ::BigPicture::NavigationText& text);
 std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                        const ::BigPicture::NavigationText& text, bool picker);
+std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                         const ::BigPicture::NavigationText& text,
+                                         bool row_options = true);
 }  // namespace VideoCommon::BigPicture

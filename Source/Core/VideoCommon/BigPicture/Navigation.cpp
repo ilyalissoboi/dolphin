@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cmath>
 #include <ctime>
+#include <utility>
 
 #include <imgui_internal.h>
 
@@ -235,10 +236,31 @@ void NavigationToolkit::Reset()
   m_restore_frames = 0;
 }
 
+std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
+                                         const ::BigPicture::NavigationText& text, bool row_options)
+{
+  using ::BigPicture::NavButton;
+  const auto glyph = [&](NavButton button) {
+    return GetBindingGlyph(status.bindings[static_cast<std::size_t>(button)], status.device,
+                           status.device_source);
+  };
+  const auto confirm = status.options.swap_confirm_back ? NavButton::Back : NavButton::Confirm;
+  const auto back = status.options.swap_confirm_back ? NavButton::Confirm : NavButton::Back;
+  return glyph(NavButton::Previous) + glyph(NavButton::Next) + " " + text.settings_change_page +
+         "   \xe2\x86\xa3 " + text.navigate +
+         (row_options ? "   \xe2\x86\xa0 " + text.settings_options : "") + "   " + glyph(confirm) +
+         " " + text.select + "   " + glyph(back) + " " + text.back;
+}
+
 FocusMemory NavigationToolkit::GetMemory(const std::string& page) const
 {
   const auto it = m_memory.find(page);
   return it != m_memory.end() ? it->second : FocusMemory{};
+}
+
+void NavigationToolkit::RestoreMemory(const std::string& page, FocusMemory memory)
+{
+  m_memory[page] = std::move(memory);
 }
 
 MenuResult NavigationToolkit::DrawLanding(
@@ -445,13 +467,29 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
                                    const std::string& prompts, ImFont* font,
                                    const std::function<ImTextureID(const std::string&)>& image)
 {
+  MenuResult result;
   if ((page.presentation == MenuPresentation::Landing && page.id == "home") ||
       page.presentation == MenuPresentation::Launch)
-    return DrawLanding(page, options, prompts, font, image);
-  if (page.presentation == MenuPresentation::FilePicker)
-    return DrawFilePicker(page, options, prompts, font, image);
-  if (page.presentation == MenuPresentation::Library)
-    return DrawLibrary(page, options, prompts, font, image);
+    result = DrawLanding(page, options, prompts, font, image);
+  else if (page.presentation == MenuPresentation::FilePicker)
+    result = DrawFilePicker(page, options, prompts, font, image);
+  else if (page.presentation == MenuPresentation::Settings)
+    result = DrawSettings(page, options, prompts, font);
+  else if (page.presentation == MenuPresentation::Library)
+    result = DrawLibrary(page, options, prompts, font, image);
+  else if (page.dialog)
+    result = DrawDialog(page, options, prompts, font, image);
+  else
+    result = DrawList(page, options, prompts, font, image);
+  result.fullscreen = ImGui::IsKeyPressed(ImGuiKey_F11, false);
+  return result;
+}
+
+MenuResult NavigationToolkit::DrawList(const MenuPage& page,
+                                       ::BigPicture::NavigationOptions options,
+                                       const std::string& prompts, ImFont* font,
+                                       const std::function<ImTextureID(const std::string&)>& image)
+{
   MenuResult result;
   const auto layout = ComputeMenuLayout(ImGui::GetIO().DisplaySize, options, page.dialog);
   const float scale = layout.scale;

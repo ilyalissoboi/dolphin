@@ -4,6 +4,8 @@ add_library(uicommon
   BigPicture/Controller.cpp
   BigPicture/Controller.h
   Settings/Catalog.cpp
+  Settings/ApplicationSettings.cpp
+  Settings/ApplicationSettings.inc
   Settings/Catalog.h
   Settings/ConfigLayerLogic.h
   Settings/Service.cpp

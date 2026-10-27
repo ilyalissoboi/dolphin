@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <set>
 
 #include <gtest/gtest.h>
 #include <imgui.h>
@@ -54,7 +55,14 @@ TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitCloseSeparat
   EXPECT_EQ(menu.Activate({"load"})->action, Action::LoadStates);
   EXPECT_EQ(menu.Activate({"screenshot"})->action, Action::Screenshot);
   EXPECT_FALSE(menu.Activate({"disc"}));
-  EXPECT_EQ(menu.page.items[4].detail, "Not a disc game");
+  const auto disc =
+      std::ranges::find(menu.page.items, "disc", [](const auto& item) { return item.id; });
+  ASSERT_NE(disc, menu.page.items.end());
+  EXPECT_EQ(disc->detail, "Not a disc game");
+  ASSERT_TRUE(menu.Activate({"preferences"}));
+  EXPECT_EQ(menu.Activate({"preferences"})->slot, 1);
+  ASSERT_TRUE(menu.Activate({"global-preferences"}));
+  EXPECT_EQ(menu.Activate({"global-preferences"})->slot, 0);
 }
 
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)
@@ -94,6 +102,68 @@ TEST_F(BigPictureInGameMenuTest, SharedSettingsRootClosesWhileInterfaceRetainsMe
   EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
   ASSERT_TRUE(menu.Activate({"swap"})->options);
   EXPECT_TRUE(menu.Activate({"swap"})->options->swap_confirm_back);
+}
+
+TEST_F(BigPictureInGameMenuTest, SettingsRowsCarrySwitchStateAndRetainTheirOptionsEditor)
+{
+  snapshot.screens = {Screen::Settings};
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-interface";
+  view->category_page = true;
+  SettingsRow row{"setting", "Toggle"};
+  row.navigation = SettingsRequest{31, SettingsOperation::Edit, "display.vsync"};
+  row.edit =
+      Common::Settings::Request{45, "display.vsync", Common::Settings::Operation::SetDisplay, true};
+  row.toggle = false;
+  row.value = "Off";
+  row.section = "Presentation";
+  row.help = "Synchronize presentation with the display.";
+  view->rows.push_back(row);
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Settings);
+  EXPECT_EQ(menu.page.items.front().toggle, false);
+  EXPECT_EQ(menu.page.items.front().value, "Off");
+  EXPECT_EQ(menu.page.items.front().detail, row.help);
+  EXPECT_EQ(menu.page.items.front().section, "Presentation");
+  EXPECT_EQ(menu.Activate({"setting"})->action, Action::EditSetting);
+  EXPECT_FALSE(menu.Activate({"setting"})->settings_menu);
+  EXPECT_EQ(menu.Activate({"setting"})->setting->value, Common::Settings::Value(true));
+  ASSERT_TRUE(menu.Activate({"edit:setting"})->settings_menu);
+  EXPECT_EQ(menu.Activate({"edit:setting"})->settings_menu->operation, SettingsOperation::Edit);
+  EXPECT_EQ(menu.page.toolbar.front().id, "back");
+  EXPECT_EQ(menu.Activate({"back"})->action, Action::Back);
+  snapshot.pending = Command{snapshot.generation, 1, Action::EditSetting};
+  EXPECT_TRUE(Build().requests.empty());
+}
+
+TEST_F(BigPictureInGameMenuTest, EverySettingsCategoryHasADistinctGlyphAndNoExtraHeaderControl)
+{
+  snapshot.screens = {Screen::Settings};
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  for (const auto* id :
+       {"Interface", "General", "Display", "Enhancements", "GraphicsHacks", "GraphicsAdvanced",
+        "PostProcessing", "OSD", "Audio", "GameCube", "Wii", "Paths", "MemoryCards", "Achievements",
+        "Advanced", "Triforce", "controllers"})
+  {
+    SettingsRow row{id, id};
+    row.navigation = SettingsRequest{1, SettingsOperation::Category, id};
+    view->toolbar.push_back(row);
+  }
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  EXPECT_TRUE(menu.page.context.id.empty());
+  ASSERT_EQ(menu.page.toolbar.size(), view->toolbar.size() + 1);
+  EXPECT_EQ(menu.page.toolbar.back().id, "controllers");
+  std::set<ImWchar> glyphs;
+  for (const auto& item : menu.page.toolbar)
+  {
+    if (item.id == "back")
+      continue;
+    const auto glyph = VideoCommon::BigPicture::GetMenuIconCodepoint(item.icon);
+    EXPECT_NE(glyph, 0) << item.id;
+    EXPECT_TRUE(glyphs.insert(glyph).second) << item.id;
+  }
 }
 
 TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnreadableLoads)

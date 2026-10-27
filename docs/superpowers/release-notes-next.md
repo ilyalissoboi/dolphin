@@ -4,6 +4,29 @@
 
 ### Big Picture
 
+The exit chooser and confirmation prompts now use compact themed panels with the same
+typography, neutral focus frames and fixed footer hints as the other Big Picture views.
+F11 toggles fullscreen throughout Big Picture, including settings, pickers and confirmation
+dialogs. Changing fullscreen preserves the current screen and pending confirmation.
+
+Settings now opens on Interface Settings and uses a fullscreen category-icon header,
+section headings, full-width rows, right-aligned values and toggle switches. Keyboard
+Left/Right and configured controller page buttons change categories. Switches apply directly;
+F2, controller D-pad Right or right-clicking a row opens defaults and
+per-game inheritance options. Global settings and running-game settings open separately;
+Game Settings is available from the pause menu. Controllers retains the same tab positions
+as the other categories. The header uses distinct category symbols from PCSX2's Font Awesome
+and PromptFont icon sets; the extra options gear is removed. Detail explanations and the
+bottom of scrollable settings lists have additional padding from the header and status bar.
+
+The native settings catalog now exposes 188 settings in this Windows build, covering
+interface/language, general, graphics, OSD, audio, GameCube/Wii, paths, memory-card sync
+preferences, achievements and advanced options. Number and text/path editors support both
+keyboard and controller input, with typed values, defaults, inheritance and backend/runtime
+dependencies. Resource-directory and sync configuration changes indicate when Dolphin must
+restart. Controller remapping/calibration, credential entry and specialized storage/device
+workflows remain available through desktop settings.
+
 Start Game now uses large PCSX2-style launch tiles with Back at the left of the top bar.
 Installed GameCube IPLs, the Wii System Menu and the selected-game shortcut remain available.
 The controller file picker uses a scrollable panel over the launch screen, with directory
@@ -54,12 +77,12 @@ rounded focus outlines and a fixed controller-prompt footer. The library list in
 selected-game cover/details panel, with a direct grid/list switch in the toolbar. The pause
 menu uses a narrow action column and running-game title/cover header. Save/load slots use
 four-column cards, and settings retains category navigation with active category and
-global/game context indicators. These layouts retain the menu scale and safe-area preferences.
+global/game context labels. These layouts retain the menu scale and safe-area preferences.
 
 Big Picture appearance can now be changed live from either its Interface settings or the
 desktop Big Picture pane. Eleven theme families include Light, AMOLED and Dolphin Blue;
 unknown stored theme names are preserved and render with the Dark fallback. Menus include
-drawn action/category icons and checkmarks for current setting values. Library details show
+action/category icons and checkmarks for current setting values. Library details show
 platform, region, game ID, play time, size, path and tags. At large menu scales, artwork shrinks
 to keep focused cards readable inside safe-area margins.
 

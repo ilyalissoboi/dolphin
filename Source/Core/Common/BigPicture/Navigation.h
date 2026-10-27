@@ -141,6 +141,14 @@ struct NavigationText
   std::string start_keyboard_hints;
   std::string picker_title;
   std::string picker_keyboard_hints;
+  std::string settings_keyboard_hints;
+  std::string settings_keyboard_options;
+  std::string settings_change_page;
+  std::string settings_options;
+  std::string settings_navigation;
+  std::array<std::string, 3> settings_navigation_help;
+  std::string global_settings;
+  std::string game_settings;
 };
 
 struct NavigationRequest

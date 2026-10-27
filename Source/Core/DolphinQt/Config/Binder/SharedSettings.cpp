@@ -40,6 +40,7 @@ TranslateSettingsSnapshot(const Common::Settings::Snapshot& source)
     translate(state.descriptor.label);
     translate(state.descriptor.help);
     translate(state.descriptor.category);
+    translate(state.descriptor.section);
     translate(state.disabled_reason);
     for (auto& choice : state.descriptor.choices)
       translate(choice.label);
