@@ -584,6 +584,7 @@ void OnScreenUI::ProcessInput()
       ImGuiKey_Space,     ImGuiKey_Enter,     ImGuiKey_Escape,     ImGuiKey_KeypadEnter,
       ImGuiKey_A,         ImGuiKey_C,         ImGuiKey_V,          ImGuiKey_X,
       ImGuiKey_Y,         ImGuiKey_Z,         ImGuiKey_F11,        ImGuiKey_F1,
+      ImGuiKey_F2,        ImGuiKey_F3,        ImGuiKey_F4,         ImGuiKey_F5,
   };
 
   auto input = ::BigPicture::GetPresentationState().TakeInput();
@@ -614,9 +615,9 @@ void OnScreenUI::ProcessInput()
       if (File::Exists(font_path))
       {
         static constexpr ImWchar prompt_ranges[] = {
-            0x2198, 0x2199, 0x219c, 0x219d, 0x21b0, 0x21b3, 0x21ba, 0x21bb, 0x21ce,
-            0x21ce, 0x21d0, 0x21d3, 0x21e0, 0x21e8, 0x23f4, 0x23f4, 0x23f6, 0x23f6,
-            0x242e, 0x242f, 0x243a, 0x243c, 0x2460, 0x2460, 0x246a, 0x246a, 0};
+            0x2198, 0x2199, 0x219c, 0x21a3, 0x21b0, 0x21b3, 0x21ba, 0x21bb, 0x21ce, 0x21ce, 0x21d0,
+            0x21d3, 0x21e0, 0x21e8, 0x235d, 0x2367, 0x23f4, 0x23f7, 0x242e, 0x242f, 0x243a, 0x243c,
+            0x2460, 0x2464, 0x246a, 0x246a, 0x2699, 0x2699, 0xe005, 0xf8ff, 0};
         ImFontConfig config;
         config.GlyphExcludeRanges = prompt_ranges;
         m_menu_font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 0, &config);
@@ -630,6 +631,15 @@ void OnScreenUI::ProcessInput()
         config.MergeMode = true;
         config.DstFont = m_menu_font;
         io.Fonts->AddFontFromFileTTF(prompt_path.c_str(), 0, &config);
+      }
+      const auto awesome_path =
+          File::GetSysDirectory() + RESOURCES_DIR "/BigPicture/fa-solid-900.ttf";
+      if (File::Exists(awesome_path))
+      {
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.DstFont = m_menu_font;
+        io.Fonts->AddFontFromFileTTF(awesome_path.c_str(), 0, &config);
       }
       for (const auto& path : fallback_paths)
       {
@@ -656,7 +666,7 @@ void OnScreenUI::ProcessInput()
   }
 
   m_dolphin_to_imgui_map.clear();
-  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F1); dolphin_key++)
+  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F5); dolphin_key++)
   {
     const int imgui_key = dolphin_to_imgui_map[DolphinKey(dolphin_key)];
     if (imgui_key >= 0)
@@ -731,6 +741,18 @@ void OnScreenUI::DrawNavigation()
     return;
   auto options = m_navigation.options;
   const auto menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
+  if (menu.page.presentation == BigPicture::MenuPresentation::Settings &&
+      m_navigation_toolkit.GetMemory(menu.page.id).item.empty())
+  {
+    if (const auto focus = presentation.GetSettingsFocus(menu.page.id))
+    {
+      BigPicture::FocusMemory memory;
+      memory.item = focus->item;
+      memory.selected = focus->selected;
+      memory.scroll = focus->scroll;
+      m_navigation_toolkit.RestoreMemory(menu.page.id, std::move(memory));
+    }
+  }
   ++m_cover_frame;
   m_cover_uploads = 0;
   if (snapshot->host.library && m_cover_revision != snapshot->host.library->catalog_revision)
@@ -741,11 +763,35 @@ void OnScreenUI::DrawNavigation()
   const bool text_input =
       !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::TextInput;
   const bool home = menu.page.id == "home";
-  const std::string prompts = m_navigation_input.IsKeyboard() ?
-                                  (home       ? text.home_keyboard_prompts :
-                                   text_input ? text.library_keyboard_prompts :
-                                                text.keyboard_prompts) :
-                                  BigPicture::GetControllerPrompts(m_navigation, text, home);
+  const bool library_view = menu.page.presentation == BigPicture::MenuPresentation::Library;
+  const bool launch = menu.page.presentation == BigPicture::MenuPresentation::Launch;
+  const bool picker = menu.page.presentation == BigPicture::MenuPresentation::FilePicker;
+  const bool settings = menu.page.presentation == BigPicture::MenuPresentation::Settings;
+  const bool settings_text = menu.page.settings_text;
+  bool setting_options = false;
+  if (settings)
+  {
+    const auto memory = m_navigation_toolkit.GetMemory(menu.page.id);
+    const auto& selected = memory.selected.empty() ? menu.page.default_focus : memory.selected;
+    setting_options = std::ranges::any_of(menu.page.items, [&](const auto& item) {
+      return item.id == selected && item.enabled && item.has_options;
+    });
+  }
+  const std::string prompts =
+      m_navigation_input.IsKeyboard() ?
+          (library_view ? text.library_keyboard_hints :
+           settings     ? text.settings_keyboard_hints +
+                              (setting_options ? "   " + text.settings_keyboard_options : "") :
+           picker       ? text.picker_keyboard_hints :
+           launch       ? text.start_keyboard_hints :
+           home         ? text.home_keyboard_prompts :
+           text_input || settings_text ? text.library_keyboard_prompts :
+                                         text.keyboard_prompts) :
+          (library_view     ? BigPicture::GetLibraryControllerPrompts(m_navigation, text) :
+           settings         ? BigPicture::GetSettingsControllerPrompts(m_navigation, text,
+                                                                       setting_options) :
+           launch || picker ? BigPicture::GetLaunchControllerPrompts(m_navigation, text, picker) :
+                              BigPicture::GetControllerPrompts(m_navigation, text, home));
   const auto result = m_navigation_toolkit.Draw(
       menu.page, options, prompts, m_menu_font, [&](const std::string& path) {
         if (path.starts_with("home:"))
@@ -812,7 +858,9 @@ void OnScreenUI::DrawNavigation()
             if (path == "home:logo")
               filename = "dolphin_logo.png";
             else if (path == "home:media-cdrom" || path == "home:start-game" ||
-                     path == "home:applications-system" || path == "home:exit")
+                     path == "home:applications-system" || path == "home:exit" ||
+                     path == "home:start-file" || path == "home:drive-cdrom" ||
+                     path == "home:start-bios")
               filename = "BigPicture/" + path.substr(5) + ".png";
             else
               return ImTextureID{};
@@ -838,6 +886,11 @@ void OnScreenUI::DrawNavigation()
         return snapshot->host.library ? GetLibraryCover(*snapshot->host.library, path) :
                                         ImTextureID{};
       });
+  if (settings)
+  {
+    const auto memory = m_navigation_toolkit.GetMemory(menu.page.id);
+    presentation.SetSettingsFocus(menu.page.id, {memory.item, memory.selected, memory.scroll});
+  }
   if (snapshot->host.library && menu.page.id == "library" && result.focused.starts_with("game:") &&
       result.focused.substr(5) != snapshot->host.library->selected_path)
   {
@@ -847,6 +900,32 @@ void OnScreenUI::DrawNavigation()
     presentation.RequestNavigation(std::move(request), m_input_epoch);
   }
   bool typed_activation = false;
+  if (settings_text && snapshot->host.settings_menu)
+  {
+    const auto send = [&](::BigPicture::SettingsOperation operation, std::string value = {}) {
+      ::BigPicture::NavigationRequest request{snapshot->generation,
+                                              ::BigPicture::Action::SettingsMenu};
+      request.settings_menu = ::BigPicture::SettingsRequest{snapshot->host.settings_menu->revision,
+                                                            operation, std::move(value)};
+      presentation.RequestNavigation(std::move(request), m_input_epoch);
+    };
+    for (const auto c : ImGui::GetIO().InputQueueCharacters)
+    {
+      if (c < 32)
+        continue;
+      char buffer[5]{};
+      ImTextCharToUtf8(buffer, c);
+      send(::BigPicture::SettingsOperation::TextKey, buffer);
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
+      send(::BigPicture::SettingsOperation::TextErase);
+    const bool enter = ImGui::IsKeyPressed(ImGuiKey_Enter, false) ||
+                       ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false);
+    if (m_navigation_input.IsKeyboard() && enter)
+      send(::BigPicture::SettingsOperation::TextDone);
+    typed_activation =
+        m_navigation_input.IsKeyboard() && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
+  }
   if (home && (ImGui::IsKeyPressed(ImGuiKey_Space, false) ||
                ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false)))
   {
@@ -854,10 +933,12 @@ void OnScreenUI::DrawNavigation()
                                    m_input_epoch);
     typed_activation = true;
   }
-  if (home &&
-      (ImGui::IsKeyPressed(ImGuiKey_F11, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false)))
+  if (result.fullscreen || (home && ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false)))
+  {
     presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::Fullscreen},
                                    m_input_epoch);
+    typed_activation = true;
+  }
   if (home && ImGui::IsKeyPressed(ImGuiKey_F1, false))
     presentation.RequestNavigation({snapshot->generation, ::BigPicture::Action::About},
                                    m_input_epoch);
@@ -923,7 +1004,8 @@ ImTextureID OnScreenUI::GetLibraryCover(const ::BigPicture::LibrarySnapshot& lib
   if (!cached.texture && m_cover_uploads < 2 && it != library.covers.end())
   {
     const auto& image = *it->second;
-    if (image.width && image.height && image.width <= 256 && image.height <= 384 &&
+    if (image.width && image.height && image.width <= ::BigPicture::MAX_COVER_WIDTH &&
+        image.height <= ::BigPicture::MAX_COVER_HEIGHT &&
         image.rgba.size() == static_cast<std::size_t>(image.width) * image.height * 4)
     {
       ++m_cover_uploads;

@@ -1,6 +1,7 @@
 // Copyright 2026 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -53,9 +54,9 @@ protected:
     ImGui::GetIO().AddKeyEvent(key, false);
     auto released = Frame(page);
     auto settled = Frame(page);
-    if (pressed.activated || pressed.back)
+    if (pressed.activated || pressed.back || pressed.fullscreen)
       return pressed;
-    return released.activated || released.back ? released : settled;
+    return released.activated || released.back || released.fullscreen ? released : settled;
   }
   ImGuiContext* context = nullptr;
   NavigationToolkit toolkit;
@@ -97,6 +98,94 @@ TEST_F(BigPictureNavigationUITest, DialogDefaultsToCancelAndSwapPreservesLogical
   EXPECT_EQ(Press(dialog, swapped_confirm).activated, "cancel");
   EXPECT_TRUE(Press(dialog, swapped_back).back);
   EXPECT_TRUE(Press(dialog, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, F11IsAvailableAcrossEveryPresentationAndDialog)
+{
+  for (const auto presentation :
+       {MenuPresentation::List, MenuPresentation::Landing, MenuPresentation::Pause,
+        MenuPresentation::Library, MenuPresentation::Launch, MenuPresentation::FilePicker,
+        MenuPresentation::Settings})
+  {
+    toolkit.Reset();
+    MenuPage page{presentation == MenuPresentation::Landing ? "home" : "shortcut",
+                  "Title",
+                  {},
+                  {{"one", "One"}, {"two", "Two"}},
+                  "one"};
+    page.presentation = presentation;
+    Settle(page);
+    const auto before = toolkit.GetMemory(page.id).item;
+    const auto result = Press(page, ImGuiKey_F11);
+    EXPECT_TRUE(result.fullscreen) << static_cast<int>(presentation);
+    EXPECT_FALSE(result.activated);
+    EXPECT_FALSE(result.back);
+    EXPECT_EQ(toolkit.GetMemory(page.id).item, before);
+  }
+  MenuPage dialog{"confirmation",
+                  "Exit Dolphin",
+                  "Exit Dolphin?",
+                  {{"confirm", "Confirm"}, {"cancel", "Cancel"}},
+                  "cancel",
+                  1,
+                  true};
+  Settle(dialog);
+  EXPECT_TRUE(Press(dialog, ImGuiKey_F11).fullscreen);
+  EXPECT_EQ(toolkit.GetMemory(dialog.id).item, "cancel");
+}
+
+TEST_F(BigPictureNavigationUITest, DialogUsesCompactGeometryAndResetsOnlyForANewConfirmation)
+{
+  MenuPage page{"confirmation",
+                "Exit Dolphin",
+                "Exit Dolphin?",
+                {{"confirm", "Confirm"}, {"cancel", "Cancel"}},
+                "cancel",
+                1,
+                true};
+  page.focus_revision = 41;
+  Settle(page);
+  const auto* dialog = ImGui::FindWindowByName("###BigPictureDialog");
+  ASSERT_NE(dialog, nullptr);
+  EXPECT_FLOAT_EQ(dialog->Size.x, 600);
+  EXPECT_LT(dialog->Size.y, 320);
+  EXPECT_GT(dialog->Pos.x, 0);
+  EXPECT_GT(dialog->Pos.y, 0);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "cancel");
+  Press(page, ImGuiKey_UpArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "confirm");
+  EXPECT_TRUE(Press(page, ImGuiKey_F11).fullscreen);
+  ImGui::GetIO().DisplaySize = ImVec2(1920, 1080);
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "confirm");
+  ++page.focus_revision;
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "cancel");
+}
+
+TEST_F(BigPictureNavigationUITest, DialogFitsSafeAreaWithLargeTextAndRetainsCancel)
+{
+  MenuPage page{"long-dialog",
+                "Exit Dolphin",
+                "A translated confirmation message.\n日本語の確認文。",
+                {{"confirm", "Confirm"}, {"cancel", "Cancel and return to the previous screen"}},
+                "cancel",
+                1,
+                true};
+  for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    toolkit.Reset();
+    for (int i = 0; i < 6; ++i)
+      Frame(page, {false, 1.5f, 0.15f});
+    const auto* dialog = ImGui::FindWindowByName("###BigPictureDialog");
+    ASSERT_NE(dialog, nullptr);
+    EXPECT_GE(dialog->Pos.x, size.x * 0.15f);
+    EXPECT_GE(dialog->Pos.y, size.y * 0.15f);
+    EXPECT_LE(dialog->Pos.x + dialog->Size.x, size.x * 0.85f);
+    EXPECT_LE(dialog->Pos.y + dialog->Size.y, size.y * 0.85f);
+    EXPECT_EQ(toolkit.GetMemory(page.id).item, "cancel");
+  }
 }
 
 TEST_F(BigPictureNavigationUITest, ListLoopsBothDirectionsWithKeyboardAndGamepad)
@@ -276,14 +365,15 @@ TEST_F(BigPictureNavigationUITest, LibraryToolbarAndGridAreBothControllerAccessi
 TEST_F(BigPictureNavigationUITest, RemovingSelectedGameUsesSafeToolbarFocusInsteadOfAnotherGame)
 {
   MenuPage page{"library", "Library", {}, {{"one", "One"}, {"two", "Two"}}, "two"};
-  page.toolbar = {{"refresh", "Refresh"}};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
   Settle(page);
   ASSERT_EQ(toolkit.GetMemory("library").item, "two");
   page.items.pop_back();
-  page.default_focus = "refresh";
+  page.default_focus = "back";
   Settle(page);
-  EXPECT_EQ(toolkit.GetMemory("library").item, "refresh");
-  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "refresh");
+  EXPECT_EQ(toolkit.GetMemory("library").item, "back");
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "back");
 }
 TEST_F(BigPictureNavigationUITest, KeyboardShoulderPagingMovesByVisibleGridRows)
 {
@@ -302,6 +392,7 @@ TEST_F(BigPictureNavigationUITest, LargeLibraryDoesNotGenerateGeometryForOffscre
 {
   MenuPage page{"large-library", "Library"};
   page.default_focus = "4999";
+  page.presentation = MenuPresentation::Library;
   page.columns = 4;
   page.artwork = true;
   for (int i = 0; i < 5000; ++i)
@@ -324,7 +415,9 @@ TEST_F(BigPictureNavigationUITest, LibraryDetailsDoNotTakeFocusFromListOrToolbar
                 "one"};
   page.presentation = MenuPresentation::Library;
   page.artwork = true;
-  page.toolbar = {{"search", "Search"}, {"refresh", "Refresh"}};
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"grid-view", "Grid", {}, true, {}, false, MenuIcon::Grid},
+                  {"list-view", "List", {}, true, {}, true, MenuIcon::List}};
   for (const auto size : {ImVec2(1280, 720), ImVec2(3840, 2160), ImVec2(3440, 1440)})
   {
     ImGui::GetIO().DisplaySize = size;
@@ -334,9 +427,72 @@ TEST_F(BigPictureNavigationUITest, LibraryDetailsDoNotTakeFocusFromListOrToolbar
     EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "two");
     Press(page, ImGuiKey_GamepadDpadUp);
     Press(page, ImGuiKey_GamepadDpadUp);
-    EXPECT_TRUE(toolkit.GetMemory(page.id).item == "search" ||
-                toolkit.GetMemory(page.id).item == "refresh");
+    EXPECT_EQ(toolkit.GetMemory(page.id).item, "back");
   }
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsTabsStayFixedWhenRowsHaveNoOptions)
+{
+  MenuPage page{"settings-with-options", "Interface Settings", {}, {{"one", "One"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.items[0].has_options = true;
+  page.context = {"options", "Options"};
+  page.toolbar = {{"back", "Back"}};
+  for (int i = 0; i < 17; ++i)
+    page.toolbar.push_back({"tab-" + std::to_string(i), "Category"});
+  toolkit.RestoreMemory(page.id, {"tab-3", 0, 0, "one"});
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "tab-3");
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto before = GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main];
+  page.id = "settings-controllers";
+  page.title = "Controllers";
+  page.items[0].has_options = false;
+  toolkit.RestoreMemory(page.id, {"tab-3", 0, 0, "one"});
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "tab-3");
+  const auto after = GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main];
+  EXPECT_FLOAT_EQ(before.Min.x, after.Min.x);
+  EXPECT_FLOAT_EQ(before.Max.x, after.Max.x);
+  EXPECT_FLOAT_EQ(before.Min.y, after.Min.y);
+  EXPECT_FLOAT_EQ(before.Max.y, after.Max.y);
+}
+
+TEST_F(BigPictureNavigationUITest, LongSettingsHelpLeavesRoomForOtherRows)
+{
+  MenuPage page{"settings-long-help", "Graphics", {}, {{"one", "One"}, {"two", "Two"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.items[0].detail = std::string(1000, 'x') + "\n" + std::string(1000, 'y');
+  page.items[0].value = std::string(4096, 'z');
+  Settle(page);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto selected = GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main];
+  EXPECT_LT(selected.GetHeight(), 200);
+  Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "two");
+}
+
+TEST(BigPictureIconsTest, SystemIconsMatchPCSX2PromptFontCodepoints)
+{
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::CPU), 0x235e);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Controller), 0x2360);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Keyboard), 0x2361);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Memory), 0x2364);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Audio), 0x2365);
+  EXPECT_EQ(GetMenuIconCodepoint(MenuIcon::Image), 0x2366);
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsSummaryBoundsIncludeExplicitParagraphBreaks)
+{
+  MenuPage page{"settings-paragraphs", "Settings", {}, {{"one", "One"}, {"two", "Two"}}};
+  page.presentation = MenuPresentation::Settings;
+  for (int i = 0; i < 30; ++i)
+    page.items[0].detail += "A short paragraph.\n\n";
+  Settle(page);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  EXPECT_LT(GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main].GetHeight(), 140);
+  Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "two");
 }
 
 TEST_F(BigPictureNavigationUITest, FullscreenStylesDoNotLeakIntoDiagnosticOverlays)
@@ -574,5 +730,405 @@ TEST(BigPicturePromptTest, QualifiedButtonsUseTheirOwnBackendAndCompoundsAreNotG
   EXPECT_NE(GetBindingGlyph("`Button 4` | `Button 5`", "DualSense Wireless Controller", "DInput")
                 .find("Button 5"),
             std::string::npos);
+}
+TEST_F(BigPictureNavigationUITest, LibraryGridMatchesReferenceGeometryAndNavigatesFourColumns)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "back", 4};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"grid-view", "Grid", {}, true, {}, true, MenuIcon::Grid},
+                  {"list-view", "List", {}, true, {}, false, MenuIcon::List}};
+  for (int i = 0; i < 24; ++i)
+    page.items.push_back({"game:" + std::to_string(i), "Game title"});
+  Settle(page);
+  const auto* root = ImGui::FindWindowByName("###BigPictureLibrary");
+  ASSERT_NE(root, nullptr);
+  EXPECT_FLOAT_EQ(root->Pos.x, 0);
+  EXPECT_FLOAT_EQ(root->Pos.y, 0);
+  EXPECT_FLOAT_EQ(root->Size.x, 1280);
+  EXPECT_FLOAT_EQ(root->Size.y, 720);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                        GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_NEAR(rect.Min.x, 128, 1);
+  EXPECT_NEAR(rect.Min.y, 44, 1);
+  EXPECT_NEAR(rect.GetWidth(), 236, 1);
+  EXPECT_NEAR(rect.GetHeight(), 316, 1);
+  Press(page, ImGuiKey_RightArrow);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:1");
+  Press(page, ImGuiKey_GamepadDpadDown);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:5");
+  rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                   GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "game:5");
+  EXPECT_EQ(Press(page, ImGuiKey_F1).activated, "view-toggle");
+  EXPECT_EQ(Press(page, ImGuiKey_F2).activated, "settings");
+  EXPECT_EQ(Press(page, ImGuiKey_F3).activated, "options");
+  EXPECT_EQ(Press(page, ImGuiKey_F4).activated, "search");
+  EXPECT_EQ(Press(page, ImGuiKey_F5).activated, "refresh");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadL1).activated, "view-toggle");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadR1).activated, "options");
+}
+
+TEST_F(BigPictureNavigationUITest, LibraryViewChangesAndChildScreensRetainAndRevealTheSelectedGame)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "game:18", 4};
+  page.presentation = MenuPresentation::Library;
+  for (int i = 0; i < 80; ++i)
+    page.items.push_back({"game:" + std::to_string(i), "Game title", "GameCube"});
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:18");
+  EXPECT_GT(toolkit.GetMemory("library").scroll, 0);
+  page.columns = 1;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  MenuPage child{"settings", "Settings", {}, {{"back", "Back"}}};
+  Settle(child);
+  page.columns = 4;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  std::rotate(page.items.begin(), page.items.begin() + 20, page.items.end());
+  ++page.focus_revision;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "game:18");
+  for (int i = 0; i < 5; ++i)
+    Frame(page, {false, 1.5f, 0.15f});
+  auto* window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, window->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, window->InnerRect.Max.y + 2);
+  EXPECT_EQ(toolkit.GetMemory("library").item, "game:18");
+}
+
+TEST_F(BigPictureNavigationUITest, LibraryArtworkKeepsItsAspectAndOnlyLoadsVisibleCovers)
+{
+  MenuPage page{"library", "Game Grid", {}, {}, "0", 4};
+  page.presentation = MenuPresentation::Library;
+  for (int i = 0; i < 1000; ++i)
+  {
+    MenuItem item{std::to_string(i),
+                  "An intentionally long Japanese title 日本語の長いゲームタイトル",
+                  {},
+                  true,
+                  "cover"};
+    item.image_aspect = 1.5f;
+    page.items.push_back(item);
+  }
+  int requests = 0;
+  for (int i = 0; i < 5; ++i)
+  {
+    requests = 0;
+    ImGui::NewFrame();
+    toolkit.Draw(page, {}, "Select / Back", nullptr, [&](const std::string&) {
+      ++requests;
+      return ImTextureID{123};
+    });
+    ImGui::Render();
+  }
+  EXPECT_LT(requests, 20);
+  const auto* data = ImGui::GetDrawData();
+  bool found = false;
+  for (const auto* list : data->CmdLists)
+    for (const auto& command : list->CmdBuffer)
+      if (!command.TexRef._TexData && command.TexRef._TexID == ImTextureID{123} &&
+          command.ElemCount >= 6)
+      {
+        const auto first =
+            list->VtxBuffer[command.VtxOffset + list->IdxBuffer[command.IdxOffset]].pos;
+        ImRect box(first, first);
+        for (unsigned i = 0; i < 6; ++i)
+          box.Add(list->VtxBuffer[command.VtxOffset + list->IdxBuffer[command.IdxOffset + i]].pos);
+        EXPECT_NEAR(box.GetWidth() / box.GetHeight(), 1.5f, 0.01f);
+        EXPECT_LE(box.GetWidth(), 206.1f);
+        EXPECT_LE(box.GetHeight(), 272.1f);
+        found = true;
+      }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(BigPictureNavigationUITest, EmptyLibraryKeepsFolderSetupAccessible)
+{
+  MenuPage page{"library", "Game Grid", "Add a game folder to build your library.", {}, "back", 4};
+  page.presentation = MenuPresentation::Library;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
+  page.context = {"add-folder", "Add Game Folder"};
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_F3).activated, "options");
+  Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "add-folder");
+}
+
+TEST_F(BigPictureNavigationUITest, LaunchTilesNavigateAndBackLivesInTheHeader)
+{
+  MenuPage page{"start-game",
+                "Start Game",
+                {},
+                {{"file", "Start File"}, {"ipl", "GameCube IPL"}, {"wii", "Wii System Menu"}},
+                "file"};
+  page.presentation = MenuPresentation::Launch;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "file");
+  Press(page, ImGuiKey_GamepadDpadRight);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "ipl");
+  Press(page, ImGuiKey_UpArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "back");
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_LE(rect.Max.y, 44);
+  EXPECT_LE(rect.Max.x, 54);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "back");
+  EXPECT_TRUE(Press(page, ImGuiKey_Escape).back);
+}
+
+TEST_F(BigPictureNavigationUITest, PickerIsolatesFocusRestoresSelectionAndHandlesParentShortcut)
+{
+  auto launch = std::make_shared<MenuPage>(MenuPage{
+      "start-game", "Start Game", {}, {{"file", "Start File"}, {"ipl", "GameCube IPL"}}, "file"});
+  launch->presentation = MenuPresentation::Launch;
+  launch->toolbar = {{"back", "Back"}};
+  Settle(*launch);
+  MenuPage picker{"file-picker",
+                  "Select Game File",
+                  {},
+                  {{"parent", "Parent Folder"}, {"folder", "Games"}, {"game", "Game.rvz"}},
+                  "folder"};
+  picker.presentation = MenuPresentation::FilePicker;
+  picker.focus_revision = 1;
+  picker.background = launch;
+  picker.toolbar = {{"path", "Enter Path"}, {"roots", "Locations"}};
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadDpadDown).focused, "game");
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadFaceDown).activated, "game");
+  EXPECT_EQ(toolkit.GetMemory("start-game").item, "file");
+  EXPECT_EQ(Press(picker, ImGuiKey_Backspace).activated, "parent");
+  EXPECT_EQ(Press(picker, ImGuiKey_GamepadL1).activated, "parent");
+  MenuPage keyboard{"keyboard", "Enter Path", {}, {{"done", "Done"}}, "done"};
+  Settle(keyboard);
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "game");
+  ++picker.focus_revision;
+  picker.items = {{"new", "New folder"}};
+  picker.default_focus = "new";
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "new");
+  EXPECT_EQ(Press(picker, ImGuiKey_Backspace).activated, "roots");
+  EXPECT_TRUE(Press(picker, ImGuiKey_Escape).back);
+  Settle(*launch);
+  EXPECT_EQ(Press(*launch, ImGuiKey_Enter).activated, "file");
+}
+
+TEST_F(BigPictureNavigationUITest, LaunchFitsAllConsoleRegionsAndScaling)
+{
+  MenuPage page{"start-game", "Start Game"};
+  page.presentation = MenuPresentation::Launch;
+  page.toolbar = {{"back", "Back"}};
+  for (int i = 0; i < 7; ++i)
+    page.items.push_back({std::to_string(i), "Installed console menu"});
+  for (const auto size : {ImVec2(1280, 720), ImVec2(1634, 977), ImVec2(3440, 1440)})
+  {
+    ImGui::GetIO().DisplaySize = size;
+    for (int frame = 0; frame < 4; ++frame)
+      Frame(page, {false, 1.5f, 0.15f});
+    ASSERT_NE(GImGui->NavWindow, nullptr);
+    const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                                GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+    EXPECT_GE(rect.Min.x, 0);
+    EXPECT_GE(rect.Min.y, 0);
+    EXPECT_LE(rect.Max.x, size.x);
+    EXPECT_LE(rect.Max.y, size.y);
+  }
+}
+
+TEST(BigPicturePromptTest, LaunchAndPickerHintsUseBoundButtonsAndOnlySupportedShortcuts)
+{
+  ::BigPicture::NavigationStatus status;
+  status.device = "DualSense Wireless Controller";
+  status.device_source = "DInput";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Confirm)] = "`Button 2`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Back)] = "`Button 1`";
+  status.bindings[static_cast<std::size_t>(::BigPicture::NavButton::Previous)] = "`Button 4`";
+  ::BigPicture::NavigationText text;
+  text.navigate = "Navigate";
+  text.select = "Select";
+  text.back = "Back";
+  text.library_cancel = "Cancel";
+  text.library_parent = "Parent Folder";
+  const auto picker = GetLaunchControllerPrompts(status, text, true);
+  EXPECT_NE(picker.find("\xe2\x86\xb0 Parent Folder"), std::string::npos);
+  EXPECT_NE(picker.find("\xe2\x87\xa2 Select"), std::string::npos);
+  EXPECT_NE(picker.find("\xe2\x87\xa3 Cancel"), std::string::npos);
+  EXPECT_EQ(picker.find("Button"), std::string::npos);
+  const auto launch = GetLaunchControllerPrompts(status, text, false);
+  EXPECT_EQ(launch.find("Parent Folder"), std::string::npos);
+  EXPECT_NE(launch.find("\xe2\x87\xa3 Back"), std::string::npos);
+  status.options.swap_confirm_back = true;
+  EXPECT_NE(GetLaunchControllerPrompts(status, text, false).find("\xe2\x87\xa3 Select"),
+            std::string::npos);
+}
+
+TEST_F(BigPictureNavigationUITest, PickerRestoresAndRevealsSelectionInLongListings)
+{
+  MenuPage picker{"file-picker", "Select Game File", {}, {}, "0"};
+  picker.presentation = MenuPresentation::FilePicker;
+  picker.focus_revision = 17;
+  for (int i = 0; i < 80; ++i)
+    picker.items.push_back({std::to_string(i), "A long file name 日本語.rvz"});
+  Settle(picker);
+  for (int i = 0; i < 26; ++i)
+    Press(picker, ImGuiKey_DownArrow);
+  EXPECT_EQ(toolkit.GetMemory(picker.id).item, "26");
+  EXPECT_GT(toolkit.GetMemory(picker.id).scroll, 0);
+  MenuPage child{"keyboard", "Enter Path", {}, {{"done", "Done"}}};
+  Settle(child);
+  Settle(picker);
+  EXPECT_EQ(Press(picker, ImGuiKey_Enter).activated, "26");
+  for (int frame = 0; frame < 5; ++frame)
+    Frame(picker, {false, 1.5f, 0.15f});
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, GImGui->NavWindow->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+  EXPECT_EQ(toolkit.GetMemory(picker.id).item, "26");
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsSwitchesCategoriesAndKeepsRowOptionsAccessible)
+{
+  MenuPage page{"settings-interface",
+                "Interface Settings",
+                "Global settings",
+                {{"theme", "Theme", "Choose the appearance of Big Picture."},
+                 {"startup", "Start in Big Picture", "Open Big Picture when Dolphin starts."}},
+                "theme"};
+  page.presentation = MenuPresentation::Settings;
+  page.category_page = true;
+  page.context = {"setting-options", "Setting Options", {}, true, {}, false, MenuIcon::Settings};
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back},
+                  {"Interface", "Interface", {}, true, {}, true, MenuIcon::Display},
+                  {"Display", "Display", {}, true, {}, false, MenuIcon::Camera},
+                  {"Audio", "Audio", {}, true, {}, false, MenuIcon::Audio},
+                  {"global", "Global", {}, true, {}, true, MenuIcon::Globe}};
+  page.items[0].value = "Dark";
+  page.items[0].section = "Appearance";
+  page.items[0].has_options = true;
+  page.items[1].toggle = false;
+  page.items[1].section = "Startup";
+  page.items[1].has_options = true;
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "theme");
+  Press(page, ImGuiKey_GamepadDpadDown);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "startup");
+  auto busy = page;
+  busy.busy = true;
+  busy.context.enabled = false;
+  for (auto& item : busy.items)
+    item.enabled = false;
+  for (auto& item : busy.toolbar)
+    item.enabled = false;
+  Settle(busy);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "startup");
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadFaceDown).activated, "startup");
+  EXPECT_EQ(Press(page, ImGuiKey_F2).activated, "edit:startup");
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
+  Frame(page);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);
+  EXPECT_EQ(Frame(page).activated, "edit:startup");
+  io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);
+  Frame(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "startup");
+  io.AddMousePosEvent(-100, -100);
+  EXPECT_EQ(Press(page, ImGuiKey_RightArrow).activated, "Display");
+  EXPECT_EQ(Press(page, ImGuiKey_LeftArrow).activated, "Audio");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadR1).activated, "Display");
+  EXPECT_EQ(Press(page, ImGuiKey_GamepadDpadRight).activated, "edit:startup");
+  MenuPage child = page;
+  child.id = "startup-options";
+  child.items = {{"reset", "Reset to default"}, {"inherit", "Use inherited value"}};
+  child.default_focus = "reset";
+  Settle(child);
+  EXPECT_TRUE(Press(child, ImGuiKey_Escape).back);
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_F2).activated, "edit:startup");
+  Press(page, ImGuiKey_GamepadDpadUp);
+  Press(page, ImGuiKey_GamepadDpadUp);
+  for (int i = 0; i < 8; ++i)
+    Press(page, ImGuiKey_GamepadDpadRight);
+  EXPECT_NE(toolkit.GetMemory(page.id).item, "setting-options");
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "global");
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsContentKeepsSpaceBelowHeaderAndAboveFooter)
+{
+  MenuPage page{"settings-spacing", "Graphics Backend", "An explanation.", {{"one", "One"}}};
+  page.presentation = MenuPresentation::Settings;
+  Settle(page);
+  auto* window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  float text_top = 720;
+  const auto text_color = ImGui::GetColorU32(Style::GetPalette(page.theme).text);
+  for (const auto& vertex : window->DrawList->VtxBuffer)
+    if (vertex.col == text_color)
+      text_top = std::min(text_top, vertex.pos.y);
+  EXPECT_GE(text_top, 44 + 16);
+
+  page.id = "settings-long-spacing";
+  page.category_page = true;
+  page.description.clear();
+  page.items.clear();
+  for (int i = 0; i < 40; ++i)
+    page.items.push_back({std::to_string(i), "Setting", "Description"});
+  toolkit.RestoreMemory(page.id, {"39", 100000, 0, "39"});
+  Settle(page);
+  window = GImGui->NavWindow;
+  ASSERT_NE(window, nullptr);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "39");
+  const auto last = ImGui::WindowRectRelToAbs(window, window->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_LE(last.Max.y, 720 - 34 - 16);
+  EXPECT_LE(last.Max.y, window->InnerRect.Max.y - window->WindowPadding.y + 2);
+  EXPECT_LE(window->InnerRect.Max.y, 720 - 34 - 16);
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsRetainAndRevealRowsAcrossNestedPagesAndScaling)
+{
+  MenuPage page{"settings-display", "Display Settings", "Game settings: Example", {}, "0"};
+  page.presentation = MenuPresentation::Settings;
+  page.category_page = true;
+  page.toolbar = {{"back", "Back", {}, true, {}, false, MenuIcon::Back}};
+  for (int i = 0; i < 40; ++i)
+  {
+    MenuItem item{std::to_string(i), "Long setting label 日本語",
+                  "An explanation which must wrap at large scales and remain visible."};
+    item.value = i % 2 ? "A long inherited choice value" : "Off";
+    item.section = i < 20 ? "Presentation" : "Enhancements";
+    page.items.push_back(item);
+  }
+  Settle(page);
+  for (int i = 0; i < 24; ++i)
+    Press(page, ImGuiKey_DownArrow);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "24");
+  EXPECT_GT(toolkit.GetMemory(page.id).scroll, 0);
+  MenuPage child{"choice", "Choose Value", {}, {{"one", "One"}}};
+  Settle(child);
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "24");
+  for (int frame = 0; frame < 6; ++frame)
+    Frame(page, {false, 1.5f, 0.15f});
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_GE(rect.Min.y, GImGui->NavWindow->InnerRect.Min.y - 2);
+  EXPECT_LE(rect.Max.y, GImGui->NavWindow->InnerRect.Max.y + 2);
+  EXPECT_EQ(toolkit.GetMemory(page.id).item, "24");
+  page.items.erase(page.items.begin() + 24);
+  Settle(page);
+  EXPECT_EQ(Press(page, ImGuiKey_Enter).activated, "0");
 }
 }  // namespace

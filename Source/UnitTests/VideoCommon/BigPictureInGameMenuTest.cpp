@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <set>
 
 #include <gtest/gtest.h>
 #include <imgui.h>
@@ -54,7 +55,14 @@ TEST_F(BigPictureInGameMenuTest, RootRoutesExplicitResumeAndImplicitCloseSeparat
   EXPECT_EQ(menu.Activate({"load"})->action, Action::LoadStates);
   EXPECT_EQ(menu.Activate({"screenshot"})->action, Action::Screenshot);
   EXPECT_FALSE(menu.Activate({"disc"}));
-  EXPECT_EQ(menu.page.items[4].detail, "Not a disc game");
+  const auto disc =
+      std::ranges::find(menu.page.items, "disc", [](const auto& item) { return item.id; });
+  ASSERT_NE(disc, menu.page.items.end());
+  EXPECT_EQ(disc->detail, "Not a disc game");
+  ASSERT_TRUE(menu.Activate({"preferences"}));
+  EXPECT_EQ(menu.Activate({"preferences"})->slot, 1);
+  ASSERT_TRUE(menu.Activate({"global-preferences"}));
+  EXPECT_EQ(menu.Activate({"global-preferences"})->slot, 0);
 }
 
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackRequests)
@@ -94,6 +102,68 @@ TEST_F(BigPictureInGameMenuTest, SharedSettingsRootClosesWhileInterfaceRetainsMe
   EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
   ASSERT_TRUE(menu.Activate({"swap"})->options);
   EXPECT_TRUE(menu.Activate({"swap"})->options->swap_confirm_back);
+}
+
+TEST_F(BigPictureInGameMenuTest, SettingsRowsCarrySwitchStateAndRetainTheirOptionsEditor)
+{
+  snapshot.screens = {Screen::Settings};
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-interface";
+  view->category_page = true;
+  SettingsRow row{"setting", "Toggle"};
+  row.navigation = SettingsRequest{31, SettingsOperation::Edit, "display.vsync"};
+  row.edit =
+      Common::Settings::Request{45, "display.vsync", Common::Settings::Operation::SetDisplay, true};
+  row.toggle = false;
+  row.value = "Off";
+  row.section = "Presentation";
+  row.help = "Synchronize presentation with the display.";
+  view->rows.push_back(row);
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Settings);
+  EXPECT_EQ(menu.page.items.front().toggle, false);
+  EXPECT_EQ(menu.page.items.front().value, "Off");
+  EXPECT_EQ(menu.page.items.front().detail, row.help);
+  EXPECT_EQ(menu.page.items.front().section, "Presentation");
+  EXPECT_EQ(menu.Activate({"setting"})->action, Action::EditSetting);
+  EXPECT_FALSE(menu.Activate({"setting"})->settings_menu);
+  EXPECT_EQ(menu.Activate({"setting"})->setting->value, Common::Settings::Value(true));
+  ASSERT_TRUE(menu.Activate({"edit:setting"})->settings_menu);
+  EXPECT_EQ(menu.Activate({"edit:setting"})->settings_menu->operation, SettingsOperation::Edit);
+  EXPECT_EQ(menu.page.toolbar.front().id, "back");
+  EXPECT_EQ(menu.Activate({"back"})->action, Action::Back);
+  snapshot.pending = Command{snapshot.generation, 1, Action::EditSetting};
+  EXPECT_TRUE(Build().requests.empty());
+}
+
+TEST_F(BigPictureInGameMenuTest, EverySettingsCategoryHasADistinctGlyphAndNoExtraHeaderControl)
+{
+  snapshot.screens = {Screen::Settings};
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  for (const auto* id :
+       {"Interface", "General", "Display", "Enhancements", "GraphicsHacks", "GraphicsAdvanced",
+        "PostProcessing", "OSD", "Audio", "GameCube", "Wii", "Paths", "MemoryCards", "Achievements",
+        "Advanced", "Triforce", "controllers"})
+  {
+    SettingsRow row{id, id};
+    row.navigation = SettingsRequest{1, SettingsOperation::Category, id};
+    view->toolbar.push_back(row);
+  }
+  snapshot.host.settings_menu = view;
+  const auto menu = Build();
+  EXPECT_TRUE(menu.page.context.id.empty());
+  ASSERT_EQ(menu.page.toolbar.size(), view->toolbar.size() + 1);
+  EXPECT_EQ(menu.page.toolbar.back().id, "controllers");
+  std::set<ImWchar> glyphs;
+  for (const auto& item : menu.page.toolbar)
+  {
+    if (item.id == "back")
+      continue;
+    const auto glyph = VideoCommon::BigPicture::GetMenuIconCodepoint(item.icon);
+    EXPECT_NE(glyph, 0) << item.id;
+    EXPECT_TRUE(glyphs.insert(glyph).second) << item.id;
+  }
 }
 
 TEST_F(BigPictureInGameMenuTest, TenSlotsCarryOneBasedNumbersAndDisableEmptyUnreadableLoads)
@@ -231,7 +301,9 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_EQ(menu.page.default_focus, "game:two.iso");
   EXPECT_EQ(menu.Activate({"game:two.iso"})->path, "two.iso");
   EXPECT_EQ(menu.Activate({"add-folder"})->library_operation, LibraryOperation::AddFolder);
-  EXPECT_EQ(menu.page.toolbar.size(), 6u);
+  EXPECT_EQ(menu.page.toolbar.size(), 3u);
+  EXPECT_EQ(menu.Activate({"list-view"})->path, "list");
+  EXPECT_FALSE(menu.Activate({"grid-view"}));
   ASSERT_TRUE(menu.Activate({"view-toggle"}));
   EXPECT_EQ(menu.Activate({"view-toggle"})->library_operation, LibraryOperation::View);
   ASSERT_TRUE(menu.Activate({"settings"}));
@@ -239,12 +311,11 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   library->selected_path.clear();
   library->games.pop_back();
   menu = Build();
-  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_EQ(menu.page.default_focus, "back");
   EXPECT_FALSE(menu.Activate({"game:two.iso"}));
   snapshot.screens.push_back(Screen::LibraryOptions);
   menu = Build();
-  EXPECT_TRUE(std::ranges::none_of(
-      menu.requests, [](const auto& entry) { return entry.second.action == Action::Settings; }));
+  EXPECT_TRUE(menu.Activate({"settings"}));
 }
 
 TEST_F(BigPictureInGameMenuTest, PickerUsesRevisionAndDistinguishesFolderNavigationFromDiscChanges)
@@ -291,7 +362,7 @@ TEST_F(BigPictureInGameMenuTest, LibraryPolicyDisablesCardsWithoutCreatingFallba
   ASSERT_EQ(menu.page.items.size(), 1u);
   EXPECT_FALSE(menu.page.items.front().enabled);
   EXPECT_EQ(menu.page.items.front().detail, "NetPlay");
-  EXPECT_EQ(menu.page.default_focus, "refresh");
+  EXPECT_EQ(menu.page.default_focus, "back");
   EXPECT_FALSE(menu.Activate({"game:game.iso"}));
 }
 
@@ -354,5 +425,41 @@ TEST_F(BigPictureInGameMenuTest, StartGameOffersOnlyInstalledConsoleMenusAndCont
   EXPECT_EQ(menu.Activate({"ipl-5"})->slot, 5);
   EXPECT_FALSE(menu.Activate({"ipl-0"}));
   EXPECT_EQ(menu.Activate({"system-menu"})->action, Action::BootSystemMenu);
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::Launch);
+  EXPECT_EQ(menu.page.default_focus, "open-file");
+  EXPECT_FALSE(
+      std::ranges::any_of(menu.page.items, [](const auto& item) { return item.id == "back"; }));
+  ASSERT_EQ(menu.page.toolbar.size(), 1u);
+  EXPECT_EQ(menu.page.toolbar.front().id, "back");
+  EXPECT_EQ(menu.page.items.front().image_key, "home:start-file");
+  EXPECT_EQ(menu.Activate({"back"})->action, Action::Back);
+}
+
+TEST_F(BigPictureInGameMenuTest, LaunchPickerRetainsParentTilesAndDirectoryRequests)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home, Screen::StartGame, Screen::FilePicker};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->directory = "C:/Games/日本語";
+  library->parent_directory = "C:/Games";
+  library->picker_revision = 42;
+  library->files = {{"game.rvz", "Game.rvz", false}};
+  snapshot.host.library = library;
+  auto menu = Build();
+  EXPECT_EQ(menu.page.presentation, VideoCommon::BigPicture::MenuPresentation::FilePicker);
+  ASSERT_NE(menu.page.background, nullptr);
+  EXPECT_EQ(menu.page.background->id, "start-game");
+  EXPECT_EQ(menu.page.context.label, library->directory);
+  EXPECT_EQ(menu.Activate({"parent"})->path, library->parent_directory);
+  EXPECT_EQ(menu.Activate({"parent"})->library_revision, 42u);
+  EXPECT_EQ(menu.Activate({"file:game.rvz"})->action, Action::Boot);
+  EXPECT_EQ(menu.Activate({"file:game.rvz"})->path, "game.rvz");
+  EXPECT_EQ(menu.Activate({"path"})->library_operation, LibraryOperation::EditPath);
+  snapshot.pending = Command{};
+  menu = Build();
+  EXPECT_TRUE(menu.requests.empty());
+  EXPECT_FALSE(menu.page.context.enabled);
+  EXPECT_TRUE(std::ranges::none_of(menu.page.items, &VideoCommon::BigPicture::MenuItem::enabled));
 }
 }  // namespace

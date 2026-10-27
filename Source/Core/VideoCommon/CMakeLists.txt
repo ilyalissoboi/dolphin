@@ -48,8 +48,12 @@ add_library(videocommon
   BigPicture/InGameMenu.cpp
   BigPicture/InGameMenu.h
   BigPicture/LibraryMenu.cpp
+  BigPicture/LibraryView.cpp
+  BigPicture/FilePickerView.cpp
   BigPicture/LibraryMenu.h
   BigPicture/SettingsMenu.cpp
+  BigPicture/SettingsView.cpp
+    BigPicture/DialogView.cpp
   BigPicture/SettingsMenu.h
   BigPicture/StandaloneSession.cpp
   BigPicture/StandaloneSession.h

@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -56,6 +57,13 @@ struct FrameInput
   NavigationStatus navigation;
 };
 
+struct SettingsFocus
+{
+  std::string item;
+  std::string selected;
+  float scroll = 0;
+};
+
 // No graphics resources or host callbacks live here. A suspended state rejects presentation
 // leases before draining the one possible in-flight present. Callbacks never run under its lock.
 class PresentationState
@@ -78,6 +86,8 @@ public:
   void SetNavigationStatus(NavigationStatus status);
   void SetNavigationText(NavigationText text);
   NavigationText GetNavigationText() const;
+  std::optional<SettingsFocus> GetSettingsFocus(const std::string& page) const;
+  void SetSettingsFocus(std::string page, SettingsFocus focus);
   void SetMenuFontPaths(std::vector<std::string> paths);
   std::vector<std::string> GetMenuFontPaths() const;
   void RequestNavigation(NavigationRequest request,
@@ -111,6 +121,7 @@ private:
   std::vector<int> m_key_map;
   NavigationStatus m_navigation;
   NavigationText m_navigation_text;
+  std::map<std::string, SettingsFocus> m_settings_focus;
   std::vector<std::string> m_menu_font_paths;
   std::deque<NavigationRequest> m_navigation_requests;
   bool m_reset = true;

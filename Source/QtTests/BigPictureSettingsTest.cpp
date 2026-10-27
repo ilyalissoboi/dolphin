@@ -95,8 +95,16 @@ protected:
     ADD_FAILURE() << "Missing settings row " << id;
     return {};
   }
+  bool HasRow(const std::string& id)
+  {
+    const auto view = menu->ReadMenu();
+    return std::ranges::any_of(view->rows, [&](const auto& row) { return row.id == id; }) ||
+           std::ranges::any_of(view->toolbar, [&](const auto& row) { return row.id == id; });
+  }
   Status Activate(const std::string& id)
   {
+    if (id == "game" || id == "global")
+      return menu->Open(id == "game") ? Status::Success : Status::Unavailable;
     const auto row = Row(id);
     if (row.navigation)
       return menu->Execute(*row.navigation);
@@ -132,13 +140,13 @@ TEST_F(BigPictureSettingsTest, ColdPagesAndQueuedValueEditsDoNotConstructDesktop
 {
   const auto widgets = QApplication::allWidgets().size();
   const auto retained = menu->ReadMenu();
-  EXPECT_TRUE(Row("game").enabled);
+  EXPECT_FALSE(HasRow("game"));
+  EXPECT_FALSE(HasRow("global"));
   ASSERT_EQ(Activate("Audio"), Status::Success);
   ASSERT_EQ(Activate("audio.volume"), Status::Success);
   ASSERT_EQ(Activate("volume-37"), Status::Success);
   EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 37);
   EXPECT_NE(retained->id, menu->ReadMenu()->id);
-  Back();
   Back();
   ASSERT_EQ(Activate("Interface"), Status::Success);
   EXPECT_TRUE(menu->ReadMenu()->preferences);
@@ -164,19 +172,150 @@ TEST_F(BigPictureSettingsTest, ThemeMenuAppliesTypedChoicesWithoutLeavingThePage
   EXPECT_EQ(Config::GetBase(Config::MAIN_BIG_PICTURE_THEME), "Dark");
 }
 
+TEST_F(BigPictureSettingsTest, NativeNumberEditorUsesDisplayUnitsAndValidatesTypedInput)
+{
+  ASSERT_EQ(Activate("General"), Status::Success);
+  ASSERT_EQ(Activate("general.speed"), Status::Success);
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_NEAR(Config::GetBase(Config::MAIN_EMULATION_SPEED), 1.1f, 0.00001f);
+  ASSERT_EQ(Activate("enter-value"), Status::Success);
+  EXPECT_TRUE(menu->ReadMenu()->text_input);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  const auto revision = menu->ReadMenu()->revision;
+  ASSERT_EQ(menu->Execute({revision, O::TextKey, "125"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  // The step is 10%, so a typed 125% must leave the editor open without changing storage.
+  EXPECT_TRUE(menu->ReadMenu()->text_input);
+  EXPECT_NEAR(Config::GetBase(Config::MAIN_EMULATION_SPEED), 1.1f, 0.00001f);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  ASSERT_EQ(menu->Execute({menu->ReadMenu()->revision, O::TextKey, "150"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_FALSE(menu->ReadMenu()->text_input);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::MAIN_EMULATION_SPEED), 1.5f);
+  EXPECT_EQ(Row("adjust-10").edit->display_value, 200);
+}
+
+TEST_F(BigPictureSettingsTest, ConvergenceEditorAcceptsFloatStepsAndTypedValuesAtTheUpperBound)
+{
+  environment.stereo = true;
+  menu->SetEnvironment(environment);
+  Config::SetBase(Config::GFX_STEREO_CONVERGENCE, 100.0f);
+  ASSERT_EQ(Activate("Enhancements"), Status::Success);
+  ASSERT_EQ(Activate("native.gfx_stereo_convergence"), Status::Success);
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 100.01f);
+  ASSERT_EQ(Activate("enter-value"), Status::Success);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  ASSERT_EQ(menu->Execute({menu->ReadMenu()->revision, O::TextKey, "199.99"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_FALSE(menu->ReadMenu()->text_input);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 199.99f);
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 200.0f);
+  EXPECT_FALSE(Row("adjust-1").enabled);
+}
+
+TEST_F(BigPictureSettingsTest, TextEditorKeepsDraftsUntilDoneAndHandlesUnicodeAndQueuedCharacters)
+{
+  ASSERT_EQ(Activate("Paths"), Status::Success);
+  ASSERT_EQ(Activate("native.main_default_iso"), Status::Success);
+  ASSERT_EQ(Activate("enter-value"), Status::Success);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  const auto revision = menu->ReadMenu()->revision;
+  ASSERT_EQ(menu->Execute({revision, O::TextKey, "C:/日本語/"}), Status::Success);
+  ASSERT_EQ(menu->Execute({revision, O::TextKey, "🐬"}), Status::Success);
+  ASSERT_EQ(Activate("text-erase"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->draft, "C:/日本語/");
+  EXPECT_TRUE(Config::GetBase(Config::MAIN_DEFAULT_ISO).empty());
+  ASSERT_EQ(Activate("text-key-0"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->draft, "C:/日本語/a");
+  ASSERT_EQ(menu->Execute({revision, O::TextKey, std::string(4096, 'x')}), Status::InvalidValue);
+  ASSERT_EQ(menu->Execute({revision, O::TextKey, std::string(1, '\xff')}), Status::Unavailable);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_DEFAULT_ISO), "C:/日本語/a");
+  ASSERT_EQ(Activate("enter-value"), Status::Success);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  Back();
+  EXPECT_EQ(Config::GetBase(Config::MAIN_DEFAULT_ISO), "C:/日本語/a");
+}
+
+TEST_F(BigPictureSettingsTest, GlobalMenuRejectsForgedScopeChangesAndGameMenuOmitsGlobalOptions)
+{
+  EXPECT_EQ(menu->Execute({menu->ReadMenu()->revision, O::Game}), Status::Unavailable);
+  ASSERT_TRUE(menu->Open(true));
+  for (const auto& row : menu->ReadMenu()->rows)
+  {
+    if (row.edit)
+      EXPECT_TRUE(UICommon::Settings::GetCatalog().Find(row.edit->id)->descriptor.per_game);
+  }
+  EXPECT_FALSE(HasRow("Interface"));
+  EXPECT_FALSE(HasRow("Paths"));
+  EXPECT_FALSE(HasRow("Audio"));
+  EXPECT_EQ(menu->Execute({menu->ReadMenu()->revision, O::Global}), Status::Unavailable);
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  ASSERT_EQ(Activate("pad0"), Status::Success);
+  EXPECT_FALSE(HasRow("devices"));
+}
+
+TEST_F(BigPictureSettingsTest, SettingsOpenOnInterfaceAndPublishIndependentValuesAndHelp)
+{
+  const auto view = menu->ReadMenu();
+  EXPECT_EQ(view->title, "Interface Settings");
+  EXPECT_TRUE(view->category_page);
+  EXPECT_FALSE(view->back);
+  EXPECT_TRUE(Row("Interface").active);
+  ASSERT_FALSE(view->rows.empty());
+  EXPECT_EQ(view->rows.front().id, "interface.big_picture_theme");
+  EXPECT_EQ(Row("interface.big_picture_theme").section, "Appearance");
+  EXPECT_EQ(Row("interface.big_picture_theme").value, "Dark");
+  EXPECT_FALSE(Row("interface.big_picture_theme").help.empty());
+  auto startup = Row("interface.start_big_picture");
+  ASSERT_EQ(startup.toggle, false);
+  ASSERT_TRUE(startup.edit);
+  EXPECT_EQ(startup.edit->operation, Operation::SetDisplay);
+  EXPECT_EQ(menu->Apply(*startup.edit).status, Status::Success);
+  EXPECT_TRUE(Config::GetBase(Config::MAIN_START_BIG_PICTURE));
+  EXPECT_EQ(Row("interface.start_big_picture").toggle, true);
+  EXPECT_EQ(menu->Apply(*startup.edit).status, Status::Stale);
+  // The row also retains a route to its defaults/inheritance editor.
+  ASSERT_TRUE(startup.navigation);
+  EXPECT_EQ(startup.navigation->operation, O::Edit);
+}
+
+TEST_F(BigPictureSettingsTest, DirectPerGameTogglesPreserveDefaultsAndCanStillClearOverrides)
+{
+  Config::SetBase(Config::GFX_VSYNC, true);
+  ASSERT_EQ(Activate("game"), Status::Success);
+  ASSERT_EQ(Activate("Display"), Status::Success);
+  auto vsync = Row("display.vsync");
+  EXPECT_EQ(vsync.toggle, true);
+  EXPECT_NE(vsync.help.find("Inherited"), std::string::npos);
+  ASSERT_TRUE(vsync.edit);
+  EXPECT_EQ(menu->Apply(*vsync.edit).status, Status::Success);
+  EXPECT_TRUE(Config::GetBase(Config::GFX_VSYNC));
+  EXPECT_EQ(Row("display.vsync").toggle, false);
+  EXPECT_NE(Row("display.vsync").help.find("Override"), std::string::npos);
+  ASSERT_EQ(Activate("display.vsync"), Status::Success);
+  ASSERT_EQ(Activate("inherit"), Status::Success);
+  Back();
+  EXPECT_EQ(Row("display.vsync").toggle, true);
+  EXPECT_FALSE(HasRow("Interface"));
+  EXPECT_FALSE(HasRow("interface.start_big_picture"));
+}
+
 TEST_F(BigPictureSettingsTest, CategoryNavigationRemainsAvailableAndHighlightsCurrentContext)
 {
   ASSERT_EQ(Activate("Audio"), Status::Success);
-  EXPECT_TRUE(Row("global").active);
-  EXPECT_FALSE(Row("game").active);
+  EXPECT_FALSE(HasRow("global"));
+  EXPECT_FALSE(HasRow("game"));
   EXPECT_TRUE(Row("Audio").active);
   ASSERT_EQ(Activate("Display"), Status::Success);
   EXPECT_TRUE(Row("Display").active);
   EXPECT_FALSE(Row("Audio").active);
   ASSERT_EQ(Activate("game"), Status::Success);
   ASSERT_EQ(Activate("PostProcessing"), Status::Success);
-  EXPECT_TRUE(Row("game").active);
-  EXPECT_FALSE(Row("global").active);
+  EXPECT_FALSE(HasRow("game"));
+  EXPECT_FALSE(HasRow("global"));
   EXPECT_TRUE(Row("PostProcessing").active);
   ASSERT_EQ(Activate("controllers"), Status::Success);
   EXPECT_TRUE(Row("controllers").active);
@@ -239,16 +378,13 @@ TEST_F(BigPictureSettingsTest, UnsupportedGameEditsAndStaleNavigationAreRejected
   const auto old = *Row("Audio").navigation;
   ASSERT_EQ(Activate("game"), Status::Success);
   EXPECT_EQ(menu->Execute(old), Status::Stale);
-  ASSERT_EQ(Activate("Audio"), Status::Success);
-  ASSERT_EQ(Activate("audio.volume"), Status::Success);
-  EXPECT_FALSE(Row("volume-45").enabled);
-  EXPECT_EQ(Activate("volume-45"), Status::UnsupportedContext);
-  Back();
-  Back();
-  const auto game_request = *Row("game").navigation;
+  EXPECT_FALSE(HasRow("Audio"));
+  Request audio{menu->ReadSnapshot()->revision, "audio.volume", Operation::Set, 45};
+  EXPECT_EQ(menu->Apply(audio).status, Status::UnsupportedContext);
+  const auto game_request = *Row("Display").navigation;
   menu->SetGame({});
   EXPECT_EQ(menu->Execute(game_request), Status::Stale);
-  EXPECT_FALSE(Row("game").enabled);
+  EXPECT_FALSE(HasRow("game"));
 }
 
 TEST_F(BigPictureSettingsTest, UnknownDynamicBackendRemainsStoredAndRuntimePoliciesBlockChanges)
@@ -290,7 +426,7 @@ TEST_F(BigPictureSettingsTest, GameProfilesSaveReferencesAndClearWithoutTouching
   ASSERT_EQ(Activate("game"), Status::Success);
   ASSERT_EQ(Activate("controllers"), Status::Success);
   ASSERT_EQ(Activate("pad0"), Status::Success);
-  EXPECT_FALSE(Row("devices").enabled);
+  EXPECT_FALSE(HasRow("devices"));
   ASSERT_EQ(Activate("profiles"), Status::Success);
   const auto rows = menu->ReadMenu()->rows;
   EXPECT_FALSE(std::ranges::any_of(rows, [&](const auto& row) {
@@ -437,9 +573,9 @@ TEST_F(BigPictureSettingsTest, MenuRequestsUseTheHostQueueAndRejectWrongScreensA
   const auto current = *Row("Audio").navigation;
   std::thread worker([&] { host.RequestSettingsMenu(host.GetSnapshot()->generation, current); });
   worker.join();
-  EXPECT_EQ(menu->ReadMenu()->title, "Settings");
+  EXPECT_EQ(menu->ReadMenu()->title, "Interface Settings");
   QCoreApplication::processEvents();
-  EXPECT_EQ(menu->ReadMenu()->title, "Audio");
+  EXPECT_EQ(menu->ReadMenu()->title, "Audio Settings");
   host.RequestSettingsMenu(0, current);
   QCoreApplication::processEvents();
   EXPECT_EQ(host.GetSnapshot()->result->status, BigPicture::ResultStatus::Stale);

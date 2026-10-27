@@ -62,6 +62,7 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
   case Action::EditSetting:
   case Action::SettingsMenu:
   case Action::Library:
+  case Action::Fullscreen:
     return transitioning ? UnavailableReason::Busy : UnavailableReason::None;
   case Action::OpenGame:
     if (state.netplay)
@@ -99,9 +100,9 @@ void Controller::Publish()
       m_state.availability[i] = UnavailableReason::InvalidArgument;
     if (m_state.pending ||
         (m_state.error && action != Action::Back && action != Action::Cancel &&
-         action != Action::ReturnToDesktop) ||
+         action != Action::ReturnToDesktop && action != Action::Fullscreen) ||
         (m_state.confirmation && action != Action::Confirm && action != Action::Cancel &&
-         action != Action::Back))
+         action != Action::Back && action != Action::Fullscreen))
       m_state.availability[i] = UnavailableReason::Busy;
   }
   m_snapshot = std::make_shared<const Snapshot>(m_state);
@@ -291,7 +292,7 @@ void Controller::Submit(const Command& command)
     return;
   }
   if (m_state.error && command.action != Action::Back && command.action != Action::Cancel &&
-      command.action != Action::ReturnToDesktop)
+      command.action != Action::ReturnToDesktop && command.action != Action::Fullscreen)
   {
     m_state.result = Result{command, ResultStatus::Unavailable, UnavailableReason::Busy};
     Publish();
@@ -301,6 +302,15 @@ void Controller::Submit(const Command& command)
   if (reason != UnavailableReason::None)
   {
     m_state.result = Result{command, ResultStatus::Unavailable, reason};
+    Publish();
+    return;
+  }
+  if (command.action == Action::Fullscreen)
+  {
+    // A presentation change must preserve modal approval, errors and the screen stack.
+    m_dispatching = true;
+    m_state.result = m_host.Execute(command);
+    m_dispatching = false;
     Publish();
     return;
   }
@@ -381,7 +391,7 @@ void Controller::Submit(const Command& command)
   }
 
   // A confirmation is modal and defaults to cancel: only Confirm can dispatch its stored
-  // action; all other operations remain blocked until Back/Cancel dismisses it.
+  // action; other emulator operations remain blocked until Back/Cancel dismisses it.
   if (m_state.confirmation)
   {
     auto confirmed = *m_state.confirmation;
@@ -473,6 +483,16 @@ void Controller::Submit(const Command& command)
     SetRoot();
     break;
   case Action::Settings:
+    if (command.slot < 0 || command.slot > 1 ||
+        (command.slot == 1 &&
+         (m_state.mode != Mode::InGame || (m_state.host.lifecycle != Lifecycle::Running &&
+                                           m_state.host.lifecycle != Lifecycle::Paused))))
+    {
+      m_state.result =
+          Result{command, ResultStatus::Unavailable, UnavailableReason::InvalidArgument};
+      Publish();
+      return;
+    }
     if (m_state.host.settings_menu && m_state.mode != Mode::Desktop)
     {
       Dispatch(command);

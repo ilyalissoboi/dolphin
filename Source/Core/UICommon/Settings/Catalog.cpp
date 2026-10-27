@@ -175,6 +175,7 @@ const Catalog& GetCatalog()
       std::ranges::find(entries, std::string_view(id), [](const Entry& e) {
         return e.descriptor.id;
       })->descriptor.help = text;
+    AppendApplicationSettings(entries);
     return entries;
   }());
   return catalog;

@@ -33,9 +33,28 @@ enum class MenuIcon
   Filter,
   Theme,
   Check,
+  FolderSolid,
+  Globe,
+  Image,
+  CPU,
+  Keyboard,
+  Warning,
+  Network,
+  Achievements,
+  Speed,
+  Memory,
+  Mouse,
+  Clock,
+  Window,
+  Cube,
+  Sliders,
+  Wrench,
+  Remote,
+  Puzzle,
 };
 
-// Small, independently drawn symbols; no icon-font dependency or external artwork.
+// The same Font Awesome / PromptFont families as PCSX2, with a primitive fallback.
+ImWchar GetMenuIconCodepoint(MenuIcon icon);
 void DrawMenuIcon(ImDrawList* draw, MenuIcon icon, ImVec2 position, float size, ImU32 color);
 MenuIcon GetActionIcon(::BigPicture::Action action);
 MenuIcon GetLibraryIcon(::BigPicture::LibraryOperation operation);

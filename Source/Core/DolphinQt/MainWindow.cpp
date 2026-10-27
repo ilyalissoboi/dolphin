@@ -45,6 +45,9 @@
 #endif
 
 #include "AudioCommon/AudioCommon.h"
+#ifdef _WIN32
+#include "AudioCommon/WASAPIStream.h"
+#endif
 #include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
 #include "Common/ScopeGuard.h"
@@ -78,6 +81,7 @@
 #include "Core/NetPlayClient.h"
 #include "Core/NetPlayProto.h"
 #include "Core/NetPlayServer.h"
+#include "Core/PowerPC/PowerPC.h"
 #include "Core/State.h"
 #include "Core/System.h"
 #include "Core/WiiUtils.h"
@@ -139,6 +143,7 @@
 #include "DolphinQt/Resources.h"
 #include "DolphinQt/RiivolutionBootWidget.h"
 #include "DolphinQt/Settings.h"
+#include "DolphinQt/Settings/InterfaceSettingsUtils.h"
 #include "DolphinQt/SkylanderPortal/SkylanderPortalWindow.h"
 #include "DolphinQt/TAS/GBATASInputWindow.h"
 #include "DolphinQt/TAS/GCTASInputWindow.h"
@@ -300,6 +305,26 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
     if (m_big_picture_host && !m_shutting_down)
       m_big_picture_host->Refresh();
   });
+  connect(m_big_picture_settings.get(), &BigPictureSettings::SettingApplied, this,
+          [this](const QString& setting_id) {
+            const auto id = setting_id.toStdString();
+            auto& settings = Settings::Instance();
+            if (id == "native.main_use_built_in_title_database" ||
+                id == "native.main_recursive_iso_paths")
+              emit settings.GameListRefreshRequested();
+            else if (id == "native.main_use_game_covers")
+              settings.RefreshMetadata();
+            else if (id == "native.main_keep_window_on_top")
+              emit settings.KeepWindowOnTopChanged(Config::Get(Config::MAIN_KEEP_WINDOW_ON_TOP));
+            else if (id == "native.main_show_cursor")
+              emit settings.CursorVisibilityChanged();
+            else if (id == "native.main_lock_cursor")
+              emit settings.LockCursorChanged();
+            else if (id == "native.main_disable_screensaver")
+              UpdateScreenSaverInhibition();
+            else if (id == "native.main_use_panic_handlers")
+              Common::SetEnableAlert(Config::Get(Config::MAIN_USE_PANIC_HANDLERS));
+          });
 
   m_big_picture_library = new BigPictureLibrary(
       this,
@@ -361,6 +386,26 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         environment.post_processing = m_settings_post_processing;
         environment.movie = m_system.GetMovie().IsMovieActive();
         environment.max_efb_scale = Config::Get(Config::GFX_MAX_EFB_SCALE);
+        environment.ssaa = g_backend_info.bSupportsSSAA;
+        environment.hdr = g_backend_info.bSupportsHDROutput;
+        environment.stereo = g_backend_info.bSupportsGeometryShaders;
+        environment.gpu_texture_decoding = g_backend_info.bSupportsGPUTextureDecoding;
+        environment.bounding_box = g_backend_info.bSupportsBBox;
+        for (std::size_t i = 0; i < g_backend_info.Adapters.size(); ++i)
+          environment.graphics_adapters.push_back(
+              {static_cast<int>(i), g_backend_info.Adapters[i]});
+        for (const auto samples : g_backend_info.AAModes)
+          environment.anti_aliasing.push_back(
+              {samples, samples == 1 ? tr("None").toStdString() : std::to_string(samples) + "x"});
+        if (environment.anti_aliasing.empty())
+          environment.anti_aliasing.push_back({u32{1}, tr("None").toStdString()});
+        for (const auto engine : PowerPC::AvailableCPUCores())
+          environment.cpu_engines.push_back(
+              {UICommon::Settings::ToValue(engine), engine == PowerPC::CPUCore::Interpreter ?
+                                                        tr("Interpreter").toStdString() :
+                                                    engine == PowerPC::CPUCore::CachedInterpreter ?
+                                                        tr("Cached Interpreter").toStdString() :
+                                                        tr("JIT Recompiler").toStdString()});
         for (const auto& backend : VideoBackendBase::GetAvailableBackends())
           if (backend->SupportsUI())
             environment.graphics_backends.push_back(
@@ -370,6 +415,19 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         static const auto audio_backends = AudioCommon::GetSoundBackends();
         for (const auto& backend : audio_backends)
           environment.audio_backends.push_back({backend, backend});
+        static const auto languages = InterfaceSettings::GetLanguageChoices();
+        for (const auto& [label, code] : languages)
+          environment.languages.push_back({code.toStdString(), label.toStdString()});
+#ifdef _WIN32
+        if (Config::GetBase(Config::MAIN_AUDIO_BACKEND) == BACKEND_WASAPI)
+        {
+          environment.wasapi_devices.push_back(
+              {Config::MAIN_WASAPI_DEVICE.GetDefaultValue(), tr("Default Device").toStdString()});
+          static const auto devices = WASAPIStream::GetAvailableDevices();
+          for (const auto& device : devices)
+            environment.wasapi_devices.push_back({device, device});
+        }
+#endif
         m_big_picture_settings->SetEnvironment(std::move(environment));
         BigPictureSettings::Game settings_game;
         if (state.lifecycle == BigPicture::Lifecycle::Running ||
@@ -377,16 +435,6 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         {
           const auto& config = SConfig::GetInstance();
           settings_game = {config.GetGameID(), config.GetRevision(), config.GetTitleName(), true};
-        }
-        else if (state.lifecycle == BigPicture::Lifecycle::Idle)
-        {
-          const auto library =
-              m_big_picture_library ? m_big_picture_library->GetSnapshot() : nullptr;
-          auto game = library ? m_game_list->FindGame(library->selected_path) : nullptr;
-          if (!game)
-            game = m_game_list->GetSelectedGame();
-          if (game)
-            settings_game = {game->GetGameID(), game->GetRevision(), game->GetLongName(), false};
         }
         m_big_picture_settings->SetGame(std::move(settings_game));
         state.settings = m_big_picture_settings->ReadSnapshot();
@@ -454,7 +502,8 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
         switch (command.action)
         {
         case Action::Settings:
-          m_big_picture_settings->Open();
+          if (!m_big_picture_settings->Open(command.slot == 1))
+            return {command, ResultStatus::Unavailable, BigPicture::UnavailableReason::NoGame};
           return {command, ResultStatus::Succeeded};
         case Action::SettingsMenu:
         {
@@ -464,10 +513,9 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           const auto status = m_big_picture_settings->Execute(*command.settings_menu);
           using Common::Settings::Status;
           if (status == Status::InvalidValue)
-            return {
-                command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
-                tr("The selected profile is missing or invalid. Refresh the page and try again.")
-                    .toStdString()};
+            return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                    tr("The selected value or profile is invalid. Refresh the page and try again.")
+                        .toStdString()};
           return {command,
                   status == Status::Success ? ResultStatus::Succeeded :
                   status == Status::Stale   ? ResultStatus::Stale :
@@ -642,8 +690,13 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
           break;
         case Action::Fullscreen:
           QTimer::singleShot(0, this, [this, generation = command.generation] {
-            if (m_standalone && m_standalone_ready && m_standalone_stop == StandaloneStop::None &&
-                m_big_picture_host->GetSnapshot()->generation == generation)
+            const auto lifecycle = m_big_picture_host->GetSnapshot()->host.lifecycle;
+            const bool active = lifecycle == BigPicture::Lifecycle::Running ||
+                                lifecycle == BigPicture::Lifecycle::Paused;
+            if (!m_shutting_down && m_big_picture_host->GetSnapshot()->generation == generation &&
+                ((m_standalone && m_standalone_ready &&
+                  m_standalone_stop == StandaloneStop::None) ||
+                 active))
               FullScreen();
           });
           return {command, ResultStatus::Succeeded};
@@ -1049,6 +1102,44 @@ void MainWindow::InitControllers()
                                     "   \xe2\x90\xba " + tr("Game List").toStdString() +
                                     "   \xe2\x90\xae " + tr("Select").toStdString() +
                                     "   \xe2\x90\xaf " + tr("Exit").toStdString();
+  menu_text.game_grid = tr("Game Grid").toStdString();
+  menu_text.game_list = tr("Game List").toStdString();
+  menu_text.library_change_view = tr("Change View").toStdString();
+  menu_text.library_select_game = tr("Select Game").toStdString();
+  menu_text.start_file = tr("Start File").toStdString();
+  menu_text.start_file_description =
+      tr("Launch a game by selecting a file or disc image.").toStdString();
+  menu_text.start_ipl_description = tr("Start the GameCube without a disc inserted.").toStdString();
+  menu_text.start_wii_description = tr("Start the installed Wii System Menu.").toStdString();
+  menu_text.picker_title = tr("Select Game File").toStdString();
+  menu_text.settings_change_page = tr("Change Page").toStdString();
+  menu_text.global_settings = tr("Global Settings").toStdString();
+  menu_text.game_settings = tr("Game Settings").toStdString();
+  menu_text.settings_options = tr("Setting Options").toStdString();
+  menu_text.settings_navigation = tr("Menu Navigation").toStdString();
+  menu_text.settings_navigation_help = {
+      tr("Swap the controller buttons used to select and go back.").toStdString(),
+      tr("Adjust the size of Big Picture menus.").toStdString(),
+      tr("Keep menu content inside the visible area of the display.").toStdString()};
+  menu_text.settings_keyboard_hints =
+      "\xe2\x8f\xb4\xe2\x8f\xb6 " + tr("Change Page").toStdString() +
+      "   \xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Navigate").toStdString() + "   \xe2\x90\xae " +
+      tr("Select").toStdString() + "   \xe2\x90\xaf " + tr("Back").toStdString();
+  menu_text.settings_keyboard_options = "\xe2\x91\xa1 " + tr("Setting Options").toStdString();
+  menu_text.start_keyboard_hints = "\xe2\x8f\xb4\xe2\x8f\xb6 " + tr("Navigate").toStdString() +
+                                   "   \xe2\x90\xae " + tr("Select").toStdString() +
+                                   "   \xe2\x90\xaf " + tr("Back").toStdString();
+  menu_text.picker_keyboard_hints =
+      "\xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Change Selection").toStdString() + "   \xe2\x90\xba " +
+      tr("Parent Folder").toStdString() + "   \xe2\x90\xae " + tr("Select").toStdString() +
+      "   \xe2\x90\xaf " + tr("Cancel").toStdString();
+  menu_text.library_keyboard_hints =
+      "\xe2\x8f\xb5\xe2\x8f\xb7\xe2\x8f\xb4\xe2\x8f\xb6 " + menu_text.library_select_game +
+      "   \xe2\x91\xa0 " + menu_text.library_change_view + "   \xe2\x91\xa1 " +
+      tr("Settings").toStdString() + "   \xe2\x91\xa2 " + tr("Library Options").toStdString() +
+      "   \xe2\x91\xa3 " + tr("Search").toStdString() + "   \xe2\x91\xa4 " +
+      tr("Refresh List").toStdString() + "   \xe2\x90\xae " + tr("Start Game").toStdString() +
+      "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.navigate = tr("Navigate").toStdString();
   menu_text.about_title = tr("About Dolphin").toStdString();
   menu_text.about_description = Common::GetScmRevStr() + "\n\n" +

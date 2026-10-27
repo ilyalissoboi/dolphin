@@ -169,4 +169,35 @@ TEST(BigPicturePresentationTest, ExplicitOverlayWakeHasBoundedWorkWithoutOpening
   EXPECT_FALSE(state.TryBeginPresent(now + 40ms));
   EXPECT_EQ(state.GetWaitMilliseconds(now + 40ms, 0), 0);
 }
+TEST(BigPicturePresentationTest, SettingsFocusSurvivesGraphicsHandoffsAndClearsWhenSettingsCloses)
+{
+  PresentationState state;
+  auto snapshot = std::make_shared<Snapshot>();
+  snapshot->mode = Mode::Library;
+  snapshot->screens = {Screen::Home, Screen::Settings};
+  state.Publish(snapshot);
+  state.SetSettingsFocus("display-global", {"display.vsync", "display.vsync", 320});
+  state.SetSettingsFocus("display-game", {"display.aspect_ratio", "display.aspect_ratio", 80});
+  state.Suspend();
+  state.SetRendererReady(false);
+  auto replacement = std::make_shared<Snapshot>(*snapshot);
+  ++replacement->generation;
+  state.Publish(replacement);
+  state.Resume();
+  auto remembered = state.GetSettingsFocus("display-global");
+  ASSERT_TRUE(remembered);
+  EXPECT_EQ(remembered->item, "display.vsync");
+  EXPECT_EQ(remembered->selected, "display.vsync");
+  EXPECT_EQ(remembered->scroll, 320);
+  remembered->item = "changed copy";
+  EXPECT_EQ(state.GetSettingsFocus("display-global")->item, "display.vsync");
+  EXPECT_EQ(state.GetSettingsFocus("display-game")->scroll, 80);
+  replacement = std::make_shared<Snapshot>(*replacement);
+  replacement->screens = {Screen::Home};
+  state.Publish(replacement);
+  EXPECT_FALSE(state.GetSettingsFocus("display-global"));
+  // A late frame from the old graphics owner must not repopulate a closed session.
+  state.SetSettingsFocus("display-global", {"display.vsync", "display.vsync", 320});
+  EXPECT_FALSE(state.GetSettingsFocus("display-global"));
+}
 }  // namespace

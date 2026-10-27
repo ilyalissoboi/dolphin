@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <QObject>
+#include <QString>
 
 #include "Common/BigPicture/Settings.h"
 #include "Common/WorkQueueThread.h"
@@ -40,13 +41,16 @@ public:
                               std::vector<ControllerTarget> targets = {},
                               std::function<std::vector<std::string>()> devices = {});
   ~BigPictureSettings() override;
-  void Open();
+  bool Open(bool game = false);
   void SetGame(Game game);
   void SetEnvironment(UICommon::Settings::Environment environment);
   std::shared_ptr<const Common::Settings::Snapshot> ReadSnapshot();
   std::shared_ptr<const BigPicture::SettingsMenuSnapshot> ReadMenu();
   Common::Settings::Result Apply(const Common::Settings::Request& request);
   Common::Settings::Status Execute(const BigPicture::SettingsRequest& request);
+
+signals:
+  void SettingApplied(const QString& id);
 
 private:
   enum class Page
@@ -58,7 +62,8 @@ private:
     Controller,
     Devices,
     Profiles,
-    Presets
+    Presets,
+    Text
   };
   struct Profile
   {
@@ -79,10 +84,12 @@ private:
   Game m_game;
   UICommon::Settings::Context m_game_context;
   Page m_page = Page::Home;
-  std::string m_category;
+  std::string m_category = "Interface";
   std::string m_edit;
   std::string m_controller;
   std::string m_preset_folder;
+  std::string m_draft;
+  std::string m_text_error;
   u64 m_revision = 1;
   u64 m_settings_revision = 0;
   std::vector<std::string> m_devices;

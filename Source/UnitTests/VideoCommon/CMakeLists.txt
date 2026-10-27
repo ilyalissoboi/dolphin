@@ -1,5 +1,6 @@
 add_dolphin_test(VertexLoaderTest VertexLoaderTest.cpp)
 add_dolphin_test(VideoConfigTest VideoConfigTest.cpp)
+add_dolphin_test(FramebufferShaderGenTest FramebufferShaderGenTest.cpp)
 add_dolphin_test(PerformanceMetricsTest PerformanceMetricsTest.cpp)
 add_dolphin_test(PresentationScalingTest PresentationScalingTest.cpp)
 add_dolphin_test(NetPlayChatUITest NetPlayChatUITest.cpp)

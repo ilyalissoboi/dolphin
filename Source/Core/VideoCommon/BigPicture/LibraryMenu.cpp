@@ -63,6 +63,12 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   {
     page.id = "library-options";
     page.title = text.library_actions[static_cast<std::size_t>(O::Options)];
+    add("search", O::Search);
+    if (!library.query.empty())
+      add("clear-search", O::ClearSearch);
+    add("add-folder", O::AddFolder);
+    add("refresh", O::Refresh);
+    action("settings", Action::Settings);
     add("view", O::View, {}, library.grid ? text.library_grid : text.library_list);
     add("sort", O::Sort, {}, library.sort);
     add("platform", O::Platform, {},
@@ -92,14 +98,17 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   else if (screen == Screen::FilePicker)
   {
     page.id = "file-picker";
+    page.presentation = MenuPresentation::FilePicker;
     page.reset_on_revision = true;
     page.focus_revision = library.picker_revision;
     page.title =
         text.library_actions[static_cast<std::size_t>(library.picker_folders_only ? O::AddFolder :
                                                       library.picker_disc         ? O::OpenDisc :
                                                                                     O::OpenFile)];
-    page.description = library.picker_library ? text.library_disc_games : tail(library.directory);
-    page.description += "\n" + library.picker_error;
+    if (!library.picker_folders_only && !library.picker_disc)
+      page.title = text.picker_title;
+    page.context.label = library.picker_library ? text.library_disc_games : library.directory;
+    page.description = library.picker_error;
     if (library.picker_loading)
       page.description += "\n" + text.library_scanning;
     if (library.picker_folders_only && !library.directory.empty() && !library.picker_loading)
@@ -116,8 +125,9 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     }
     if (!library.parent_directory.empty())
     {
-      add("parent", O::EnterDirectory, library.parent_directory, {}, true);
-      page.toolbar.back().label = text.library_parent;
+      add("parent", O::EnterDirectory, library.parent_directory);
+      page.items.back().label = text.library_parent;
+      page.items.back().icon = MenuIcon::Folder;
     }
     add("path", O::EditPath, {}, {}, true);
     if (library.picker_folders_only)
@@ -128,12 +138,14 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       if (file.directory)
       {
         add(id, O::EnterDirectory, file.path);
-        page.items.back().label = file.name + "/";
+        page.items.back().label = file.name;
+        page.items.back().icon = MenuIcon::FolderSolid;
       }
       else
       {
         auto* request = action(id, library.picker_disc ? Action::ChangeDisc : Action::Boot);
         page.items.back().label = file.name;
+        page.items.back().icon = MenuIcon::File;
         if (request)
         {
           request->path = file.path;
@@ -186,19 +198,47 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
                                                   std::string{};
     if (!library.query.empty())
       page.description += "\n" + tail(library.query);
-    add("search", O::Search, {}, {}, true);
-    if (!library.query.empty())
-      add("clear-search", O::ClearSearch, {}, {}, true);
-    add("options", O::Options, {}, {}, true);
-    add("view-toggle", O::View, {}, {}, true);
-    page.toolbar.back().label = library.grid ? text.library_list : text.library_grid;
-    page.toolbar.back().icon = library.grid ? MenuIcon::List : MenuIcon::Grid;
-    action("settings", Action::Settings, true, 0, true);
-    add("add-folder", O::AddFolder, {}, {}, true);
-    add("refresh", O::Refresh, {}, {}, true);
+    page.title = library.grid ? text.game_grid : text.game_list;
+    page.toolbar = {{"back", text.back, {}, true, {}, false, MenuIcon::Back},
+                    {"grid-view", text.game_grid, {}, true, {}, library.grid, MenuIcon::Grid},
+                    {"list-view", text.game_list, {}, true, {}, !library.grid, MenuIcon::List}};
+    const auto shortcut = [&](const std::string& id, O operation) {
+      NavigationRequest request{snapshot.generation, Action::Library};
+      request.library_operation = operation;
+      menu.requests.emplace(id, std::move(request));
+    };
+    shortcut(library.grid ? "list-view" : "grid-view", O::View);
+    menu.requests.at(library.grid ? "list-view" : "grid-view").path =
+        library.grid ? "list" : "grid";
+    shortcut("view-toggle", O::View);
+    shortcut("options", O::Options);
+    shortcut("search", O::Search);
+    shortcut("clear-search", O::ClearSearch);
+    shortcut("add-folder", O::AddFolder);
+    shortcut("refresh", O::Refresh);
+    shortcut("clear-filters", O::ClearFilters);
+    if (snapshot.availability[static_cast<std::size_t>(Action::Settings)] ==
+        UnavailableReason::None)
+      menu.requests.emplace("settings", NavigationRequest{snapshot.generation, Action::Settings});
     page.columns = library.grid ? 4 : 1;
     page.artwork = true;
-    page.default_focus = "refresh";
+    page.default_focus = "back";
+    if (library.total_games == 0)
+      page.context = {"add-folder",
+                      text.library_actions[static_cast<std::size_t>(O::AddFolder)],
+                      {},
+                      true,
+                      {},
+                      false,
+                      MenuIcon::Folder};
+    else if (library.games.empty())
+      page.context = {"clear-filters",
+                      text.library_actions[static_cast<std::size_t>(O::ClearFilters)],
+                      {},
+                      true,
+                      {},
+                      false,
+                      MenuIcon::Filter};
     for (const auto& game : library.games)
     {
       const auto id = "game:" + game.path;
@@ -207,6 +247,10 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       if (page.items.back().enabled)
         page.items.back().detail = game.description;
       page.items.back().image_key = game.path;
+      if (const auto cover = library.covers.find(game.path);
+          cover != library.covers.end() && cover->second->width && cover->second->height)
+        page.items.back().image_aspect =
+            static_cast<float>(cover->second->width) / cover->second->height;
       page.items.back().icon = MenuIcon::None;
       page.items.back().preview_detail = game.details;
       if (request)
@@ -225,6 +269,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
   if (snapshot.pending)
   {
     menu.requests.clear();
+    page.context.enabled = false;
     for (auto& item : page.items)
       item.enabled = false;
     for (auto& item : page.toolbar)

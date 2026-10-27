@@ -299,7 +299,10 @@ void BigPictureLibrary::RunJob(Job job)
     if (size.isValid() && size.width() <= 8192 && size.height() <= 8192 &&
         static_cast<std::uint64_t>(size.width()) * size.height() <= 16 * 1024 * 1024)
     {
-      reader.setScaledSize(size.scaled(256, 384, Qt::KeepAspectRatio));
+      if (size.width() > static_cast<int>(BigPicture::MAX_COVER_WIDTH) ||
+          size.height() > static_cast<int>(BigPicture::MAX_COVER_HEIGHT))
+        reader.setScaledSize(size.scaled(BigPicture::MAX_COVER_WIDTH, BigPicture::MAX_COVER_HEIGHT,
+                                         Qt::KeepAspectRatio));
       const auto image = reader.read().convertToFormat(QImage::Format_RGBA8888);
       if (!image.isNull())
       {
@@ -454,8 +457,14 @@ std::string BigPictureLibrary::Execute(BigPicture::LibraryOperation operation,
       m_callbacks.refresh();
     break;
   case O::View:
-    m_state.grid = !m_state.grid;
-    ++m_state.view_revision;
+    if (const bool grid = value == "grid" ? true :
+                          value == "list" ? false :
+                                            !m_state.grid;
+        grid != m_state.grid)
+    {
+      m_state.grid = grid;
+      ++m_state.view_revision;
+    }
     break;
   case O::Recursive:
     if (m_callbacks.set_recursive)

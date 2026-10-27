@@ -129,6 +129,26 @@ struct NavigationText
   std::string navigate;
   std::string about_title;
   std::string about_description;
+  std::string game_grid;
+  std::string game_list;
+  std::string library_keyboard_hints;
+  std::string library_change_view;
+  std::string library_select_game;
+  std::string start_file;
+  std::string start_file_description;
+  std::string start_ipl_description;
+  std::string start_wii_description;
+  std::string start_keyboard_hints;
+  std::string picker_title;
+  std::string picker_keyboard_hints;
+  std::string settings_keyboard_hints;
+  std::string settings_keyboard_options;
+  std::string settings_change_page;
+  std::string settings_options;
+  std::string settings_navigation;
+  std::array<std::string, 3> settings_navigation_help;
+  std::string global_settings;
+  std::string game_settings;
 };
 
 struct NavigationRequest

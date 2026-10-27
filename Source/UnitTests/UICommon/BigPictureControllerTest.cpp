@@ -78,6 +78,23 @@ TEST_F(BigPictureControllerTest, PublishedSnapshotsRemainImmutable)
   EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Library);
 }
 
+TEST_F(BigPictureControllerTest, PerGameSettingsCanOnlyOpenForALaunchedGame)
+{
+  Send(Action::OpenMenu);
+  Send(Action::Settings, 1);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Home);
+  Send(Action::Settings);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Settings);
+  Send(Action::Back);
+  host.state.lifecycle = Lifecycle::Paused;
+  controller.Refresh();
+  Send(Action::OpenMenu);
+  Send(Action::Settings, 2);
+  EXPECT_NE(controller.GetSnapshot()->screens.back(), Screen::Settings);
+  Send(Action::Settings, 1);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Settings);
+}
+
 TEST_F(BigPictureControllerTest, CancelAndBackNeverExecuteDestructiveActions)
 {
   InGame();
@@ -104,6 +121,51 @@ TEST_F(BigPictureControllerTest, ConfirmationIsModalAndRechecksPolicy)
   EXPECT_TRUE(host.executed.empty());
   EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::NetPlay);
   EXPECT_FALSE(controller.GetSnapshot()->confirmation);
+}
+
+TEST_F(BigPictureControllerTest, FullscreenPreservesExitConfirmationAndItsApprovalToken)
+{
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  Send(Action::OpenMenu);
+  Send(Action::ExitMenu);
+  Send(Action::Exit);
+  const auto before = controller.GetSnapshot();
+  ASSERT_TRUE(before->confirmation);
+  EXPECT_EQ(before->availability[static_cast<std::size_t>(Action::Fullscreen)],
+            UnavailableReason::None);
+  Send(Action::Fullscreen);
+  const auto after = controller.GetSnapshot();
+  ASSERT_TRUE(after->confirmation);
+  EXPECT_EQ(after->confirmation->id, before->confirmation->id);
+  EXPECT_EQ(after->confirmation->action, Action::Exit);
+  EXPECT_EQ(after->screens, before->screens);
+  EXPECT_EQ(after->generation, before->generation);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed.back().action, Action::Fullscreen);
+  Send(Action::Confirm);
+  ASSERT_EQ(host.executed.size(), 2u);
+  EXPECT_EQ(host.executed.back().action, Action::Exit);
+}
+
+TEST_F(BigPictureControllerTest, FullscreenPreservesErrorsAndTransitionRestrictions)
+{
+  InGame();
+  host.execute = [](const Command& command) {
+    return Result{command, command.action == Action::Fullscreen ? ResultStatus::Succeeded :
+                                                                  ResultStatus::Failed};
+  };
+  Send(Action::Reset);
+  Send(Action::Confirm);
+  const auto before = controller.GetSnapshot();
+  ASSERT_TRUE(before->error);
+  Send(Action::Fullscreen);
+  EXPECT_EQ(controller.GetSnapshot()->screens, before->screens);
+  ASSERT_TRUE(controller.GetSnapshot()->error);
+  EXPECT_EQ(controller.GetSnapshot()->error->command.id, before->error->command.id);
+  EXPECT_EQ(host.executed.back().action, Action::Fullscreen);
+  host.state.lifecycle = Lifecycle::Stopping;
+  Send(Action::Fullscreen);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Busy);
 }
 
 TEST_F(BigPictureControllerTest, CommandsAndConfirmationsCannotCrossSessions)
