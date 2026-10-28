@@ -127,9 +127,11 @@ void AppendApplicationSettings(std::vector<Entry>& entries)
                                 {ToValue(AudioCommon::DPL2Quality::Low), _trans("Low")},
                                 {ToValue(AudioCommon::DPL2Quality::High), _trans("High")},
                                 {ToValue(AudioCommon::DPL2Quality::Highest), _trans("Highest")}};
+#ifdef _WIN32
   auto& wasapi = add(Config::MAIN_WASAPI_DEVICE, "audio.wasapi_device", "Audio",
                      _trans("WASAPI Device"), Control::Choice, false, ApplyPolicy::IdleOnly);
   wasapi.options = [](const Environment& env) { return env.wasapi_devices; };
+#endif
   auto& wide = add(Config::SYSCONF_WIDESCREEN, "wii.aspect", "Wii", _trans("Aspect Ratio"),
                    Control::Toggle, false, ApplyPolicy::IdleOnly);
   wide.descriptor.help = _trans("Enable the Wii widescreen setting.");
@@ -227,12 +229,14 @@ void AppendApplicationSettings(std::vector<Entry>& entries)
                std::string{} :
                std::string(_trans("This audio backend does not support latency control."));
   };
+#ifdef _WIN32
   find(Config::MAIN_WASAPI_DEVICE).unavailable = [read](const Environment&,
                                                         const Context& context) {
     return read(Config::MAIN_AUDIO_BACKEND, context) == BACKEND_WASAPI ?
                std::string{} :
                std::string(_trans("Select the WASAPI audio backend first."));
   };
+#endif
   for (const auto& location : {Config::MAIN_WIIMOTE_AUDIO_ROUTING_ENABLED.GetLocation(),
                                Config::MAIN_GBA_AUDIO_ROUTING_ENABLED.GetLocation()})
   {

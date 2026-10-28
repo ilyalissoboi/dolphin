@@ -19,6 +19,17 @@ namespace
 {
 using namespace UICommon::Settings;
 
+TEST(SettingsCatalogDeathTest, MissingCallbacksFailFast)
+{
+  EXPECT_DEATH_IF_SUPPORTED((Catalog({Entry{}})), "");
+}
+
+TEST(SettingsCatalogDeathTest, DuplicateEntriesFailFast)
+{
+  const auto entry = *GetCatalog().Find("audio.volume");
+  EXPECT_DEATH_IF_SUPPORTED((Catalog({entry, entry})), "");
+}
+
 class MemoryLoader final : public Config::ConfigLayerLoader
 {
 public:
