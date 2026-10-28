@@ -30,6 +30,11 @@ add_library(uicommon
   UICommon.h
 )
 
+# Parser exit statuses must unwind through the argument wrappers to the frontend.
+if(NOT MSVC)
+  set_source_files_properties(CommandLineParse.cpp PROPERTIES COMPILE_OPTIONS -fexceptions)
+endif()
+
 target_link_libraries(uicommon
 PUBLIC
   common
