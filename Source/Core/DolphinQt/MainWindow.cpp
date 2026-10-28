@@ -409,7 +409,10 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
   m_library_timer->setInterval(50);
   connect(m_library_timer, &QTimer::timeout, this, &MainWindow::RefreshBigPictureLibrary);
   const auto* library_model = &m_game_list->GetGameListModel();
-  const auto update_library = [this] { m_library_timer->start(); };
+  const auto update_library = [this] {
+    m_big_picture_covers_dirty = true;
+    m_library_timer->start();
+  };
   connect(library_model, &QAbstractItemModel::rowsInserted, this, update_library);
   connect(library_model, &QAbstractItemModel::rowsRemoved, this, update_library);
   connect(library_model, &QAbstractItemModel::dataChanged, this, update_library);
@@ -1851,7 +1854,8 @@ void MainWindow::RefreshBigPictureLibrary()
         entry.description += " | " + tag;
     games.push_back(std::move(entry));
   }
-  m_big_picture_library->SetGames(std::move(games));
+  m_big_picture_library->SetGames(std::move(games),
+                                  std::exchange(m_big_picture_covers_dirty, false));
 }
 
 void MainWindow::ConnectHotkeys()
@@ -2483,7 +2487,9 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuat
   OnStopRecording();
   // TODO: Add Debugger shutdown
 
-  if (!m_stop_requested && UICommon::TriggerSTMPowerEvent())
+  // A continuation is already durably written. Stop at that captured state rather than
+  // resuming the Wii for its power-button shutdown, which can wait for the ten-second timeout.
+  if (!save_continuation && !m_stop_requested && UICommon::TriggerSTMPowerEvent())
   {
     m_stop_requested = true;
 

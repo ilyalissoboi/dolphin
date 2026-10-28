@@ -3,6 +3,7 @@
 
 #include "Common/HttpRequest.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <mutex>
@@ -27,6 +28,7 @@ public:
   explicit Impl(std::chrono::milliseconds timeout_ms, ProgressCallback callback);
 
   bool IsValid() const;
+  void Cancel() { m_cancelled.store(true, std::memory_order_relaxed); }
   std::string GetHeaderValue(std::string_view name) const;
   void SetCookies(const std::string& cookies);
   void UseIPv4();
@@ -43,6 +45,7 @@ public:
 private:
   static inline std::once_flag s_curl_was_initialized;
   ProgressCallback m_callback;
+  std::atomic<bool> m_cancelled{false};
   Headers m_response_headers;
   std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> m_curl{nullptr, curl_easy_cleanup};
   std::string m_error_string;
@@ -58,6 +61,11 @@ HttpRequest::~HttpRequest() = default;
 bool HttpRequest::IsValid() const
 {
   return m_impl->IsValid();
+}
+
+void HttpRequest::Cancel()
+{
+  m_impl->Cancel();
 }
 
 void HttpRequest::SetCookies(const std::string& cookies)
@@ -112,9 +120,11 @@ HttpRequest::Response HttpRequest::Post(const std::string& url, std::string_view
 int HttpRequest::Impl::CurlProgressCallback(Impl* impl, curl_off_t dltotal, curl_off_t dlnow,
                                             curl_off_t ultotal, curl_off_t ulnow)
 {
-  // Abort if callback isn't true
-  return !impl->m_callback(static_cast<s64>(dltotal), static_cast<s64>(dlnow),
-                           static_cast<s64>(ultotal), static_cast<s64>(ulnow));
+  if (impl->m_cancelled.load(std::memory_order_relaxed))
+    return 1;
+  // Preserve caller-provided progress/cancellation callbacks.
+  return impl->m_callback && !impl->m_callback(static_cast<s64>(dltotal), static_cast<s64>(dlnow),
+                                               static_cast<s64>(ultotal), static_cast<s64>(ulnow));
 }
 
 HttpRequest::Impl::Impl(std::chrono::milliseconds timeout_ms, ProgressCallback callback)
@@ -126,13 +136,9 @@ HttpRequest::Impl::Impl(std::chrono::milliseconds timeout_ms, ProgressCallback c
   if (!m_curl)
     return;
 
-  curl_easy_setopt(m_curl.get(), CURLOPT_NOPROGRESS, m_callback == nullptr);
-
-  if (m_callback)
-  {
-    curl_easy_setopt(m_curl.get(), CURLOPT_PROGRESSDATA, this);
-    curl_easy_setopt(m_curl.get(), CURLOPT_XFERINFOFUNCTION, CurlProgressCallback);
-  }
+  curl_easy_setopt(m_curl.get(), CURLOPT_NOPROGRESS, false);
+  curl_easy_setopt(m_curl.get(), CURLOPT_PROGRESSDATA, this);
+  curl_easy_setopt(m_curl.get(), CURLOPT_XFERINFOFUNCTION, CurlProgressCallback);
 
   // Set up error buffer
   m_error_string.resize(CURL_ERROR_SIZE);
@@ -232,6 +238,8 @@ HttpRequest::Response HttpRequest::Impl::Fetch(const std::string& url, Method me
                                                size_t size, AllowedReturnCodes codes,
                                                std::span<Multiform> multiform)
 {
+  if (m_cancelled.load(std::memory_order_relaxed))
+    return std::nullopt;
   m_response_headers.clear();
   curl_easy_setopt(m_curl.get(), CURLOPT_POST, method == Method::POST);
   curl_easy_setopt(m_curl.get(), CURLOPT_URL, url.c_str());

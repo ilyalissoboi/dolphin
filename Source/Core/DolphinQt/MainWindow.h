@@ -286,6 +286,7 @@ private:
   std::unique_ptr<BigPictureSettings> m_big_picture_settings;
   bool m_settings_post_processing = false;
   BigPictureLibrary* m_big_picture_library = nullptr;
+  bool m_big_picture_covers_dirty = true;
   QPointer<BigPictureTextInput> m_big_picture_text_input;
   std::uint64_t m_big_picture_text_generation = 0;
   bool m_big_picture_text_queued = false;

@@ -436,6 +436,111 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
   EXPECT_FALSE(library.GetSnapshot()->covers.contains("0"));
   EXPECT_EQ(library.GetSnapshot()->covers.at("1")->revision, new_revision);
 }
+TEST(BigPictureLibraryTest, PauseMetadataRefreshReusesDecodedCoversAndTheGpuCacheRevision)
+{
+  QImage image(40, 60, QImage::Format_RGBA8888);
+  image.fill(Qt::red);
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  buffer.open(QIODevice::WriteOnly);
+  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  int reads = 0;
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
+                                        ++reads;
+                                        return std::vector<unsigned char>(bytes.begin(),
+                                                                          bytes.end());
+                                      }});
+  auto game = Entry("game.iso", "Game");
+  library.SetGames({game});
+  const auto revision = library.GetSnapshot()->catalog_revision;
+  library.Execute(O::Cover, game.path, revision);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(game.path); }));
+  const auto retained = library.GetSnapshot();
+  const auto cover = retained->covers.at(game.path);
+  for (int opening = 1; opening <= 5; ++opening)
+  {
+    game.played_ms = opening * 1000;
+    library.SetGames({game}, false);
+    library.Execute(O::Cover, game.path, revision);
+    const auto snapshot = library.GetSnapshot();
+    EXPECT_EQ(snapshot->catalog_revision, revision);
+    EXPECT_EQ(snapshot->covers.at(game.path), cover);
+    EXPECT_EQ(snapshot->games.front().played_ms, game.played_ms);
+  }
+  EXPECT_EQ(reads, 1);
+  EXPECT_EQ(retained->games.front().played_ms, 0u);
+
+  // A real library/cover update still invalidates both caches and rejects old requests.
+  library.SetGames({game});
+  EXPECT_GT(library.GetSnapshot()->catalog_revision, revision);
+  EXPECT_TRUE(library.GetSnapshot()->covers.empty());
+  library.Execute(O::Cover, game.path, revision);
+  EXPECT_EQ(reads, 1);
+  library.Execute(O::Cover, game.path, library.GetSnapshot()->catalog_revision);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(game.path); }));
+  EXPECT_EQ(reads, 2);
+  EXPECT_NE(library.GetSnapshot()->covers.at(game.path), cover);
+  EXPECT_EQ(retained->covers.at(game.path), cover);
+}
+
+TEST(BigPictureLibraryTest, MetadataRefreshKeepsInFlightDecodeAndScanRetainsPendingInvalidation)
+{
+  QImage image(40, 60, QImage::Format_RGBA8888);
+  image.fill(Qt::blue);
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  buffer.open(QIODevice::WriteOnly);
+  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  int reads = 0;
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
+                                        ++reads;
+                                        return std::vector<unsigned char>(bytes.begin(),
+                                                                          bytes.end());
+                                      }});
+  auto game = Entry("game.iso", "Game");
+  library.SetGames({game});
+  const auto revision = library.GetSnapshot()->catalog_revision;
+  library.Execute(O::Cover, game.path, revision);
+  game.played_ms = 1000;
+  library.SetGames({game}, false);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(game.path); }));
+  EXPECT_EQ(reads, 1);
+  EXPECT_EQ(library.GetSnapshot()->covers.at(game.path)->revision, revision);
+
+  library.SetScanning(true);
+  library.SetGames({game});
+  game.played_ms = 2000;
+  library.SetGames({game}, false);
+  library.SetScanning(false);
+  EXPECT_GT(library.GetSnapshot()->catalog_revision, revision);
+  EXPECT_TRUE(library.GetSnapshot()->covers.empty());
+  EXPECT_EQ(library.GetSnapshot()->games.front().played_ms, 2000u);
+  library.Execute(O::Cover, game.path, library.GetSnapshot()->catalog_revision);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(game.path); }));
+  EXPECT_EQ(reads, 2);
+}
+
+TEST(BigPictureLibraryTest, MissingCoverIsNotRetriedOnEveryPauseButCanAppearAfterLibraryUpdate)
+{
+  int reads = 0;
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
+                                        ++reads;
+                                        return std::vector<unsigned char>{};
+                                      }});
+  const auto game = Entry("game.iso", "Game");
+  library.SetGames({game});
+  for (int opening = 0; opening < 5; ++opening)
+  {
+    library.SetGames({game}, false);
+    library.Execute(O::Cover, game.path, library.GetSnapshot()->catalog_revision);
+  }
+  EXPECT_EQ(reads, 1);
+  EXPECT_TRUE(library.GetSnapshot()->missing_covers.contains(game.path));
+  library.SetGames({game});
+  library.Execute(O::Cover, game.path, library.GetSnapshot()->catalog_revision);
+  EXPECT_EQ(reads, 2);
+}
+
 TEST(BigPictureLibraryTest, SmallCoverImagesKeepTheirNativeResolution)
 {
   QImage image(40, 60, QImage::Format_RGBA8888);
