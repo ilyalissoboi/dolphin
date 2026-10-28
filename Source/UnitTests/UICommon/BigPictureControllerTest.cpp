@@ -48,6 +48,32 @@ protected:
     controller.Refresh();
     Send(Action::OpenMenu);
   }
+  void GroupedLibrary()
+  {
+    Send(Action::OpenMenu);
+    Send(Action::ShowLibrary);
+    auto library = std::make_shared<LibrarySnapshot>();
+    LibraryGame game;
+    game.path = "disc1.iso";
+    game.discs = {{"disc1.iso", "Disc 1"}, {"disc2.iso", "Disc 2"}};
+    library->games.push_back(game);
+    host.state.library = library;
+    host.execute = [this](const Command& command) {
+      if (command.action == Action::Library &&
+          command.library_operation == LibraryOperation::ChooseBootDisc)
+      {
+        auto picker = std::make_shared<LibrarySnapshot>(*host.state.library);
+        picker->files = picker->games.front().discs;
+        picker->picker_boot_disc = true;
+        ++picker->picker_revision;
+        host.state.library = picker;
+        return Result{command, ResultStatus::Succeeded};
+      }
+      host.state.lifecycle = Lifecycle::Booting;
+      return Result{command, ResultStatus::Dispatched};
+    };
+    controller.Refresh();
+  }
   FakeHost host;
   Controller controller{host};
   std::uint64_t id = 0;
@@ -602,6 +628,76 @@ TEST_F(BigPictureControllerTest, LibrarySetupAndKeyboardPreserveNestedBackAndRej
   EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::LibraryOptions);
   Send(Action::Back);
   EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Library);
+}
+
+TEST_F(BigPictureControllerTest, GroupedBootOpensNavigablePickerAndBackCancelsWithoutBooting)
+{
+  GroupedLibrary();
+  const auto generation = controller.GetSnapshot()->generation;
+  Send(Action::Boot, 0, "disc1.iso");
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed.back().library_operation, LibraryOperation::ChooseBootDisc);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  EXPECT_EQ(controller.GetSnapshot()->generation, generation);
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Library);
+  EXPECT_EQ(host.state.lifecycle, Lifecycle::Idle);
+  EXPECT_EQ(host.executed.size(), 1u);
+}
+
+TEST_F(BigPictureControllerTest, GroupedPickerBootsTheChosenSecondDiscWithoutOpeningAnotherPicker)
+{
+  GroupedLibrary();
+  Send(Action::Boot, 0, "disc1.iso");
+  auto choice = Make(Action::Boot, 0, "disc2.iso");
+  choice.library_revision = host.state.library->picker_revision;
+  controller.Submit(choice);
+  ASSERT_EQ(host.executed.size(), 2u);
+  EXPECT_EQ(host.executed.back().action, Action::Boot);
+  EXPECT_EQ(host.executed.back().path, "disc2.iso");
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->pending->action, Action::Boot);
+}
+
+TEST_F(BigPictureControllerTest, GroupedPickerRejectsSelectionsAfterCancelAndFromAnOlderPicker)
+{
+  GroupedLibrary();
+  Send(Action::Boot, 0, "disc1.iso");
+  const auto revision = host.state.library->picker_revision;
+  Send(Action::Cancel);
+  auto cancelled = Make(Action::Boot, 0, "disc2.iso");
+  cancelled.library_revision = revision;
+  controller.Submit(cancelled);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Stale);
+  EXPECT_EQ(host.executed.size(), 1u);
+  Send(Action::Boot, 0, "disc1.iso");
+  ASSERT_EQ(host.executed.size(), 2u);
+  auto old = Make(Action::Boot, 0, "disc2.iso");
+  old.library_revision = revision;
+  controller.Submit(old);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Stale);
+  EXPECT_EQ(host.executed.size(), 2u);
+}
+
+TEST_F(BigPictureControllerTest, GroupedPickerRestrictsChoicesAndRechecksBootPolicy)
+{
+  GroupedLibrary();
+  Send(Action::Boot, 0, "disc1.iso");
+  auto other = Make(Action::Boot, 0, "unrelated.iso");
+  other.library_revision = host.state.library->picker_revision;
+  controller.Submit(other);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Stale);
+  auto browse = Make(Action::Library);
+  browse.library_operation = LibraryOperation::EnterDirectory;
+  controller.Submit(browse);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  host.state.netplay = true;
+  auto choice = Make(Action::Boot, 0, "disc2.iso");
+  choice.library_revision = host.state.library->picker_revision;
+  controller.Submit(choice);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::NetPlay);
+  EXPECT_EQ(host.executed.size(), 1u);
 }
 
 TEST_F(BigPictureControllerTest, PickerBootFromAnObsoleteListingCannotExecute)

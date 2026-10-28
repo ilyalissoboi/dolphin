@@ -44,7 +44,15 @@ enum class LibraryOperation
   TextReplace,
   BrowseDiscs,
   ControllerKeyboard,
+  ChooseBootDisc,
   Count
+};
+
+struct LibraryFile
+{
+  std::string path;
+  std::string name;
+  bool directory = false;
 };
 
 struct LibraryGame
@@ -59,6 +67,7 @@ struct LibraryGame
   std::uint64_t played_ms = 0;
   std::uint64_t size = 0;
   std::string details;
+  std::vector<LibraryFile> discs;
 };
 
 struct LibraryImage
@@ -67,13 +76,6 @@ struct LibraryImage
   std::uint32_t width = 0;
   std::uint32_t height = 0;
   std::vector<std::uint8_t> rgba;
-};
-
-struct LibraryFile
-{
-  std::string path;
-  std::string name;
-  bool directory = false;
 };
 
 // Published by the Qt owner. Covers are decoded off-thread, bounded thumbnails; GPU resources
@@ -100,6 +102,7 @@ struct LibrarySnapshot
   bool picker_folders_only = false;
   bool picker_disc = false;
   bool picker_library = false;
+  bool picker_boot_disc = false;
   bool recursive = false;
   std::string picker_error;
   std::string draft;

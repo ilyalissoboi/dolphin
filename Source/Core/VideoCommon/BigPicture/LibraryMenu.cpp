@@ -105,7 +105,9 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
         text.library_actions[static_cast<std::size_t>(library.picker_folders_only ? O::AddFolder :
                                                       library.picker_disc         ? O::OpenDisc :
                                                                                     O::OpenFile)];
-    if (!library.picker_folders_only && !library.picker_disc)
+    if (library.picker_boot_disc)
+      page.title = text.library_actions[static_cast<std::size_t>(O::ChooseBootDisc)];
+    else if (!library.picker_folders_only && !library.picker_disc)
       page.title = text.picker_title;
     page.context.label = library.picker_library ? text.library_disc_games : library.directory;
     page.description = library.picker_error;
@@ -118,7 +120,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     }
     if (library.picker_library)
       add("browse-discs", O::BrowseDiscs, {}, {}, true);
-    else
+    else if (!library.picker_boot_disc)
     {
       add("roots", O::EnterDirectory, {}, {}, true);
       page.toolbar.back().label = text.library_roots;
@@ -129,7 +131,8 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       page.items.back().label = text.library_parent;
       page.items.back().icon = MenuIcon::Folder;
     }
-    add("path", O::EditPath, {}, {}, true);
+    if (!library.picker_boot_disc)
+      add("path", O::EditPath, {}, {}, true);
     if (library.picker_folders_only)
       add("recursive", O::Recursive, {}, library.recursive ? text.on : text.off);
     for (const auto& file : library.files)
@@ -145,7 +148,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
       {
         auto* request = action(id, library.picker_disc ? Action::ChangeDisc : Action::Boot);
         page.items.back().label = file.name;
-        page.items.back().icon = MenuIcon::File;
+        page.items.back().icon = library.picker_boot_disc ? MenuIcon::Disc : MenuIcon::File;
         if (request)
         {
           request->path = file.path;

@@ -296,6 +296,7 @@ void Controller::Dispatch(const Command& command)
         case LibraryOperation::AddFolder:
         case LibraryOperation::OpenFile:
         case LibraryOperation::OpenDisc:
+        case LibraryOperation::ChooseBootDisc:
           push(Screen::FilePicker);
           break;
         case LibraryOperation::ChooseFolder:
@@ -408,7 +409,13 @@ void Controller::Submit(const Command& command)
              operation == LibraryOperation::ChooseFolder ||
              operation == LibraryOperation::EditPath || operation == LibraryOperation::Recursive ||
              operation == LibraryOperation::BrowseDiscs)
-      valid = valid && screen == Screen::FilePicker;
+      valid = valid && screen == Screen::FilePicker &&
+              (!m_state.host.library || !m_state.host.library->picker_boot_disc);
+    else if (operation == LibraryOperation::ChooseBootDisc)
+      valid = valid && m_state.mode == Mode::Library &&
+              (screen == Screen::Home || screen == Screen::Library ||
+               screen == Screen::LibraryOptions || screen == Screen::StartGame) &&
+              GetAvailability(Action::Boot, m_state.host) == UnavailableReason::None;
     else if (operation == LibraryOperation::OpenDisc)
       valid = valid && screen == Screen::Pause &&
               GetAvailability(Action::ChangeDisc, m_state.host) == UnavailableReason::None;
@@ -433,6 +440,25 @@ void Controller::Submit(const Command& command)
     m_state.result = Result{command, ResultStatus::Stale};
     Publish();
     return;
+  }
+
+  if (command.action == Action::Boot && m_state.host.library &&
+      m_state.host.library->picker_boot_disc &&
+      (command.library_revision != 0 ||
+       (!m_state.screens.empty() && m_state.screens.back() == Screen::FilePicker)))
+  {
+    // Only the currently displayed choices can launch. Back/Cancel must also invalidate
+    // a delayed selection, even if the underlying library snapshot has not changed.
+    const auto& files = m_state.host.library->files;
+    if (m_state.screens.empty() || m_state.screens.back() != Screen::FilePicker ||
+        command.library_revision == 0 || !std::ranges::any_of(files, [&](const LibraryFile& file) {
+          return !file.directory && file.path == command.path;
+        }))
+    {
+      m_state.result = Result{command, ResultStatus::Stale};
+      Publish();
+      return;
+    }
   }
 
   // A confirmation is modal and defaults to cancel: only Confirm can dispatch its stored
@@ -488,6 +514,23 @@ void Controller::Submit(const Command& command)
       Reject(command, UnavailableReason::Busy);
     }
     return;
+  }
+
+  if (command.action == Action::Boot && command.library_revision == 0 &&
+      m_state.mode == Mode::Library && m_state.host.library)
+  {
+    const auto& games = m_state.host.library->games;
+    const auto game = std::ranges::find(games, command.path, &LibraryGame::path);
+    if (game != games.end() && game->discs.size() > 1)
+    {
+      // Selecting a grouped entry opens a menu, not a pending boot. This leaves controller
+      // navigation and Back available until the user chooses a particular disc.
+      auto choose = command;
+      choose.action = Action::Library;
+      choose.library_operation = LibraryOperation::ChooseBootDisc;
+      Dispatch(choose);
+      return;
+    }
   }
 
   switch (command.action)

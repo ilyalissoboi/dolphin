@@ -381,6 +381,7 @@ MenuIcon GetLibraryIcon(::BigPicture::LibraryOperation operation)
   case O::EditPath:
     return MenuIcon::File;
   case O::OpenDisc:
+  case O::ChooseBootDisc:
   case O::BrowseDiscs:
     return MenuIcon::Disc;
   case O::Options:

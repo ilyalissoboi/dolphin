@@ -168,6 +168,7 @@ void BigPictureLibrary::SetScanning(bool scanning)
 
 void BigPictureLibrary::Browse(const std::string& path)
 {
+  m_state.picker_boot_disc = false;
   m_state.picker_library = false;
   // At most one queued directory request. A new location cancels obsolete queued work;
   // completion is always guarded by picker revision, including cancellation/renderer handoff.
@@ -429,6 +430,7 @@ std::string BigPictureLibrary::Execute(BigPicture::LibraryOperation operation,
   case O::AddFolder:
   case O::OpenFile:
   case O::OpenDisc:
+    m_state.picker_boot_disc = false;
     m_state.picker_folders_only = operation == O::AddFolder;
     m_state.picker_disc = operation == O::OpenDisc;
     if (operation == O::OpenDisc)
@@ -436,6 +438,25 @@ std::string BigPictureLibrary::Execute(BigPicture::LibraryOperation operation,
     else
       Browse({});
     return {};
+  case O::ChooseBootDisc:
+  {
+    const auto game = std::ranges::find(m_games, value, &BigPicture::LibraryGame::path);
+    if (game == m_games.end() || game->discs.size() < 2)
+      return S(tr("The discs for this game are no longer available."));
+    ++m_state.picker_revision;
+    m_state.picker_boot_disc = true;
+    m_state.picker_disc = false;
+    m_state.picker_folders_only = false;
+    m_state.picker_library = false;
+    m_state.picker_loading = false;
+    m_state.directory = game->title;
+    m_state.parent_directory.clear();
+    m_state.picker_error.clear();
+    m_state.files = game->discs;
+    m_next_directory.reset();
+    Publish();
+    return {};
+  }
   case O::BrowseDiscs:
     Browse(DiscDirectory());
     return {};
