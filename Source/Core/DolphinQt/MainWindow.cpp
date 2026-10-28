@@ -2440,9 +2440,34 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuat
     }
   }
 
+  // Return to the native library before synchronous state capture/compression blocks Qt.
+  // Keep the renderer alive until saving and core shutdown finish, and restore it if saving fails.
+  const bool show_desktop =
+      !m_big_picture_requested && !m_exit_requested && !Settings::Instance().IsBatchModeEnabled();
+  const bool render_was_visible = m_render_widget->isVisible();
+  if (show_desktop)
+  {
+    if (m_rendering_to_main)
+      m_stack->setCurrentWidget(m_ui->gameListPage);
+    m_render_widget->hide();
+    show();
+    m_stack->repaint();
+  }
+  Common::ScopeGuard restore_presentation([&] {
+    if (show_desktop && render_was_visible)
+    {
+      if (m_rendering_to_main)
+        m_stack->setCurrentWidget(m_render_widget);
+      m_render_widget->show();
+      m_render_widget->activateWindow();
+      m_render_widget->setFocus();
+    }
+  });
+
   if (save_continuation &&
       (!CanSaveContinuation() || !State::SaveContinuation(m_system, m_continuation_path)))
   {
+    restore_presentation.Exit();
     Core::SetState(m_system, original_state);
     if (!m_big_picture_requested)
     {
@@ -2453,6 +2478,7 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuat
     }
     return false;
   }
+  restore_presentation.Dismiss();
 
   OnStopRecording();
   // TODO: Add Debugger shutdown
@@ -2526,6 +2552,11 @@ void MainWindow::FullScreen()
   {
     m_render_widget->showFullScreen();
   }
+
+  // Reparenting an embedded renderer deactivates its old top-level window. Qt does not
+  // necessarily activate the new owner, so restore both window and keyboard focus explicitly.
+  m_render_widget->activateWindow();
+  m_render_widget->setFocus();
 }
 
 void MainWindow::UnlockCursor()
@@ -2896,11 +2927,7 @@ void MainWindow::HideRenderWidget(bool reinit, bool is_exit)
     m_render_widget = new RenderWidget;
 
     m_render_widget->installEventFilter(this);
-    connect(m_render_widget, &RenderWidget::Closed, this, &MainWindow::ForceStop);
-    connect(m_render_widget, &RenderWidget::FocusChanged, this, [this](bool focus) {
-      if (m_render_widget->isFullScreen())
-        SetFullScreenResolution(focus);
-    });
+    ConnectRenderWidget();
 
     // The controller interface will still be registered to the old render widget, if the core
     // has booted. Therefore, we should re-bind it to the main window for now. When the core

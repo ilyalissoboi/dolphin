@@ -154,9 +154,13 @@ void HotkeyScheduler::Run()
     g_controller_interface.SetCurrentInputChannel(ciface::InputChannel::FreeLook);
     g_controller_interface.UpdateInput(ciface::InputChannel::BigPicture);
     auto& presentation = BigPicture::GetPresentationState();
+    // Fullscreen reparenting can deliver a Qt deactivation without a matching activation
+    // to the embedded widget. Reconcile menu focus with the host before sampling input.
+    const bool renderer_has_focus = Host_RendererHasFocus();
+    presentation.SetFocused(renderer_has_focus);
     const auto input_epoch = presentation.GetFrameInputEpoch();
-    const bool toggle = BigPictureInput::Poll(
-        HotkeyManagerEmu::IsEnabled() && Host_RendererHasFocus(), presentation.IsModal());
+    const bool toggle = BigPictureInput::Poll(HotkeyManagerEmu::IsEnabled() && renderer_has_focus,
+                                              presentation.IsModal());
     for (const auto& request : presentation.TakeNavigationRequests())
     {
       if (request.settings_menu)
@@ -239,7 +243,7 @@ void HotkeyScheduler::Run()
 
       // Opening wins over legacy Stop=Escape profiles. Start capture before the
       // queued Qt request, just as the controller's Open Menu binding does.
-      if (IsHotkey(HK_OPEN_PAUSE_MENU) && Host_RendererHasFocus())
+      if (IsHotkey(HK_OPEN_PAUSE_MENU) && renderer_has_focus)
       {
         const auto snapshot = presentation.GetSnapshot();
         if (snapshot && snapshot->mode == BigPicture::Mode::Desktop &&
