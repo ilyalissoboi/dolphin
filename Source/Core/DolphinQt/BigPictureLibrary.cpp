@@ -108,8 +108,9 @@ void BigPictureLibrary::Publish(bool filter)
     m_callbacks.changed();
 }
 
-void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games)
+void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games, bool invalidate_covers)
 {
+  m_cover_invalidation_pending |= invalidate_covers;
   if (m_state.scanning)
   {
     m_pending_games = std::move(games);
@@ -133,10 +134,13 @@ void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games)
     game.details = S(details.join(QLatin1Char('\n')));
   }
   m_games = std::move(games);
-  ++m_state.catalog_revision;
-  m_state.covers.clear();
-  m_cover_use.clear();
-  m_state.missing_covers.clear();
+  if (std::exchange(m_cover_invalidation_pending, false))
+  {
+    ++m_state.catalog_revision;
+    m_state.covers.clear();
+    m_cover_use.clear();
+    m_state.missing_covers.clear();
+  }
   if (!m_state.selected_path.empty() &&
       std::ranges::find(m_games, m_state.selected_path, &BigPicture::LibraryGame::path) ==
           m_games.end())
@@ -160,7 +164,7 @@ void BigPictureLibrary::SetScanning(bool scanning)
   {
     auto games = std::move(*m_pending_games);
     m_pending_games.reset();
-    SetGames(std::move(games));
+    SetGames(std::move(games), false);
     return;
   }
   Publish();

@@ -32,7 +32,8 @@ public:
   };
   explicit BigPictureLibrary(QObject* parent, Callbacks callbacks);
   ~BigPictureLibrary() override;
-  void SetGames(std::vector<BigPicture::LibraryGame> games);
+  // Metadata-only refreshes keep decoded covers and their GPU cache revision.
+  void SetGames(std::vector<BigPicture::LibraryGame> games, bool invalidate_covers = true);
   void SetScanning(bool scanning);
   void SetInitialSelection(std::string path);
   void SetDiscContext(std::string path, std::string game_id, std::string title,
@@ -64,6 +65,7 @@ private:
   std::vector<std::string> m_disc_folders;
   std::vector<BigPicture::LibraryGame> m_games;
   std::optional<std::vector<BigPicture::LibraryGame>> m_pending_games;
+  bool m_cover_invalidation_pending = false;
   BigPicture::LibrarySnapshot m_state;
   std::shared_ptr<const BigPicture::LibrarySnapshot> m_snapshot;
   Callbacks m_callbacks;

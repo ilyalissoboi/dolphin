@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <map>
@@ -594,6 +595,8 @@ bool SaveContinuation(Core::System& system, const std::string& filename)
     return false;
   Common::Event complete;
   bool saved = false;
+  const auto started = std::chrono::steady_clock::now();
+  INFO_LOG_FMT(CORE, "Continuation save: starting capture");
   // DoState uses blocking GPU requests. Run on the real CPU owner, with no host pause/GPU
   // locks held while waiting for capture and disk completion.
   Core::RunOnCPUThread(system, [&] {
@@ -603,6 +606,11 @@ bool SaveContinuation(Core::System& system, const std::string& filename)
     complete.Set();
   });
   complete.Wait();
+  INFO_LOG_FMT(CORE, "Continuation save: finished in {} ms (saved={})",
+               std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - started)
+                   .count(),
+               saved);
   return saved;
 }
 
