@@ -34,6 +34,34 @@ TEST(BigPictureHostTest, QueuedNavigationCannotExecuteAfterFocusReset)
   EXPECT_EQ(host.GetSnapshot()->mode, Mode::InGame);
 }
 
+TEST(BigPictureHostTest, ReconciledFocusOpensMenuAndRepeatedSamplesPreserveTheQueuedRequest)
+{
+  auto& presentation = GetPresentationState();
+  presentation.SetRendererReady(true);
+  BigPictureHost host(
+      nullptr, [] { return HostState{Lifecycle::Running}; },
+      [](const Command& command) { return Result{command}; }, {},
+      [&](std::shared_ptr<const Snapshot> snapshot) { presentation.Publish(std::move(snapshot)); });
+  const auto generation = host.GetSnapshot()->generation;
+
+  // Fullscreen reparenting can leave the embedded widget with only a deactivation event.
+  presentation.SetFocused(false);
+  EXPECT_FALSE(presentation.BeginMenuRequest(generation, presentation.GetFrameInputEpoch()));
+  presentation.SetFocused(true);
+  const auto epoch = presentation.BeginMenuRequest(generation, presentation.GetFrameInputEpoch());
+  ASSERT_TRUE(epoch);
+  host.RequestAction(generation, Action::OpenMenu, *epoch);
+
+  // The hotkey owner samples actual host focus each tick, including while Qt is busy.
+  for (int i = 0; i < 10; ++i)
+    presentation.SetFocused(true);
+  EXPECT_TRUE(presentation.IsInputCurrent(*epoch));
+  EXPECT_TRUE(presentation.IsModal());
+  QCoreApplication::processEvents();
+  EXPECT_EQ(host.GetSnapshot()->mode, Mode::InGame);
+  EXPECT_TRUE(presentation.IsModal());
+}
+
 TEST(BigPictureHostTest, RendererTeardownRejectsQueuedOpeningAndReleasesCaptureWithoutPausing)
 {
   auto& presentation = GetPresentationState();
