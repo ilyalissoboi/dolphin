@@ -157,6 +157,7 @@ private:
   void SetFullScreenResolution(bool fullscreen);
 
   void FullScreen();
+  void FocusRenderWidget();
   void UnlockCursor();
   void ScreenShot();
 

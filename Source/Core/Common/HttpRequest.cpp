@@ -122,7 +122,7 @@ int HttpRequest::Impl::CurlProgressCallback(Impl* impl, curl_off_t dltotal, curl
 {
   if (impl->m_cancelled.load(std::memory_order_relaxed))
     return 1;
-  // Preserve caller-provided progress/cancellation callbacks.
+  // A non-zero return aborts the transfer, as does a caller callback returning false.
   return impl->m_callback && !impl->m_callback(static_cast<s64>(dltotal), static_cast<s64>(dlnow),
                                                static_cast<s64>(ultotal), static_cast<s64>(ulnow));
 }
