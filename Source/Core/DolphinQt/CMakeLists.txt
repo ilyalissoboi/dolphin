@@ -23,6 +23,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# The command-line parser throws exit statuses that Main.cpp catches.
+if(NOT MSVC)
+  set_source_files_properties(Main.cpp PROPERTIES COMPILE_OPTIONS -fexceptions)
+endif()
+
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Svg)
 
 include("${CMAKE_SOURCE_DIR}/CMake/DolphinQtDeclarativeUi.cmake")
