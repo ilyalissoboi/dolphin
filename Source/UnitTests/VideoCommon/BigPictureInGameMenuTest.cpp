@@ -44,6 +44,30 @@ protected:
   NavigationText text;
 };
 
+TEST_F(BigPictureInGameMenuTest, GroupedDiscPickerUsesNormalNavigationAndOffersOnlyItsDiscChoices)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home, Screen::Library, Screen::FilePicker};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->picker_boot_disc = true;
+  library->picker_revision = 7;
+  library->files = {{"disc1.iso", "Disc 1"}, {"disc2.iso", "Disc 2"}};
+  snapshot.host.library = library;
+  text.library_actions[static_cast<std::size_t>(LibraryOperation::ChooseBootDisc)] = "Select Disc";
+  const auto menu = Build();
+  EXPECT_EQ(menu.page.title, "Select Disc");
+  EXPECT_EQ(menu.page.default_focus, "file:disc1.iso");
+  EXPECT_TRUE(menu.page.toolbar.empty());
+  EXPECT_EQ(menu.page.items.size(), 2u);
+  const auto choice = menu.Activate({"file:disc2.iso"});
+  ASSERT_TRUE(choice);
+  EXPECT_EQ(choice->action, Action::Boot);
+  EXPECT_EQ(choice->path, "disc2.iso");
+  EXPECT_EQ(choice->library_revision, 7u);
+  EXPECT_EQ(menu.Activate({{}, true})->action, Action::Back);
+}
+
 TEST_F(BigPictureInGameMenuTest, RootBackExplicitlyResumesAndSubmenuBackNavigates)
 {
   const auto menu = Build();

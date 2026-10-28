@@ -826,8 +826,9 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
   case Action::Library:
   {
     using O = BigPicture::LibraryOperation;
-    const bool idle_only =
-        command.library_operation == O::AddFolder || command.library_operation == O::OpenFile;
+    const bool idle_only = command.library_operation == O::AddFolder ||
+                           command.library_operation == O::OpenFile ||
+                           command.library_operation == O::ChooseBootDisc;
     if ((idle_only && !Core::IsUninitialized(m_system)) ||
         (command.library_operation == O::OpenDisc &&
          BigPicture::GetAvailability(Action::ChangeDisc, m_big_picture_host->GetSnapshot()->host) !=
@@ -874,10 +875,8 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
               tr("The selected game is no longer available: %1")
                   .arg(QString::fromStdString(command.path))
                   .toStdString()};
-    const auto disc = ChooseLibraryDisc(command.path);
-    if (!disc)
-      return {command, ResultStatus::Cancelled};
-    StartGame(*disc, ScanForSecondDisc::Yes);
+    // Grouped launches are selected in Big Picture's controller-navigable picker before Boot.
+    StartGame(command.path, ScanForSecondDisc::Yes);
     if (m_continuation_boot)
       return {command, ResultStatus::Succeeded};
     if (Core::IsUninitialized(m_system) && !m_standalone_boot)
@@ -1171,6 +1170,7 @@ void MainWindow::InitControllers()
   library_label(LibraryOp::AddFolder, tr("Add Game Folder"));
   library_label(LibraryOp::OpenFile, tr("Open Game"));
   library_label(LibraryOp::OpenDisc, tr("Change Disc"));
+  library_label(LibraryOp::ChooseBootDisc, tr("Select Disc"));
   library_label(LibraryOp::Refresh, tr("Refresh"));
   library_label(LibraryOp::View, tr("Grid / List"));
   library_label(LibraryOp::Sort, tr("Sort"));
@@ -1822,6 +1822,15 @@ void MainWindow::RefreshBigPictureLibrary()
                       .toString()
                       .toStdString();
     entry.game_id = game->GetGameID();
+    for (const auto& disc : model.GetDiscChoices(*game))
+    {
+      entry.discs.push_back({disc->GetFilePath(),
+                             tr("Disc %1 — %2")
+                                 .arg(disc->GetDiscNumber() + 1)
+                                 .arg(QString::fromStdString(disc->GetFilePath()))
+                                 .toStdString(),
+                             false});
+    }
     entry.platform =
         game->GetPlatform() == DiscIO::Platform::GameCubeDisc ? tr("GameCube").toStdString() :
         game->GetPlatform() == DiscIO::Platform::Triforce     ? tr("Triforce").toStdString() :

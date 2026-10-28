@@ -63,6 +63,33 @@ protected:
   NavigationToolkit toolkit;
 };
 
+TEST_F(BigPictureNavigationUITest, GroupedDiscPickerCanSelectSecondDiscAndCancelWithGamepadOnly)
+{
+  using namespace ::BigPicture;
+  Snapshot snapshot;
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Home, Screen::Library, Screen::FilePicker};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->picker_boot_disc = true;
+  library->picker_revision = 12;
+  library->files = {{"disc1.iso", "Disc 1"}, {"disc2.iso", "Disc 2"}};
+  snapshot.host.library = library;
+  const auto menu = BuildInGameMenu(snapshot, {}, {});
+  Settle(menu.page);
+  EXPECT_EQ(toolkit.GetMemory(menu.page.id).item, "file:disc1.iso");
+  Press(menu.page, ImGuiKey_GamepadDpadDown);
+  EXPECT_EQ(toolkit.GetMemory(menu.page.id).item, "file:disc2.iso");
+  const auto choice = menu.Activate(Press(menu.page, ImGuiKey_GamepadFaceDown));
+  ASSERT_TRUE(choice);
+  EXPECT_EQ(choice->action, Action::Boot);
+  EXPECT_EQ(choice->path, "disc2.iso");
+  EXPECT_EQ(choice->library_revision, 12u);
+  const auto cancel = menu.Activate(Press(menu.page, ImGuiKey_GamepadFaceRight));
+  ASSERT_TRUE(cancel);
+  EXPECT_EQ(cancel->action, Action::Back);
+}
+
 TEST_F(BigPictureNavigationUITest, KeyboardAndControllerNavigateHierarchyAndRestoreParentFocus)
 {
   const MenuPage root{"root", "Menu", {}, {{"settings", "Settings"}, {"close", "Close"}}};

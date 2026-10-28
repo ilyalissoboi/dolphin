@@ -78,6 +78,33 @@ TEST(BigPictureLibraryTest, PathsSurviveSortFilterAndIncrementalScansWithoutMuta
   EXPECT_FALSE(library.Execute(O::Select, a.path, 0).empty());
 }
 
+TEST(BigPictureLibraryTest, GroupedDiscPickerPublishesBothChoicesWithoutDirectoryBrowsing)
+{
+  BigPictureLibrary library(nullptr, {});
+  auto game = Entry("disc1.iso", "Multi-disc game");
+  game.discs = {{"disc1.iso", "Disc 1"}, {"disc2.iso", "Disc 2"}};
+  library.SetGames({game});
+  const auto previous = library.GetSnapshot();
+  ASSERT_TRUE(library.Execute(O::ChooseBootDisc, game.path, 0).empty());
+  const auto picker = library.GetSnapshot();
+  EXPECT_TRUE(picker->picker_boot_disc);
+  EXPECT_FALSE(picker->picker_loading);
+  EXPECT_FALSE(picker->picker_disc);
+  EXPECT_FALSE(picker->picker_folders_only);
+  EXPECT_TRUE(picker->parent_directory.empty());
+  ASSERT_EQ(picker->files.size(), 2u);
+  EXPECT_EQ(picker->files[1].path, "disc2.iso");
+  EXPECT_EQ(picker->files[1].name, "Disc 2");
+  EXPECT_GT(picker->picker_revision, previous->picker_revision);
+  EXPECT_TRUE(previous->files.empty());
+  EXPECT_FALSE(library.Execute(O::ChooseBootDisc, "missing.iso", 0).empty());
+  EXPECT_EQ(library.GetSnapshot()->picker_revision, picker->picker_revision);
+  ASSERT_TRUE(library.Execute(O::ChooseBootDisc, game.path, 0).empty());
+  EXPECT_GT(library.GetSnapshot()->picker_revision, picker->picker_revision);
+  ASSERT_TRUE(library.Execute(O::OpenFile, {}, 0).empty());
+  EXPECT_FALSE(library.GetSnapshot()->picker_boot_disc);
+}
+
 TEST(BigPictureLibraryTest, DetailedMetadataIsTranslatedAndRetainedByImmutableSnapshots)
 {
   BigPictureLibrary library(nullptr, {});
