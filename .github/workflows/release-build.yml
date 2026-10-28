@@ -1,0 +1,86 @@
+name: Fork release packages
+on:
+  push:
+    branches: [codex/release-build-2606-fork-9]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/upstream-release-2606-fork-9
+          fetch-depth: 0
+          submodules: recursive
+      - name: Stamp release
+        run: |
+          test "$(git rev-parse --short=10 HEAD)" = 200c4bbf1e
+          git -c user.name=release-builder -c user.email=release-builder@localhost tag -a 2606-fork-9 -m 'Fork release 2606-fork-9'
+      - name: Install dependencies
+        run: brew install ninja qt molten-vk gettext ffmpeg
+      - name: Build
+        run: |
+          export PATH="$HOME/.cargo/bin:$(brew --prefix qt)/bin:$PATH"
+          cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix molten-vk);$(brew --prefix gettext)" -DUSE_SYSTEM_LIBS=OFF -DUSE_BUNDLED_MOLTENVK=OFF -DPOSTPROCESS_BUNDLE=ON -DENABLE_TESTS=OFF
+          cmake --build build-release --target dolphin-emu --parallel 3
+      - name: Verify and package
+        run: |
+          APP=build-release/Binaries/Dolphin.app
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          file "$APP/Contents/MacOS/Dolphin"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist"
+          test -f "$APP/Contents/Frameworks/librashader.dylib"
+          test -f "$APP/Contents/Frameworks/libemusync.dylib"
+          test -f "$APP/Contents/Frameworks/libMoltenVK.dylib"
+          find "$APP" -type f -exec sh -c 'file "$1" | grep -q Mach-O && otool -L "$1" || true' sh {} \; > macos-libraries.txt
+          if grep -E '^\s+(/opt/homebrew|/usr/local)' macos-libraries.txt; then exit 1; fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP" dolphin-2606-fork-9-macos-arm64.zip
+          shasum -a 256 dolphin-2606-fork-9-macos-arm64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            dolphin-2606-fork-9-macos-arm64.zip
+            macos-libraries.txt
+          compression-level: 0
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/upstream-release-2606-fork-9
+          fetch-depth: 0
+          submodules: recursive
+      - name: Stamp release
+        run: |
+          test "$(git rev-parse --short=10 HEAD)" = 200c4bbf1e
+          git -c user.name=release-builder -c user.email=release-builder@localhost tag -a 2606-fork-9 -m 'Fork release 2606-fork-9'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android toolchain
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37' 'build-tools;37.0.0' 'ndk;30.0.15729638' 'cmake;3.31.6'
+      - name: Build unsigned APK and run JVM tests
+        working-directory: Source/Android
+        run: |
+          ./gradlew --no-daemon --max-workers=3 :app:assembleRelease :app:testReleaseUnitTest -Dorg.gradle.jvmargs=-Xmx5g -Pandroid.native.buildOutput=verbose
+      - name: Verify APK
+        run: |
+          APK=$(find Source/Android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$APK" | head -5 | tee android-metadata.txt
+          unzip -l "$APK" | grep -E 'lib/(arm64-v8a|x86_64)/(libmain|libemusync|librashader)'
+          cp "$APK" dolphin-2606-fork-9-unsigned.apk
+          sha256sum dolphin-2606-fork-9-unsigned.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            dolphin-2606-fork-9-unsigned.apk
+            android-metadata.txt
+          compression-level: 0
