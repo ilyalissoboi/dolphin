@@ -10,7 +10,6 @@ import org.dolphinemu.dolphinemu.model.GameFile
 import android.view.ViewGroup
 import android.view.LayoutInflater
 import android.view.View
-import org.dolphinemu.dolphinemu.services.GameFileCacheManager
 import org.dolphinemu.dolphinemu.R
 import android.view.animation.AnimationUtils
 import androidx.fragment.app.FragmentActivity
@@ -80,17 +79,7 @@ class GameAdapter : RecyclerView.Adapter<GameViewHolder>(),
         val animateOut = AnimationUtils.loadAnimation(context, R.anim.anim_card_game_out)
         animateOut.fillAfter = true
         holder.apply {
-            val discs = GameFileCacheManager.getDiscChoices(gameFile)
-            if (discs.isNotEmpty()) {
-                binding.textGameCaption.text = context.getString(
-                    R.string.multi_disc_count, discs.distinctBy { it.getDiscNumber() }.size
-                )
-            } else if (GameFileCacheManager.findSecondDisc(gameFile) != null) {
-                binding.textGameCaption.text =
-                    context.getString(R.string.disc_number, gameFile.getDiscNumber() + 1)
-            } else {
-                binding.textGameCaption.text = gameFile.getCompany()
-            }
+            binding.textGameCaption.text = getGameCardCaption(context, gameFile)
             holder.gameFile = gameFile
             binding.root.onFocusChangeListener =
                 View.OnFocusChangeListener { _: View?, hasFocus: Boolean ->

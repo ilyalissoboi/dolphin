@@ -81,17 +81,15 @@ class GameDiscSelectionDialog : DialogFragment() {
             val manager = activity.supportFragmentManager
             if (discs.isEmpty() || manager.isStateSaved || manager.findFragmentByTag(TAG) != null) return
 
-            val shortLabels = discs.map {
-                activity.getString(
-                    R.string.disc_selection_label, it.getDiscNumber() + 1, it.getFileName()
-                )
+            // Label each disc by file name, falling back to the full path when names collide.
+            val label = { disc: GameFile, name: String ->
+                activity.getString(R.string.disc_selection_label, disc.getDiscNumber() + 1, name)
             }
+            val shortLabels = discs.map { label(it, it.getFileName()) }
+            val labelCounts = shortLabels.groupingBy { it }.eachCount()
             val labels = discs.mapIndexed { index, disc ->
-                if (shortLabels.count { it == shortLabels[index] } > 1) {
-                    activity.getString(
-                        R.string.disc_selection_label, disc.getDiscNumber() + 1, disc.getPath()
-                    )
-                } else shortLabels[index]
+                if (labelCounts.getValue(shortLabels[index]) > 1) label(disc, disc.getPath())
+                else shortLabels[index]
             }
             // Store paths and launch choices now: rotation/rescans must not change an open chooser.
             val args = Bundle().apply {

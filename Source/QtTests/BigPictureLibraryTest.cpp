@@ -51,6 +51,19 @@ Game Entry(std::string path, std::string title, std::string platform = "GameCube
   return game;
 }
 
+// Encodes a solid-color PNG cover; empty if encoding fails.
+std::vector<unsigned char> SolidPng(int width, int height, Qt::GlobalColor color)
+{
+  QImage image(width, height, QImage::Format_RGBA8888);
+  image.fill(color);
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  buffer.open(QIODevice::WriteOnly);
+  if (!image.save(&buffer, "PNG"))
+    return {};
+  return {bytes.begin(), bytes.end()};
+}
+
 TEST(BigPictureLibraryTest, PathsSurviveSortFilterAndIncrementalScansWithoutMutatingReaders)
 {
   BigPictureLibrary library(nullptr, {});
@@ -392,19 +405,14 @@ TEST(BigPictureLibraryTest, LatestPickerWinsAndDiscListingsExcludeExecutables)
 
 TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInstallTextures)
 {
-  QImage image(600, 1000, QImage::Format_RGBA8888);
-  image.fill(Qt::red);
-  QByteArray bytes;
-  QBuffer buffer(&bytes);
-  buffer.open(QIODevice::WriteOnly);
-  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  const auto png = SolidPng(600, 1000, Qt::red);
+  ASSERT_FALSE(png.empty());
   const auto owner = std::this_thread::get_id();
   int reads = 0;
   BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
                                         EXPECT_EQ(std::this_thread::get_id(), owner);
                                         ++reads;
-                                        return std::vector<unsigned char>(bytes.begin(),
-                                                                          bytes.end());
+                                        return png;
                                       }});
   std::vector<Game> games;
   for (int i = 0; i < 32; ++i)
@@ -436,19 +444,15 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
   EXPECT_FALSE(library.GetSnapshot()->covers.contains("0"));
   EXPECT_EQ(library.GetSnapshot()->covers.at("1")->revision, new_revision);
 }
+
 TEST(BigPictureLibraryTest, PauseMetadataRefreshReusesDecodedCoversAndTheGpuCacheRevision)
 {
-  QImage image(40, 60, QImage::Format_RGBA8888);
-  image.fill(Qt::red);
-  QByteArray bytes;
-  QBuffer buffer(&bytes);
-  buffer.open(QIODevice::WriteOnly);
-  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  const auto png = SolidPng(40, 60, Qt::red);
+  ASSERT_FALSE(png.empty());
   int reads = 0;
   BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
                                         ++reads;
-                                        return std::vector<unsigned char>(bytes.begin(),
-                                                                          bytes.end());
+                                        return png;
                                       }});
   auto game = Entry("game.iso", "Game");
   library.SetGames({game});
@@ -485,17 +489,12 @@ TEST(BigPictureLibraryTest, PauseMetadataRefreshReusesDecodedCoversAndTheGpuCach
 
 TEST(BigPictureLibraryTest, MetadataRefreshKeepsInFlightDecodeAndScanRetainsPendingInvalidation)
 {
-  QImage image(40, 60, QImage::Format_RGBA8888);
-  image.fill(Qt::blue);
-  QByteArray bytes;
-  QBuffer buffer(&bytes);
-  buffer.open(QIODevice::WriteOnly);
-  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  const auto png = SolidPng(40, 60, Qt::blue);
+  ASSERT_FALSE(png.empty());
   int reads = 0;
   BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
                                         ++reads;
-                                        return std::vector<unsigned char>(bytes.begin(),
-                                                                          bytes.end());
+                                        return png;
                                       }});
   auto game = Entry("game.iso", "Game");
   library.SetGames({game});
@@ -543,16 +542,9 @@ TEST(BigPictureLibraryTest, MissingCoverIsNotRetriedOnEveryPauseButCanAppearAfte
 
 TEST(BigPictureLibraryTest, SmallCoverImagesKeepTheirNativeResolution)
 {
-  QImage image(40, 60, QImage::Format_RGBA8888);
-  image.fill(Qt::blue);
-  QByteArray bytes;
-  QBuffer buffer(&bytes);
-  buffer.open(QIODevice::WriteOnly);
-  ASSERT_TRUE(image.save(&buffer, "PNG"));
-  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) {
-                                        return std::vector<unsigned char>(bytes.begin(),
-                                                                          bytes.end());
-                                      }});
+  const auto png = SolidPng(40, 60, Qt::blue);
+  ASSERT_FALSE(png.empty());
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string&) { return png; }});
   library.SetGames({Entry("small", "Small cover")});
   library.Execute(O::Cover, "small", library.GetSnapshot()->catalog_revision);
   ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains("small"); }));
@@ -560,6 +552,7 @@ TEST(BigPictureLibraryTest, SmallCoverImagesKeepTheirNativeResolution)
   EXPECT_EQ(cover.width, 40u);
   EXPECT_EQ(cover.height, 60u);
 }
+
 TEST(BigPictureLibraryTest, ExplicitViewButtonsAreIdempotentAndShortcutsStillToggle)
 {
   BigPictureLibrary library(nullptr, {});

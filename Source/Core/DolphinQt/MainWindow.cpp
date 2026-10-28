@@ -1798,8 +1798,7 @@ void MainWindow::ShowBigPictureTextInput(std::uint64_t generation)
     }
     else
       m_big_picture_host->RequestBack();
-    m_render_widget->window()->activateWindow();
-    m_render_widget->setFocus();
+    FocusRenderWidget();
   });
   dialog->open();
 }
@@ -2457,21 +2456,16 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuat
     show();
     m_stack->repaint();
   }
-  Common::ScopeGuard restore_presentation([&] {
+  if (save_continuation &&
+      (!CanSaveContinuation() || !State::SaveContinuation(m_system, m_continuation_path)))
+  {
     if (show_desktop && render_was_visible)
     {
       if (m_rendering_to_main)
         m_stack->setCurrentWidget(m_render_widget);
       m_render_widget->show();
-      m_render_widget->activateWindow();
-      m_render_widget->setFocus();
+      FocusRenderWidget();
     }
-  });
-
-  if (save_continuation &&
-      (!CanSaveContinuation() || !State::SaveContinuation(m_system, m_continuation_path)))
-  {
-    restore_presentation.Exit();
     Core::SetState(m_system, original_state);
     if (!m_big_picture_requested)
     {
@@ -2482,7 +2476,6 @@ bool MainWindow::RequestStopWithConfirmation(bool confirmed, bool save_continuat
     }
     return false;
   }
-  restore_presentation.Dismiss();
 
   OnStopRecording();
   // TODO: Add Debugger shutdown
@@ -2559,6 +2552,11 @@ void MainWindow::FullScreen()
     m_render_widget->showFullScreen();
   }
 
+  FocusRenderWidget();
+}
+
+void MainWindow::FocusRenderWidget()
+{
   // Reparenting an embedded renderer deactivates its old top-level window. Qt does not
   // necessarily activate the new owner, so restore both window and keyboard focus explicitly.
   m_render_widget->activateWindow();
