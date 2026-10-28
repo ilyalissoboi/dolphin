@@ -71,7 +71,7 @@ jobs:
       - name: Build unsigned APK and run JVM tests
         working-directory: Source/Android
         run: |
-          ./gradlew --no-daemon --max-workers=3 :app:assembleRelease :app:testReleaseUnitTest -Dorg.gradle.jvmargs=-Xmx5g -Pandroid.native.buildOutput=verbose
+          ./gradlew --no-daemon --max-workers=3 :app:assembleRelease :app:testDebugUnitTest -Dorg.gradle.jvmargs=-Xmx5g -Pandroid.native.buildOutput=verbose
       - name: Verify APK
         run: |
           APK=$(find Source/Android/app/build/outputs/apk/release -name '*.apk' | head -1)
