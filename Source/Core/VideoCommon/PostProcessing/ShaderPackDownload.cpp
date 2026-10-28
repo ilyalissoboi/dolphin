@@ -127,11 +127,27 @@ ShaderPackDownloadResult DownloadShaderPackById(std::string_view id,
 
   Common::HttpRequest http(std::chrono::seconds(60), std::move(curl_progress));
   http.FollowRedirects(10);
-  const Common::HttpRequest::Response response = http.Get(source->url);
+  std::string download_url = source->url;
+  if (!source->release_asset_name_template.empty())
+  {
+    const auto release = http.Get(
+        source->url, {{"Accept", "application/vnd.github+json"}, {"User-Agent", "Dolphin"}});
+    if (!release)
+    {
+      return {false, 0,
+              "release lookup failed (HTTP " + std::to_string(http.GetLastResponseCode()) + ")"};
+    }
+    const auto asset_url = FindShaderPackReleaseAssetUrl(
+        *source, std::string_view(reinterpret_cast<const char*>(release->data()), release->size()));
+    if (!asset_url)
+      return {false, 0, "latest release has no unambiguous matching shader ZIP asset"};
+    download_url = *asset_url;
+  }
+  INFO_LOG_FMT(VIDEO, "Downloading shader pack '{}' from {}", source->id, download_url);
+  const Common::HttpRequest::Response response = http.Get(download_url);
   if (!response)
   {
-    return {false, 0,
-            "download failed (HTTP " + std::to_string(http.GetLastResponseCode()) + ")"};
+    return {false, 0, "download failed (HTTP " + std::to_string(http.GetLastResponseCode()) + ")"};
   }
 
   const std::string tmp_dir = File::CreateTempDir();
