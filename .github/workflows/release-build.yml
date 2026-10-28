@@ -25,13 +25,16 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$(brew --prefix qt)/bin:$PATH"
           cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix molten-vk);$(brew --prefix gettext)" -DUSE_SYSTEM_LIBS=OFF -DUSE_BUNDLED_MOLTENVK=OFF -DPOSTPROCESS_BUNDLE=ON -DENABLE_TESTS=OFF
-          cmake --build build-release --target dolphin-emu --parallel 3
+          cmake --build build-release --target build_final_bundle --parallel 3
       - name: Verify and package
         run: |
           APP=build-release/Binaries/Dolphin.app
           codesign --verify --deep --strict --verbose=2 "$APP"
           file "$APP/Contents/MacOS/Dolphin"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist"
+          codesign -d --entitlements :- "$APP" > macos-entitlements.plist
+          grep -q com.apple.security.cs.disable-library-validation macos-entitlements.plist
+          "$APP/Contents/MacOS/Dolphin" --version
           test -f "$APP/Contents/Frameworks/librashader.dylib"
           test -f "$APP/Contents/Frameworks/libemusync.dylib"
           test -f "$APP/Contents/Frameworks/libMoltenVK.dylib"
@@ -45,6 +48,7 @@ jobs:
           path: |
             dolphin-2606-fork-9-macos-arm64.zip
             macos-libraries.txt
+            macos-entitlements.plist
           compression-level: 0
   android:
     if: contains(github.event.head_commit.message, '[android]')
