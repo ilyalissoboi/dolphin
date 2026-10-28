@@ -2,12 +2,24 @@
 
 package org.dolphinemu.dolphinemu.model
 
+import android.content.Intent
 import android.os.SystemClock
+import android.util.TypedValue
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.dolphinemu.dolphinemu.R
+import org.dolphinemu.dolphinemu.activities.AppLinkActivity
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting
 import org.dolphinemu.dolphinemu.features.settings.model.NativeConfig
 import org.dolphinemu.dolphinemu.services.GameFileCacheManager
+import org.dolphinemu.dolphinemu.utils.AppLinkHelper
 import org.dolphinemu.dolphinemu.utils.DirectoryInitialization
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -113,6 +125,57 @@ class GameListDiscGroupsNativeTest {
                 !GameFileCacheManager.isLoadingOrRescanning() &&
                         GameFileCacheManager.getLibraryGameFiles().value?.map { it.getPath() }?.toSet() ==
                         setOf(second.getPath(), revision.getPath())
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                GameFileCache.setIsoPaths(oldPaths)
+                BooleanSetting.MAIN_COLLAPSE_MULTI_DISC_GAMES.setBoolean(NativeConfig.LAYER_BASE, oldCollapse)
+                GameFileCacheManager.startRescan()
+            }
+            waitUntil { !GameFileCacheManager.isLoadingOrRescanning() }
+        }
+    }
+
+    @Test
+    fun appLinkHasAMaterialThemeAndShowsTheDiscChooserWithoutALibraryActivity() {
+        val first = disc("disc1.iso", 0)
+        val second = disc("disc2.iso", 1)
+        val oldPaths = GameFileCache.getIsoPaths()
+        val oldCollapse = BooleanSetting.MAIN_COLLAPSE_MULTI_DISC_GAMES.boolean
+        try {
+            instrumentation.runOnMainSync {
+                BooleanSetting.MAIN_COLLAPSE_MULTI_DISC_GAMES.setBoolean(NativeConfig.LAYER_BASE, true)
+                GameFileCache.setIsoPaths(arrayOf(directory.path))
+                GameFileCacheManager.startLoad()
+                GameFileCacheManager.startRescan()
+            }
+            waitUntil {
+                GameFileCacheManager.getGameFiles().value?.map { it.getPath() }?.toSet() ==
+                        setOf(first.getPath(), second.getPath()) &&
+                        !GameFileCacheManager.isLoadingOrRescanning()
+            }
+            val intent = Intent(instrumentation.targetContext, AppLinkActivity::class.java)
+                .setAction(Intent.ACTION_VIEW)
+                .setData(AppLinkHelper.buildGameUri(0, first.getGameId()))
+            ActivityScenario.launch<AppLinkActivity>(intent).use { scenario ->
+                scenario.onActivity { activity ->
+                    val value = TypedValue()
+                    assertTrue(activity.theme.resolveAttribute(
+                        com.google.android.material.R.attr.isMaterialTheme, value, true
+                    ))
+                    assertTrue(value.data != 0)
+                }
+                onView(withText(R.string.select_disc)).check(matches(isDisplayed()))
+                onView(withText(instrumentation.targetContext.getString(
+                    R.string.disc_selection_label, 1, first.getFileName()
+                ))).check(matches(isDisplayed()))
+                onView(withText(instrumentation.targetContext.getString(
+                    R.string.disc_selection_label, 2, second.getFileName()
+                ))).check(matches(isDisplayed()))
+                scenario.recreate()
+                onView(withText(R.string.select_disc)).check(matches(isDisplayed()))
+                onView(withText(R.string.cancel)).perform(click())
+                waitUntil { scenario.state == Lifecycle.State.DESTROYED }
             }
         } finally {
             instrumentation.runOnMainSync {
