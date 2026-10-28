@@ -16,6 +16,7 @@ add_library(uicommon
   DiscordPresence.h
   GameFile.cpp
   GameFile.h
+  GameListDiscGroups.h
   GameFileCache.cpp
   GameFileCache.h
   NetPlayIndex.cpp

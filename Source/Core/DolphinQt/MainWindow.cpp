@@ -14,6 +14,7 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QIcon>
+#include <QInputDialog>
 #include <QMenuBar>
 #include <QMimeData>
 #include <QPushButton>
@@ -31,6 +32,7 @@
 #include <algorithm>
 #include <future>
 #include <optional>
+#include <set>
 #include <utility>
 #include <variant>
 
@@ -412,6 +414,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
   connect(library_model, &QAbstractItemModel::rowsRemoved, this, update_library);
   connect(library_model, &QAbstractItemModel::dataChanged, this, update_library);
   connect(library_model, &QAbstractItemModel::modelReset, this, update_library);
+  connect(library_model, &GameListModel::DiscGroupsChanged, this, update_library);
   connect(&Settings::Instance(), &Settings::GameListRefreshStarted, this, [this] {
     if (!m_shutting_down)
       m_big_picture_library->SetScanning(true);
@@ -865,18 +868,23 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
               tr("Failed to init core").toStdString()};
     return {command, ResultStatus::Dispatched};
   case Action::Boot:
+  {
     if (!File::Exists(command.path))
       return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
               tr("The selected game is no longer available: %1")
                   .arg(QString::fromStdString(command.path))
                   .toStdString()};
-    StartGame(command.path, ScanForSecondDisc::Yes);
+    const auto disc = ChooseLibraryDisc(command.path);
+    if (!disc)
+      return {command, ResultStatus::Cancelled};
+    StartGame(*disc, ScanForSecondDisc::Yes);
     if (m_continuation_boot)
       return {command, ResultStatus::Succeeded};
     if (Core::IsUninitialized(m_system) && !m_standalone_boot)
       return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
               tr("Failed to init core").toStdString()};
     break;
+  }
   case Action::ContinueGame:
   case Action::FreshBoot:
   case Action::DeleteContinuation:
@@ -1805,6 +1813,8 @@ void MainWindow::RefreshBigPictureLibrary()
   std::vector<BigPicture::LibraryGame> games;
   for (int row = 0; row < model.rowCount({}); ++row)
   {
+    if (!model.IsDiscGroupRepresentative(row))
+      continue;
     const auto game = model.GetGameFile(row);
     BigPicture::LibraryGame entry;
     entry.path = game->GetFilePath();
@@ -1991,6 +2001,7 @@ void MainWindow::ConnectRenderWidget()
   m_rendering_to_main = false;
   m_render_widget->hide();
   connect(m_render_widget, &RenderWidget::Closed, this, &MainWindow::ForceStop);
+  connect(m_render_widget, &RenderWidget::FullscreenRequested, this, &MainWindow::FullScreen);
   connect(m_render_widget, &RenderWidget::FocusChanged, this, [this](bool focus) {
     if (!focus)
       m_big_picture_host->InvalidatePauseOwnership();
@@ -2201,8 +2212,13 @@ void MainWindow::Play(const std::optional<std::string>& savestate_path)
     std::shared_ptr<const UICommon::GameFile> selection = m_game_list->GetSelectedGame();
     if (selection)
     {
-      StartGame(selection->GetFilePath(), ScanForSecondDisc::Yes,
-                std::make_unique<BootSessionData>(savestate_path, DeleteSavestateAfterBoot::No));
+      const auto disc = savestate_path ? std::optional{selection->GetFilePath()} :
+                                         ChooseLibraryDisc(selection->GetFilePath());
+      if (disc)
+      {
+        StartGame(*disc, ScanForSecondDisc::Yes,
+                  std::make_unique<BootSessionData>(savestate_path, DeleteSavestateAfterBoot::No));
+      }
     }
     else
     {
@@ -2514,14 +2530,67 @@ void MainWindow::ScreenShot()
   Core::SaveScreenShot();
 }
 
+std::optional<std::string> MainWindow::ChooseLibraryDisc(const std::string& path)
+{
+  const auto& model = m_game_list->GetGameListModel();
+  const auto game = model.FindGame(path);
+  if (!game)
+    return path;
+
+  // Copy the choices: the library can be rescanned while the modal dialog is open.
+  const auto discs = model.GetDiscChoices(*game);
+  if (discs.empty())
+    return path;
+
+  QStringList labels;
+  for (const auto& disc : discs)
+  {
+    labels.append(tr("Disc %1 — %2")
+                      .arg(disc->GetDiscNumber() + 1)
+                      .arg(QString::fromStdString(disc->GetFileName())));
+  }
+  const QStringList short_labels = labels;
+  for (qsizetype i = 0; i < labels.size(); ++i)
+  {
+    if (short_labels.count(short_labels[i]) > 1)
+    {
+      labels[i] = tr("Disc %1 — %2")
+                      .arg(discs[i]->GetDiscNumber() + 1)
+                      .arg(QString::fromStdString(discs[i]->GetFilePath()));
+    }
+  }
+  QWidget* parent = m_render_widget->isVisible() ? m_render_widget->window() : this;
+  QInputDialog dialog(parent);
+  dialog.setWindowTitle(tr("Select Disc"));
+  dialog.setLabelText(tr("Which disc would you like to start?"));
+  dialog.setComboBoxItems(labels);
+  dialog.setComboBoxEditable(false);
+  dialog.setWindowModality(Qt::WindowModal);
+  if (dialog.exec() != QDialog::Accepted)
+    return std::nullopt;
+
+  const int choice = labels.indexOf(dialog.textValue());
+  return choice < 0 ? std::nullopt : std::optional{discs[choice]->GetFilePath()};
+}
+
 void MainWindow::ScanForSecondDiscAndStartGame(const UICommon::GameFile& game,
                                                std::unique_ptr<BootSessionData> boot_session_data)
 {
-  auto second_game = m_game_list->FindSecondDisc(game);
-
   std::vector<std::string> paths = {game.GetFilePath()};
-  if (second_game != nullptr)
+  const auto& discs = m_game_list->GetGameListModel().GetDiscChoices(game);
+  if (!discs.empty())
+  {
+    std::set<u8> added_discs{game.GetDiscNumber()};
+    for (const auto& disc : discs)
+    {
+      if (added_discs.insert(disc->GetDiscNumber()).second)
+        paths.push_back(disc->GetFilePath());
+    }
+  }
+  else if (const auto second_game = m_game_list->FindSecondDisc(game))
+  {
     paths.push_back(second_game->GetFilePath());
+  }
 
   StartGame(paths, std::move(boot_session_data));
 }

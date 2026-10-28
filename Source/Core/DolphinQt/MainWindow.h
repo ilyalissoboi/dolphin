@@ -204,6 +204,7 @@ private:
 
   void ScanForSecondDiscAndStartGame(const UICommon::GameFile& game,
                                      std::unique_ptr<BootSessionData> boot_session_data = nullptr);
+  std::optional<std::string> ChooseLibraryDisc(const std::string& path);
   void StartGame(const QString& path, ScanForSecondDisc scan,
                  std::unique_ptr<BootSessionData> boot_session_data = nullptr);
   void StartGame(const std::string& path, ScanForSecondDisc scan,

@@ -14,6 +14,17 @@
                                  "list's Title column.\n\nIf unsure, leave this checked.");
 }
 
+// Settings/InterfacePane.ui: collapseMultiDiscGamesCheckBox
+{
+  auto& entry = add(Config::MAIN_COLLAPSE_MULTI_DISC_GAMES, "native.main_collapse_multi_disc_games",
+                    "Interface", _trans("Collapse Multi-Disc Games into a Single Entry"),
+                    Control::Toggle, false, ApplyPolicy::Live);
+  entry.descriptor.help =
+      _trans("Shows the discs of a multi-disc game as a single library entry and asks which "
+             "disc to start when you launch it. Different game revisions and regions remain "
+             "separate.\n\nIf unsure, leave this unchecked.");
+}
+
 // Settings/InterfacePane.ui: useCoversCheckBox
 {
   auto& entry = add(Config::MAIN_USE_GAME_COVERS, "native.main_use_game_covers", "Interface",
@@ -206,6 +217,16 @@
   entry.descriptor.help =
       _trans("Uses the entire screen for rendering.\n\nIf disabled, a render window will be "
              "created instead.\n\nIf unsure, leave this unchecked.");
+}
+
+// Config/Graphics/GeneralWidget.ui: fullscreenOnDoubleClickCheckBox
+{
+  auto& entry = add(
+      Config::MAIN_FULLSCREEN_ON_DOUBLE_CLICK, "native.main_fullscreen_on_double_click", "Display",
+      _trans("Toggle Fullscreen on Double-Click"), Control::Toggle, true, ApplyPolicy::Live);
+  entry.descriptor.help =
+      _trans("Toggles between windowed and fullscreen mode when you double-click the render "
+             "window with the left mouse button.\n\nIf unsure, leave this unchecked.");
 }
 
 // Config/Graphics/GeneralWidget.ui: precisionFrameTimingCheckBox

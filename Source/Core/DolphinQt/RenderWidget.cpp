@@ -444,6 +444,16 @@ bool RenderWidget::event(QEvent* event)
   case QEvent::WindowBlocked:
     SetCursorLocked(false);
     break;
+  case QEvent::MouseButtonDblClick:
+    if (static_cast<QMouseEvent*>(event)->button() == Qt::LeftButton &&
+        Config::Get(Config::MAIN_FULLSCREEN_ON_DOUBLE_CLICK) &&
+        !BigPicture::GetPresentationState().IsModal() &&
+        !BigPicture::GetPresentationState().GetCapture().mouse)
+    {
+      emit FullscreenRequested();
+      return true;
+    }
+    break;
   case QEvent::MouseButtonPress:
 
     // Grab focus to stop unwanted keyboard input UI interaction.
@@ -622,6 +632,7 @@ void RenderWidget::PassEventToPresenter(const QEvent* event)
 
   case QEvent::MouseButtonPress:
   case QEvent::MouseButtonRelease:
+  case QEvent::MouseButtonDblClick:
   {
     const u32 button_mask = static_cast<u32>(static_cast<const QMouseEvent*>(event)->buttons());
     input.Enqueue(

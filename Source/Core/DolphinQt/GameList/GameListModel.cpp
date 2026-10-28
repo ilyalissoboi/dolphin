@@ -9,6 +9,7 @@
 #include <QRegularExpression>
 
 #include "Core/Config/MainSettings.h"
+#include "Core/Config/UISettings.h"
 #include "Core/Core.h"
 #include "Core/TimePlayed.h"
 
@@ -25,6 +26,14 @@ const QSize GAMECUBE_BANNER_SIZE(96, 32);
 
 GameListModel::GameListModel(QObject* parent) : QAbstractTableModel(parent)
 {
+  m_collapse_multi_disc_games = Config::Get(Config::MAIN_COLLAPSE_MULTI_DISC_GAMES);
+  connect(&Settings::Instance(), &Settings::ConfigChanged, this, [this] {
+    const bool collapse = Config::Get(Config::MAIN_COLLAPSE_MULTI_DISC_GAMES);
+    if (m_collapse_multi_disc_games == collapse)
+      return;
+    m_collapse_multi_disc_games = collapse;
+    RebuildDiscGroups(true);
+  });
   connect(&m_tracker, &GameTracker::GameLoaded, this, &GameListModel::AddGame);
   connect(&m_tracker, &GameTracker::GameUpdated, this, &GameListModel::UpdateGame);
   connect(&m_tracker, &GameTracker::GameRemoved, this, &GameListModel::RemoveGame);
@@ -97,7 +106,12 @@ QVariant GameListModel::data(const QModelIndex& index, int role) const
       QString name = QString::fromStdString(game.GetName(m_title_database));
 
       const int disc_number = game.GetDiscNumber() + 1;
-      if (disc_number > 1 || game.IsTwoDiscGame())
+      if (!GetDiscChoices(game).empty())
+      {
+        name.remove(QRegularExpression(QStringLiteral("\\s*\\(Disc ?\\d+\\)\\s*$"),
+                                       QRegularExpression::CaseInsensitiveOption));
+      }
+      else if (disc_number > 1 || game.IsTwoDiscGame())
       {
         // Add disc number to title if not present.
         if (!name.contains(QRegularExpression(QStringLiteral("disc ?%1").arg(disc_number),
@@ -281,18 +295,23 @@ int GameListModel::columnCount(const QModelIndex& parent) const
 
 bool GameListModel::ShouldDisplayGameListItem(int index) const
 {
+  if (!IsDiscGroupRepresentative(index))
+    return false;
+
   const UICommon::GameFile& game = *m_games[index];
 
   if (!m_term.isEmpty())
   {
-    const bool matches_title = QString::fromStdString(game.GetName(m_title_database))
-                                   .contains(m_term, Qt::CaseInsensitive);
     const bool filename_visible = Config::Get(Config::MAIN_GAMELIST_COLUMN_FILE_NAME);
     const bool list_view_selected = Settings::Instance().GetPreferredView();
-    const bool matches_filename =
-        filename_visible && list_view_selected &&
-        QString::fromStdString(game.GetFileName()).contains(m_term, Qt::CaseInsensitive);
-    if (!(matches_title || matches_filename))
+    const auto matches = [&](const UICommon::GameFile& disc) {
+      return QString::fromStdString(disc.GetName(m_title_database))
+                 .contains(m_term, Qt::CaseInsensitive) ||
+             (filename_visible && list_view_selected &&
+              QString::fromStdString(disc.GetFileName()).contains(m_term, Qt::CaseInsensitive));
+    };
+    if (!matches(game) && !std::ranges::any_of(GetDiscChoices(game),
+                                               [&](const auto& disc) { return matches(*disc); }))
     {
       return false;
     }
@@ -374,6 +393,7 @@ void GameListModel::AddGame(const std::shared_ptr<const UICommon::GameFile>& gam
   beginInsertRows(QModelIndex(), m_games.size(), m_games.size());
   m_games.push_back(game);
   endInsertRows();
+  RebuildDiscGroups();
 }
 
 void GameListModel::UpdateGame(const std::shared_ptr<const UICommon::GameFile>& game)
@@ -387,6 +407,7 @@ void GameListModel::UpdateGame(const std::shared_ptr<const UICommon::GameFile>& 
   {
     m_games[index] = game;
     emit dataChanged(createIndex(index, 0), createIndex(index, columnCount(QModelIndex()) - 1));
+    RebuildDiscGroups();
   }
 }
 
@@ -399,6 +420,33 @@ void GameListModel::RemoveGame(const std::string& path)
   beginRemoveRows(QModelIndex(), entry, entry);
   m_games.removeAt(entry);
   endRemoveRows();
+  RebuildDiscGroups();
+}
+
+void GameListModel::RebuildDiscGroups(bool setting_changed)
+{
+  if (!m_collapse_multi_disc_games && !setting_changed)
+    return;
+
+  if (m_collapse_multi_disc_games)
+    m_disc_groups.Rebuild({m_games.constData(), static_cast<size_t>(m_games.size())});
+  else
+    m_disc_groups.Rebuild({});
+  if (!m_games.empty())
+    emit dataChanged(index(0, 0), index(m_games.size() - 1, columnCount({}) - 1));
+  emit DiscGroupsChanged();
+}
+
+bool GameListModel::IsDiscGroupRepresentative(int index) const
+{
+  return !m_collapse_multi_disc_games || m_disc_groups.IsRepresentative(*m_games[index]);
+}
+
+const UICommon::GameListDiscGroups::Games&
+GameListModel::GetDiscChoices(const UICommon::GameFile& game) const
+{
+  static const UICommon::GameListDiscGroups::Games empty;
+  return m_collapse_multi_disc_games ? m_disc_groups.GetDiscs(game) : empty;
 }
 
 std::shared_ptr<const UICommon::GameFile> GameListModel::FindGame(const std::string& path) const
