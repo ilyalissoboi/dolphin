@@ -549,6 +549,14 @@ class SettingsFragmentPresenter(
     }
 
     private fun addInterfaceSettings(sl: ArrayList<SettingsItem>) {
+        sl.add(
+            SwitchSetting(
+                context,
+                BooleanSetting.MAIN_COLLAPSE_MULTI_DISC_GAMES,
+                R.string.collapse_multi_disc_games,
+                R.string.collapse_multi_disc_games_description
+            )
+        )
         // Hide the orientation setting if the device only supports one orientation. Old devices which
         // support both portrait and landscape may report support for neither, so we use ==, not &&.
         val packageManager = context.packageManager

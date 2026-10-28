@@ -733,6 +733,12 @@ It can efficiently compress both junk data and encrypted Wii data.
     <string name="slider_setting_value">%.0f%2$s</string>
     <string name="slider_setting_float_value">%.2f%2$s</string>
     <string name="disc_number">Disc %1$d</string>
+    <string name="collapse_multi_disc_games">Collapse Multi-Disc Games into a Single Entry</string>
+    <string name="collapse_multi_disc_games_description">Shows the discs of a multi-disc game as a single library entry and asks which disc to start when you launch it. Different game revisions and regions remain separate.</string>
+    <string name="select_disc">Select Disc</string>
+    <string name="disc_properties">Disc Properties…</string>
+    <string name="disc_selection_label">Disc %1$d — %2$s</string>
+    <string name="multi_disc_count">%1$d discs</string>
     <string name="replug_gc_adapter">GameCube Adapter couldn\'t be opened. Please re-plug the device.</string>
     <string name="disabled_gc_overlay_notice">The selected GameCube controller is set to \"None\"</string>
     <string name="ignore_warning_alert_messages">Ignore for this session</string>

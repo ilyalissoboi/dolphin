@@ -13,13 +13,13 @@ import android.view.View
 import org.dolphinemu.dolphinemu.services.GameFileCacheManager
 import org.dolphinemu.dolphinemu.R
 import android.view.animation.AnimationUtils
-import org.dolphinemu.dolphinemu.activities.EmulationActivity
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.dolphinemu.dolphinemu.databinding.CardGameBinding
+import org.dolphinemu.dolphinemu.dialogs.GameDiscSelectionDialog
 import org.dolphinemu.dolphinemu.dialogs.GamePropertiesDialog
 import org.dolphinemu.dolphinemu.features.settings.model.BooleanSetting
 import org.dolphinemu.dolphinemu.utils.CoilUtils
@@ -80,7 +80,12 @@ class GameAdapter : RecyclerView.Adapter<GameViewHolder>(),
         val animateOut = AnimationUtils.loadAnimation(context, R.anim.anim_card_game_out)
         animateOut.fillAfter = true
         holder.apply {
-            if (GameFileCacheManager.findSecondDisc(gameFile) != null) {
+            val discs = GameFileCacheManager.getDiscChoices(gameFile)
+            if (discs.isNotEmpty()) {
+                binding.textGameCaption.text = context.getString(
+                    R.string.multi_disc_count, discs.distinctBy { it.getDiscNumber() }.size
+                )
+            } else if (GameFileCacheManager.findSecondDisc(gameFile) != null) {
                 binding.textGameCaption.text =
                     context.getString(R.string.disc_number, gameFile.getDiscNumber() + 1)
             } else {
@@ -144,8 +149,7 @@ class GameAdapter : RecyclerView.Adapter<GameViewHolder>(),
      */
     override fun onClick(view: View) {
         val holder = view.tag as GameViewHolder
-        val paths = GameFileCacheManager.findSecondDiscAndGetPaths(holder.gameFile)
-        EmulationActivity.launch(view.context as FragmentActivity, paths, false)
+        GameDiscSelectionDialog.launchGame(view.context as FragmentActivity, holder.gameFile!!)
     }
 
     /**

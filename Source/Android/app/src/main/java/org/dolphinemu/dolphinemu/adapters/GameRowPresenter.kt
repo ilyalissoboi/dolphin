@@ -62,7 +62,12 @@ class GameRowPresenter : Presenter() {
                 true
             }
 
-            if (GameFileCacheManager.findSecondDisc(gameFile) != null) {
+            val discs = GameFileCacheManager.getDiscChoices(gameFile)
+            if (discs.isNotEmpty()) {
+                holder.cardParent.contentText = context.getString(
+                    R.string.multi_disc_count, discs.distinctBy { it.getDiscNumber() }.size
+                )
+            } else if (GameFileCacheManager.findSecondDisc(gameFile) != null) {
                 holder.cardParent.contentText =
                     context.getString(R.string.disc_number, gameFile.getDiscNumber() + 1)
             } else {

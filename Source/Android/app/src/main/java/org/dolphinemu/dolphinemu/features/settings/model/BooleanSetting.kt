@@ -183,6 +183,12 @@ enum class BooleanSetting(
         "UseGameCovers",
         true
     ),
+    MAIN_COLLAPSE_MULTI_DISC_GAMES(
+        Settings.FILE_DOLPHIN,
+        Settings.SECTION_INI_GAME_LIST,
+        "CollapseMultiDiscGames",
+        false
+    ),
     MAIN_DEBUG_JIT_OFF(Settings.FILE_DOLPHIN, Settings.SECTION_DEBUG, "JitOff", false),
     MAIN_DEBUG_JIT_LOAD_STORE_OFF(
         Settings.FILE_DOLPHIN,
