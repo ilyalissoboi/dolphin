@@ -188,4 +188,3 @@ const Catalog& GetCatalog()
   return catalog;
 }
 }  // namespace UICommon::Settings
-

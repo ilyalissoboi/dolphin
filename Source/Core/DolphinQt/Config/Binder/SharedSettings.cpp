@@ -5,11 +5,12 @@
 
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
+#include <cstdlib>
 
 #include <QCoreApplication>
 #include <QSlider>
 
+#include "Common/Logging/Log.h"
 #include "DolphinQt/Config/Binder/ConfigSettingRegistry.h"
 
 namespace ConfigWidget
@@ -18,7 +19,10 @@ Common::Settings::Descriptor CatalogDescriptor(const Config::Location& location)
 {
   const auto* entry = UICommon::Settings::GetCatalog().Find(location);
   if (!entry)
-    throw std::invalid_argument("Setting is not in the supported shared catalog");
+  {
+    ERROR_LOG_FMT(COMMON, "Setting is not in the supported shared catalog");
+    std::abort();
+  }
   return entry->descriptor;
 }
 

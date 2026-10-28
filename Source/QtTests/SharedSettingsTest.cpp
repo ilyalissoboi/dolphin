@@ -27,6 +27,13 @@
 namespace
 {
 using namespace UICommon::Settings;
+
+TEST(SharedSettingsDeathTest, UnsupportedCatalogBindingsFailFast)
+{
+  const Config::Location location{Config::System::Main, "SharedSettingsDeathTest", "Missing"};
+  EXPECT_DEATH_IF_SUPPORTED(ConfigWidget::CatalogDescriptor(location), "");
+}
+
 class SharedSettingsTest : public testing::Test
 {
 protected:
