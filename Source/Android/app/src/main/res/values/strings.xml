@@ -256,6 +256,9 @@
     <string name="post_processing_download_retrocrisis">Download RetroCrisis GDV-NTSC</string>
     <string name="post_processing_download_retrocrisis_description">Config-only CRT pack; downloads the libretro base if missing</string>
     <string name="post_processing_download_retrocrisis_profile_title">Choose a display profile</string>
+    <string name="post_processing_download_lola_retro">Download Lola Retro</string>
+    <string name="post_processing_download_lola_retro_description">CRT shader pack with system presets and lite variants from GitHub; requires Vulkan</string>
+    <string name="post_processing_download_lola_retro_confirmation">This will download the Lola Retro shader pack and install it into your Shaders folder. Continue?</string>
     <string-array name="post_processing_retrocrisis_profiles">
         <item>1080p Flat</item>
         <item>1440p Flat</item>

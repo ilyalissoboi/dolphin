@@ -24,6 +24,10 @@ const std::vector<ShaderPackSource>& GetShaderPackSources()
        "Retro.Crisis.GDV-NTSC.2026.08.20.zip.zip",
        /*extract_subpath=*/"", /*install_subdir=*/"RetroCrisis", /*depends_on=*/{"libretro"},
        /*install_marker=*/"RetroCrisis/retro crisis"},
+      {"lola-retro", "Lola Retro",
+       "https://github.com/zoran123456/lola-retro/releases/download/v1.18/lola-retro-v1.18.zip",
+       /*extract_subpath=*/"", /*install_subdir=*/"shaders_slang", /*depends_on=*/{},
+       /*install_marker=*/"shaders_slang/lola-retro/systems/curved/gamecube.slangp"},
   };
   return sources;
 }

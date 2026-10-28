@@ -1869,6 +1869,16 @@ class SettingsFragmentPresenter(
                 false
             ) { promptRetroCrisisProfile() }
         )
+        sl.add(
+            RunRunnable(
+                context,
+                R.string.post_processing_download_lola_retro,
+                R.string.post_processing_download_lola_retro_description,
+                R.string.post_processing_download_lola_retro_confirmation,
+                0,
+                false
+            ) { downloadShaderPack("lola-retro", "") }
+        )
 
         sl.add(
             SwitchSetting(
