@@ -353,10 +353,10 @@ void OnScreenUI::DrawDebugText()
 
   if (!::BigPicture::GetPresentationState().IsModal())
   {
-    if (const auto chat = g_netplay_chat_ui.load();
+    if (const auto chat = GetNetPlayChatUI();
         chat && Config::Get(Config::GFX_SHOW_NETPLAY_MESSAGES))
       chat->Display();
-    if (const auto golf = g_netplay_golf_ui.load();
+    if (const auto golf = GetNetPlayGolfUI();
         golf && Config::Get(Config::NETPLAY_GOLF_MODE_OVERLAY))
       golf->Display();
   }
