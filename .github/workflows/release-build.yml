@@ -17,7 +17,7 @@ jobs:
           submodules: recursive
       - name: Stamp release
         run: |
-          test "$(git rev-parse --short=10 HEAD)" = 648c05cc95
+          test "$(git rev-parse --short=10 HEAD)" = 4c60a87fdc
           git -c user.name=release-builder -c user.email=release-builder@localhost tag -a 2606-fork-9 -m 'Fork release 2606-fork-9'
       - name: Install dependencies
         run: brew install ninja qt molten-vk gettext ffmpeg
@@ -75,7 +75,7 @@ jobs:
           submodules: recursive
       - name: Stamp release
         run: |
-          test "$(git rev-parse --short=10 HEAD)" = 648c05cc95
+          test "$(git rev-parse --short=10 HEAD)" = 4c60a87fdc
           git -c user.name=release-builder -c user.email=release-builder@localhost tag -a 2606-fork-9 -m 'Fork release 2606-fork-9'
       - uses: actions/setup-java@v5
         with:
@@ -124,6 +124,7 @@ jobs:
             ~/.cache/ccache
             ~/.gradle/caches
           key: fork-9-android-${{ github.run_id }}
+
 
 
 
