@@ -9,6 +9,7 @@
 #include <QStringList>
 
 #include <array>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -284,10 +285,13 @@ private:
   std::unique_ptr<Ui::MainWindow> m_ui;
   BigPictureHost* m_big_picture_host = nullptr;
   BigPictureAchievements m_big_picture_achievements;
+  std::shared_ptr<const BigPicture::LibraryImage> m_big_picture_avatar;
   std::unique_ptr<BigPictureSettings> m_big_picture_settings;
   bool m_settings_post_processing = false;
   BigPictureLibrary* m_big_picture_library = nullptr;
-  bool m_big_picture_covers_dirty = true;
+  // The game files last published to Big Picture, used to detect actual cover changes.
+  std::map<std::string, std::shared_ptr<const UICommon::GameFile>> m_big_picture_cover_sources;
+  bool m_big_picture_refresh_queued = false;
   QPointer<BigPictureTextInput> m_big_picture_text_input;
   std::uint64_t m_big_picture_text_generation = 0;
   bool m_big_picture_text_queued = false;

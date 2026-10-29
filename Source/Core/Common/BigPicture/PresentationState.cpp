@@ -156,11 +156,12 @@ void PresentationState::SetNavigationStatus(NavigationStatus status)
 
 void PresentationState::SetNavigationText(NavigationText text)
 {
+  auto shared = std::make_shared<const NavigationText>(std::move(text));
   std::lock_guard lock(m_mutex);
-  m_navigation_text = std::move(text);
+  m_navigation_text = std::move(shared);
 }
 
-NavigationText PresentationState::GetNavigationText() const
+std::shared_ptr<const NavigationText> PresentationState::GetNavigationText() const
 {
   std::lock_guard lock(m_mutex);
   return m_navigation_text;

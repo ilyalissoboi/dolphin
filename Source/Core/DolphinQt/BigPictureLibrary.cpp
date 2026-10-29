@@ -22,7 +22,6 @@
 
 namespace
 {
-constexpr std::size_t MAX_COVERS = 24;
 constexpr std::size_t MAX_COVER_JOBS = 4;
 constexpr std::size_t MAX_ENCODED_COVER = 16 * 1024 * 1024;
 constexpr std::size_t MAX_FILES = 4096;
@@ -72,6 +71,7 @@ BigPictureLibrary::~BigPictureLibrary()
 void BigPictureLibrary::Publish(bool filter)
 {
   Q_ASSERT(QThread::currentThread() == thread());
+  m_publish_queued = false;
   if (m_callbacks.recursive)
     m_state.recursive = m_callbacks.recursive();
   if (filter)
@@ -108,6 +108,17 @@ void BigPictureLibrary::Publish(bool filter)
     m_callbacks.changed();
 }
 
+void BigPictureLibrary::QueuePublish()
+{
+  if (std::exchange(m_publish_queued, true))
+    return;
+  QueueOnObject(this, [this] {
+    // A direct publish in the meantime already included these results.
+    if (m_publish_queued && !m_destroying)
+      Publish();
+  });
+}
+
 void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games, bool invalidate_covers)
 {
   m_cover_invalidation_pending |= invalidate_covers;
@@ -139,6 +150,7 @@ void BigPictureLibrary::SetGames(std::vector<BigPicture::LibraryGame> games, boo
     ++m_state.catalog_revision;
     m_state.covers.clear();
     m_cover_use.clear();
+    m_cover_bytes = 0;
     m_state.missing_covers.clear();
   }
   if (!m_state.selected_path.empty() &&
@@ -328,17 +340,28 @@ void BigPictureLibrary::RunJob(Job job)
         m_state.missing_covers.insert(job.path);
       else
       {
-        if (m_state.covers.size() >= MAX_COVERS)
+        if (const auto existing = m_state.covers.find(job.path); existing != m_state.covers.end())
+        {
+          m_cover_bytes -= existing->second->rgba.size();
+          m_state.covers.erase(existing);
+          m_cover_use.erase(job.path);
+        }
+        while (!m_state.covers.empty() &&
+               (m_state.covers.size() >= BigPicture::MAX_DECODED_COVERS ||
+                m_cover_bytes + result->rgba.size() > BigPicture::MAX_DECODED_COVER_BYTES))
         {
           const auto oldest = std::ranges::min_element(
               m_cover_use, {}, [](const auto& item) { return item.second; });
-          m_state.covers.erase(oldest->first);
+          const auto evicted = m_state.covers.find(oldest->first);
+          m_cover_bytes -= evicted->second->rgba.size();
+          m_state.covers.erase(evicted);
           m_cover_use.erase(oldest);
         }
         m_state.covers[job.path] = result;
         m_cover_use[job.path] = ++m_cover_clock;
+        m_cover_bytes += result->rgba.size();
       }
-      Publish();
+      QueuePublish();
     });
     return;
   }

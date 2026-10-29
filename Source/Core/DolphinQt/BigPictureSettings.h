@@ -93,6 +93,9 @@ private:
   std::string m_text_error;
   u64 m_revision = 1;
   u64 m_settings_revision = 0;
+  // The service reuses its snapshot until a revision change, so translate each one once.
+  std::shared_ptr<const Common::Settings::Snapshot> m_source_snapshot;
+  std::shared_ptr<const Common::Settings::Snapshot> m_translated_snapshot;
   std::vector<std::string> m_devices;
   std::vector<ControllerTarget> m_targets;
   std::function<std::vector<std::string>()> m_input_devices;

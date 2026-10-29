@@ -415,10 +415,16 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
                                         return png;
                                       }});
   std::vector<Game> games;
-  for (int i = 0; i < 32; ++i)
+  for (std::size_t i = 0; i < BigPicture::MAX_DECODED_COVERS + 8; ++i)
     games.push_back(Entry(std::to_string(i), "Game"));
   library.SetGames(games);
   const auto revision = library.GetSnapshot()->catalog_revision;
+  const auto cover_bytes = [](const auto& snapshot) {
+    std::size_t bytes = 0;
+    for (const auto& [path, image] : snapshot->covers)
+      bytes += image->rgba.size();
+    return bytes;
+  };
   for (const auto& game : games)
   {
     library.Execute(O::Cover, game.path, revision);
@@ -427,14 +433,18 @@ TEST(BigPictureLibraryTest, CoverDecodeIsBoundedAndOldCatalogRequestsCannotInsta
     EXPECT_LE(cover.width, BigPicture::MAX_COVER_WIDTH);
     EXPECT_LE(cover.height, BigPicture::MAX_COVER_HEIGHT);
     EXPECT_EQ(cover.rgba.size(), static_cast<std::size_t>(cover.width) * cover.height * 4);
-    EXPECT_LE(library.GetSnapshot()->covers.size(), 24u);
+    EXPECT_LE(library.GetSnapshot()->covers.size(), BigPicture::MAX_DECODED_COVERS);
+    EXPECT_LE(cover_bytes(library.GetSnapshot()), BigPicture::MAX_DECODED_COVER_BYTES);
   }
   const auto retained = library.GetSnapshot();
+  const auto retained_count = retained->covers.size();
+  // These large covers reach the byte budget before the count bound.
+  EXPECT_LT(retained_count, games.size());
   library.SetGames(games);
   library.Execute(O::Cover, "0", revision);
-  EXPECT_EQ(reads, 32);
+  EXPECT_EQ(reads, static_cast<int>(games.size()));
   EXPECT_TRUE(library.GetSnapshot()->covers.empty());
-  EXPECT_EQ(retained->covers.size(), 24u);
+  EXPECT_EQ(retained->covers.size(), retained_count);
   const auto old_revision = library.GetSnapshot()->catalog_revision;
   library.Execute(O::Cover, "0", old_revision);
   library.SetGames(games);

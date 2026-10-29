@@ -55,6 +55,8 @@ private:
   };
   void RunJob(Job job);
   void Publish(bool filter = false);
+  // Decode results arrive in bursts; publish them together after the queued results.
+  void QueuePublish();
   void Browse(const std::string& path);
   void RequestCover(const std::string& path, std::uint64_t revision);
   void OpenDiscLibrary();
@@ -73,6 +75,8 @@ private:
   std::set<std::pair<std::uint64_t, std::string>> m_pending_covers;
   std::map<std::string, std::uint64_t> m_cover_use;
   std::uint64_t m_cover_clock = 0;
+  std::size_t m_cover_bytes = 0;
+  bool m_publish_queued = false;
   bool m_directory_pending = false;
   std::optional<Job> m_next_directory;
   unsigned m_sort = 0;

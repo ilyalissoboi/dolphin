@@ -353,16 +353,24 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
   m_big_picture_library = new BigPictureLibrary(
       this,
       {[this] {
-         if (m_big_picture_host)
-           m_big_picture_host->Refresh();
+         // Covers and listings arrive in bursts. Coalesce them into one state read per event
+         // loop turn; a command dispatch refreshes the state itself once it completes.
+         if (!m_big_picture_host || std::exchange(m_big_picture_refresh_queued, true))
+           return;
+         QTimer::singleShot(0, this, [this] {
+           m_big_picture_refresh_queued = false;
+           if (m_big_picture_host && !m_shutting_down)
+             m_big_picture_host->Refresh();
+         });
        },
        [](const std::string& path) { Settings::Instance().AddPath(QString::fromStdString(path)); },
        [] { Settings::Instance().RefreshGameList(); },
        [this](const std::string& path) {
          const auto game = m_game_list->FindGame(path);
-         return game && game->GetCoverImage().buffer.size() <= 16 * 1024 * 1024 ?
-                    game->GetCoverImage().buffer :
-                    std::vector<unsigned char>{};
+         if (!game)
+           return std::vector<unsigned char>{};
+         const auto& cover = game->GetCoverImage().buffer;
+         return cover.size() <= 16 * 1024 * 1024 ? cover : std::vector<unsigned char>{};
        },
        [] { return Config::Get(Config::MAIN_RECURSIVE_ISO_PATHS); },
        [](bool recursive) {
@@ -409,10 +417,7 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
   m_library_timer->setInterval(50);
   connect(m_library_timer, &QTimer::timeout, this, &MainWindow::RefreshBigPictureLibrary);
   const auto* library_model = &m_game_list->GetGameListModel();
-  const auto update_library = [this] {
-    m_big_picture_covers_dirty = true;
-    m_library_timer->start();
-  };
+  const auto update_library = [this] { m_library_timer->start(); };
   connect(library_model, &QAbstractItemModel::rowsInserted, this, update_library);
   connect(library_model, &QAbstractItemModel::rowsRemoved, this, update_library);
   connect(library_model, &QAbstractItemModel::dataChanged, this, update_library);
@@ -625,18 +630,28 @@ BigPicture::HostState MainWindow::ReadBigPictureState()
         {samples, samples == 1 ? tr("None").toStdString() : std::to_string(samples) + "x"});
   if (environment.anti_aliasing.empty())
     environment.anti_aliasing.push_back({u32{1}, tr("None").toStdString()});
-  for (const auto engine : PowerPC::AvailableCPUCores())
-    environment.cpu_engines.push_back(
-        {UICommon::Settings::ToValue(engine),
-         engine == PowerPC::CPUCore::Interpreter       ? tr("Interpreter").toStdString() :
-         engine == PowerPC::CPUCore::CachedInterpreter ? tr("Cached Interpreter").toStdString() :
-                                                         tr("JIT Recompiler").toStdString()});
-  for (const auto& backend : VideoBackendBase::GetAvailableBackends())
-    if (backend->SupportsUI())
-      environment.graphics_backends.push_back(
-          {backend->GetConfigName(), backend->GetDisplayName()});
-  // Backend implementations are fixed for this process. Do not repeat optional
-  // library loading/probing on every settings snapshot; devices are separate options.
+  // CPU engines, backend implementations and the interface language are fixed for this
+  // process. Do not repeat optional library loading/probing on every settings snapshot;
+  // devices are separate options.
+  static const auto cpu_engines = [] {
+    decltype(environment.cpu_engines) engines;
+    for (const auto engine : PowerPC::AvailableCPUCores())
+      engines.push_back(
+          {UICommon::Settings::ToValue(engine),
+           engine == PowerPC::CPUCore::Interpreter       ? tr("Interpreter").toStdString() :
+           engine == PowerPC::CPUCore::CachedInterpreter ? tr("Cached Interpreter").toStdString() :
+                                                           tr("JIT Recompiler").toStdString()});
+    return engines;
+  }();
+  environment.cpu_engines = cpu_engines;
+  static const auto graphics_backends = [] {
+    decltype(environment.graphics_backends) backends;
+    for (const auto& backend : VideoBackendBase::GetAvailableBackends())
+      if (backend->SupportsUI())
+        backends.push_back({backend->GetConfigName(), backend->GetDisplayName()});
+    return backends;
+  }();
+  environment.graphics_backends = graphics_backends;
   static const auto audio_backends = AudioCommon::GetSoundBackends();
   for (const auto& backend : audio_backends)
     environment.audio_backends.push_back({backend, backend});
@@ -745,11 +760,18 @@ BigPicture::HostState MainWindow::ReadBigPictureState()
           badge.width <= 256 && badge.height <= 256 &&
           badge.data.size() == static_cast<std::size_t>(badge.width) * badge.height * 4)
       {
-        auto avatar = std::make_shared<BigPicture::LibraryImage>();
-        avatar->width = badge.width;
-        avatar->height = badge.height;
-        avatar->rgba.assign(badge.data.begin(), badge.data.end());
-        state.achievements_avatar = std::move(avatar);
+        // Reuse the published image while the badge is unchanged; state is read on every refresh.
+        const auto& cached = m_big_picture_avatar;
+        if (!cached || cached->width != badge.width || cached->height != badge.height ||
+            !std::ranges::equal(cached->rgba, badge.data))
+        {
+          auto avatar = std::make_shared<BigPicture::LibraryImage>();
+          avatar->width = badge.width;
+          avatar->height = badge.height;
+          avatar->rgba.assign(badge.data.begin(), badge.data.end());
+          m_big_picture_avatar = std::move(avatar);
+        }
+        state.achievements_avatar = m_big_picture_avatar;
       }
     }
   }
@@ -1813,6 +1835,10 @@ void MainWindow::RefreshBigPictureLibrary()
     return;
   const auto& model = m_game_list->GetGameListModel();
   std::vector<BigPicture::LibraryGame> games;
+  // Metadata updates (play time, titles, tags, scan rows) must keep decoded covers and GPU
+  // textures. Game files are immutable, so only compare covers of replaced entries.
+  std::map<std::string, std::shared_ptr<const UICommon::GameFile>> cover_sources;
+  bool covers_changed = false;
   for (int row = 0; row < model.rowCount({}); ++row)
   {
     if (!model.IsDiscGroupRepresentative(row))
@@ -1820,6 +1846,11 @@ void MainWindow::RefreshBigPictureLibrary()
     const auto game = model.GetGameFile(row);
     BigPicture::LibraryGame entry;
     entry.path = game->GetFilePath();
+    if (const auto previous = m_big_picture_cover_sources.find(entry.path);
+        previous != m_big_picture_cover_sources.end() && previous->second != game &&
+        previous->second->GetCoverImage().buffer != game->GetCoverImage().buffer)
+      covers_changed = true;
+    cover_sources.emplace(entry.path, game);
     entry.title = model.data(model.index(row, static_cast<int>(GameListModel::Column::Title)))
                       .toString()
                       .toStdString();
@@ -1853,8 +1884,8 @@ void MainWindow::RefreshBigPictureLibrary()
         entry.description += " | " + tag;
     games.push_back(std::move(entry));
   }
-  m_big_picture_library->SetGames(std::move(games),
-                                  std::exchange(m_big_picture_covers_dirty, false));
+  m_big_picture_cover_sources = std::move(cover_sources);
+  m_big_picture_library->SetGames(std::move(games), covers_changed);
 }
 
 void MainWindow::ConnectHotkeys()

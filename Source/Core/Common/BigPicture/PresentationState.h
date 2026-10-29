@@ -85,7 +85,8 @@ public:
   void RequestFrames();
   void SetNavigationStatus(NavigationStatus status);
   void SetNavigationText(NavigationText text);
-  NavigationText GetNavigationText() const;
+  // Immutable after publication, so the graphics owner can keep it across frames.
+  std::shared_ptr<const NavigationText> GetNavigationText() const;
   std::optional<SettingsFocus> GetSettingsFocus(const std::string& page) const;
   void SetSettingsFocus(std::string page, SettingsFocus focus);
   void SetMenuFontPaths(std::vector<std::string> paths);
@@ -120,7 +121,8 @@ private:
   std::deque<InputEvent> m_events;
   std::vector<int> m_key_map;
   NavigationStatus m_navigation;
-  NavigationText m_navigation_text;
+  std::shared_ptr<const NavigationText> m_navigation_text =
+      std::make_shared<const NavigationText>();
   std::map<std::string, SettingsFocus> m_settings_focus;
   std::vector<std::string> m_menu_font_paths;
   std::deque<NavigationRequest> m_navigation_requests;
