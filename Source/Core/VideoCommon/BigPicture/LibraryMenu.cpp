@@ -95,6 +95,29 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     action("exit", Action::Exit);
     page.items.push_back({"back", text.back});
   }
+  else if (screen == Screen::GameOptions)
+  {
+    page.id = "game-options";
+    page.title = text.game_options;
+    page.default_focus = "start";
+    const auto game = std::ranges::find(library.games, snapshot.options_path, &LibraryGame::path);
+    if (game != library.games.end())
+    {
+      page.title = game->title;
+      page.description = game->details;
+      const auto target = [&](std::string id, Action a, bool enabled = true) {
+        if (auto* request = action(std::move(id), a, enabled))
+          request->path = game->path;
+      };
+      target("start", Action::Boot);
+      target("load-state", Action::GameStates);
+      page.items.back().label = text.actions[static_cast<std::size_t>(Action::LoadState)];
+      // Discs and Wii titles have IDs; settings for bare executables cannot be stored per game.
+      target("properties", Action::GameProperties, !game->game_id.empty());
+      target("reset-play-time", Action::ResetPlayTime, game->played_ms != 0);
+    }
+    page.items.push_back({"back", text.back, {}, true, {}, false, MenuIcon::Back});
+  }
   else if (screen == Screen::FilePicker)
   {
     page.id = "file-picker";
@@ -242,9 +265,18 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
                       {},
                       false,
                       MenuIcon::Filter};
+    const bool game_options =
+        snapshot.availability[static_cast<std::size_t>(Action::GameOptions)] ==
+        UnavailableReason::None;
     for (const auto& game : library.games)
     {
       const auto id = "game:" + game.path;
+      if (game_options)
+      {
+        NavigationRequest options{snapshot.generation, Action::GameOptions};
+        options.path = game.path;
+        menu.requests.emplace("options:" + id, std::move(options));
+      }
       auto* request = action(id, Action::Boot);
       page.items.back().label = game.title;
       if (page.items.back().enabled)

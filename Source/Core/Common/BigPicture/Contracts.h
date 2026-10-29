@@ -41,7 +41,8 @@ enum class Screen
   ExitMenu,
   About,
   Achievements,
-  Continuation
+  Continuation,
+  GameOptions
 };
 enum class Lifecycle
 {
@@ -87,6 +88,12 @@ enum class Action
   ContinueGame,
   FreshBoot,
   DeleteContinuation,
+  // Per-game library actions; each carries the selected game's path.
+  GameOptions,
+  GameProperties,
+  GameStates,
+  BootState,
+  ResetPlayTime,
   Count
 };
 
@@ -104,7 +111,7 @@ constexpr bool IsStopAction(Action action)
 constexpr bool IsBootAction(Action action)
 {
   return action == Action::Boot || action == Action::BootIPL || action == Action::BootSystemMenu ||
-         IsContinuationAction(action);
+         action == Action::BootState || IsContinuationAction(action);
 }
 enum class UnavailableReason
 {
@@ -212,6 +219,8 @@ struct Snapshot
   std::vector<Screen> screens;
   std::array<UnavailableReason, static_cast<std::size_t>(Action::Count)> availability{};
   std::optional<Command> confirmation;
+  // The library game that the game options screen and its state browser act on.
+  std::string options_path;
   // Confirmations always initially focus Cancel; the navigation toolkit consumes this value.
   Action confirmation_default = Action::Cancel;
   std::optional<Command> pending;

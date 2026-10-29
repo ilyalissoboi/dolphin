@@ -60,6 +60,10 @@ ImGuiKey GetNavigationKey(::BigPicture::NavButton button, bool swap_confirm_back
     return ImGuiKey_GamepadL1;
   case NavButton::Next:
     return ImGuiKey_GamepadR1;
+  case NavButton::Options:
+    // ImGui's own navigation ignores Start, unlike the west/north face buttons, which switch
+    // windows or activate the focused item. The physical button is chosen by the binding.
+    return ImGuiKey_GamepadStart;
   default:
     return ImGuiKey_None;
   }
@@ -205,8 +209,11 @@ std::string GetLibraryControllerPrompts(const ::BigPicture::NavigationStatus& st
 {
   using ::BigPicture::NavButton;
   const ControllerHints hints(status);
+  // Configurations from before the Game Options binding existed leave it unbound.
+  const bool options = !status.bindings[static_cast<std::size_t>(NavButton::Options)].empty();
   return "\xe2\x87\x8e " + text.library_select_game + "   " +
          hints.Button(NavButton::Previous, text.library_change_view) + "   " +
+         (options ? hints.Button(NavButton::Options, text.game_options) + "   " : std::string{}) +
          hints.Button(NavButton::Next, text.library_actions[static_cast<std::size_t>(
                                            ::BigPicture::LibraryOperation::Options)]) +
          "   " + hints.Button(NavButton::Confirm, text.home_labels[1]) + "   " +

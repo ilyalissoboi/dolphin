@@ -29,7 +29,35 @@ bool IsAllowedDuringConfirmation(Action action)
 {
   return IsBackAction(action) || action == Action::Confirm || action == Action::Fullscreen;
 }
+
+bool IsGameAction(Action action)
+{
+  return action == Action::GameOptions || action == Action::GameProperties ||
+         action == Action::GameStates || action == Action::BootState ||
+         action == Action::ResetPlayTime;
+}
 }  // namespace
+
+bool Controller::IsValidGameAction(const Command& command) const
+{
+  if (m_state.mode != Mode::Library || command.path.empty() || m_state.screens.empty() ||
+      !m_state.host.library)
+    return false;
+  const auto screen = m_state.screens.back();
+  if (command.action == Action::GameOptions)
+  {
+    // Only a game in the displayed library view can be targeted.
+    return screen == Screen::Library &&
+           std::ranges::find(m_state.host.library->games, command.path, &LibraryGame::path) !=
+               m_state.host.library->games.end();
+  }
+  // Everything else acts on the game whose options are open, from that menu or its states.
+  if (command.path != m_state.options_path)
+    return false;
+  if (command.action == Action::BootState || command.action == Action::GameStates)
+    return screen == Screen::GameOptions || screen == Screen::LoadStates;
+  return screen == Screen::GameOptions;
+}
 
 UnavailableReason GetAvailability(Action action, const HostState& state)
 {
@@ -79,6 +107,17 @@ UnavailableReason GetAvailability(Action action, const HostState& state)
   case Action::Boot:
     if (state.netplay)
       return UnavailableReason::NetPlay;
+    return idle_reason;
+  case Action::GameStates:
+  case Action::BootState:
+    if (state.netplay)
+      return UnavailableReason::NetPlay;
+    if (state.hardcore)
+      return UnavailableReason::Hardcore;
+    return idle_reason;
+  case Action::GameOptions:
+  case Action::GameProperties:
+  case Action::ResetPlayTime:
     return idle_reason;
   case Action::Resume:
   case Action::Reset:
@@ -308,8 +347,10 @@ void Controller::Dispatch(const Command& command)
           break;
         }
       }
-      if (command.action == Action::Settings)
+      if (command.action == Action::Settings || command.action == Action::GameProperties)
         push(Screen::Settings);
+      if (command.action == Action::GameStates)
+        push(Screen::LoadStates);
     }
     if (command.action == Action::ChangeDisc && !command.path.empty() &&
         (m_state.result->status == ResultStatus::Succeeded ||
@@ -367,8 +408,15 @@ void Controller::Submit(const Command& command)
   }
   if (((command.action == Action::Boot || command.action == Action::ChangeDisc) &&
        command.path.empty()) ||
-      ((command.action == Action::SaveState || command.action == Action::LoadState) &&
+      ((command.action == Action::SaveState || command.action == Action::LoadState ||
+        command.action == Action::BootState) &&
        (command.slot < 1 || static_cast<std::size_t>(command.slot) > STATE_SLOT_COUNT)))
+  {
+    Reject(command, UnavailableReason::InvalidArgument);
+    return;
+  }
+
+  if (IsGameAction(command.action) && !IsValidGameAction(command))
   {
     Reject(command, UnavailableReason::InvalidArgument);
     return;
@@ -414,7 +462,8 @@ void Controller::Submit(const Command& command)
     else if (operation == LibraryOperation::ChooseBootDisc)
       valid = valid && m_state.mode == Mode::Library &&
               (screen == Screen::Home || screen == Screen::Library ||
-               screen == Screen::LibraryOptions || screen == Screen::StartGame) &&
+               screen == Screen::LibraryOptions || screen == Screen::StartGame ||
+               screen == Screen::GameOptions) &&
               GetAvailability(Action::Boot, m_state.host) == UnavailableReason::None;
     else if (operation == LibraryOperation::OpenDisc)
       valid = valid && screen == Screen::Pause &&
@@ -615,9 +664,14 @@ void Controller::Submit(const Command& command)
                               command.action == Action::SaveStates   ? Screen::SaveStates :
                                                                        Screen::LoadStates);
     break;
+  case Action::GameOptions:
+    m_state.options_path = command.path;
+    m_state.screens.push_back(Screen::GameOptions);
+    break;
   case Action::Stop:
   case Action::Reset:
   case Action::Exit:
+  case Action::ResetPlayTime:
     if (m_state.mode == Mode::Desktop)
     {
       Reject(command, UnavailableReason::InvalidArgument);

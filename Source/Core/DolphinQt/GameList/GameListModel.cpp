@@ -586,6 +586,14 @@ void GameListModel::PurgeCache()
   m_tracker.PurgeCache();
 }
 
+void GameListModel::ResetTimePlayed(const std::string& game_id)
+{
+  m_timer.ResetTimePlayed(game_id);
+  const int column = static_cast<int>(Column::TimePlayed);
+  if (rowCount(QModelIndex()) > 0)
+    emit dataChanged(index(0, column), index(rowCount(QModelIndex()) - 1, column));
+}
+
 void GameListModel::OnEmulationStateChanged(Core::State state)
 {
   if (state == Core::State::Uninitialized)

@@ -445,6 +445,76 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_TRUE(menu.Activate({"settings"}));
 }
 
+TEST_F(BigPictureInGameMenuTest, GameOptionsActOnTheSelectedGameAndBootItsStates)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Library};
+  auto library = std::make_shared<LibrarySnapshot>();
+  LibraryGame game;
+  game.path = "game.iso";
+  game.title = "Game";
+  game.game_id = "GTEST1";
+  game.details = "Details";
+  LibraryGame executable;
+  executable.path = "app.dol";
+  executable.title = "App";
+  executable.played_ms = 1000;
+  library->games = {game, executable};
+  snapshot.host.library = library;
+  auto menu = Build();
+  ASSERT_TRUE(menu.Activate({"options:game:game.iso"}));
+  EXPECT_EQ(menu.Activate({"options:game:game.iso"})->action, Action::GameOptions);
+  EXPECT_EQ(menu.Activate({"options:game:game.iso"})->path, "game.iso");
+
+  snapshot.screens.push_back(Screen::GameOptions);
+  snapshot.options_path = "game.iso";
+  menu = Build();
+  EXPECT_EQ(menu.page.title, "Game");
+  EXPECT_EQ(menu.page.description, "Details");
+  EXPECT_EQ(menu.page.default_focus, "start");
+  for (const auto* id : {"start", "load-state", "properties"})
+  {
+    ASSERT_TRUE(menu.Activate({id})) << id;
+    EXPECT_EQ(menu.Activate({id})->path, "game.iso") << id;
+  }
+  EXPECT_EQ(menu.Activate({"start"})->action, Action::Boot);
+  EXPECT_EQ(menu.Activate({"load-state"})->action, Action::GameStates);
+  EXPECT_EQ(menu.Activate({"properties"})->action, Action::GameProperties);
+  // No play time to reset yet.
+  EXPECT_FALSE(menu.Activate({"reset-play-time"}));
+
+  // Executables have no game ID for per-game settings.
+  snapshot.options_path = "app.dol";
+  menu = Build();
+  EXPECT_FALSE(menu.Activate({"properties"}));
+  ASSERT_TRUE(menu.Activate({"reset-play-time"}));
+  EXPECT_EQ(menu.Activate({"reset-play-time"})->action, Action::ResetPlayTime);
+
+  snapshot.options_path = "game.iso";
+  snapshot.screens.push_back(Screen::LoadStates);
+  snapshot.host.state_slots_ready = true;
+  snapshot.host.state_slots[1] = {true, true, "Saved"};
+  menu = Build();
+  ASSERT_TRUE(menu.Activate({"slot-2"}));
+  EXPECT_EQ(menu.Activate({"slot-2"})->action, Action::BootState);
+  EXPECT_EQ(menu.Activate({"slot-2"})->slot, 2);
+  EXPECT_EQ(menu.Activate({"slot-2"})->path, "game.iso");
+  EXPECT_FALSE(menu.Activate({"slot-1"}));
+  ASSERT_TRUE(menu.Activate({"refresh"}));
+  EXPECT_EQ(menu.Activate({"refresh"})->action, Action::GameStates);
+  EXPECT_EQ(menu.Activate({"refresh"})->path, "game.iso");
+
+  snapshot.host.hardcore = true;
+  menu = Build();
+  EXPECT_FALSE(menu.Activate({"slot-2"}));
+  snapshot.host.hardcore = false;
+  snapshot.host.lifecycle = Lifecycle::Running;
+  snapshot.screens = {Screen::Library};
+  menu = Build();
+  EXPECT_FALSE(menu.Activate({"options:game:game.iso"}));
+}
+
 TEST_F(BigPictureInGameMenuTest, PickerUsesRevisionAndDistinguishesFolderNavigationFromDiscChanges)
 {
   auto library = std::make_shared<LibrarySnapshot>();

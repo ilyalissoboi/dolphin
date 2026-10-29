@@ -655,7 +655,7 @@ void RenderWidget::SetPresenterKeyMap()
       Qt::Key_Enter,  // Keypad enter
       Qt::Key_A,      Qt::Key_C,         Qt::Key_V,     Qt::Key_X,      Qt::Key_Y,
       Qt::Key_Z,      Qt::Key_F11,       Qt::Key_F1,    Qt::Key_F2,     Qt::Key_F3,
-      Qt::Key_F4,     Qt::Key_F5,
+      Qt::Key_F4,     Qt::Key_F5,        Qt::Key_F6,
   };
 
   BigPicture::GetPresentationState().SetKeyMap({key_map.begin(), key_map.end()});

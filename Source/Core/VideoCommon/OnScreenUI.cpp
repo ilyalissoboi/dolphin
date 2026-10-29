@@ -605,6 +605,7 @@ void OnScreenUI::ProcessInput()
       ImGuiKey_A,         ImGuiKey_C,         ImGuiKey_V,          ImGuiKey_X,
       ImGuiKey_Y,         ImGuiKey_Z,         ImGuiKey_F11,        ImGuiKey_F1,
       ImGuiKey_F2,        ImGuiKey_F3,        ImGuiKey_F4,         ImGuiKey_F5,
+      ImGuiKey_F6,
   };
 
   auto input = ::BigPicture::GetPresentationState().TakeInput();
@@ -686,7 +687,7 @@ void OnScreenUI::ProcessInput()
   }
 
   m_dolphin_to_imgui_map.clear();
-  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F5); dolphin_key++)
+  for (int dolphin_key = 0; dolphin_key <= static_cast<int>(DolphinKey::F6); dolphin_key++)
   {
     const int imgui_key = dolphin_to_imgui_map[DolphinKey(dolphin_key)];
     if (imgui_key >= 0)

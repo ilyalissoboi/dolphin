@@ -40,6 +40,7 @@ private:
   void Finish(Result result);
   void Dispatch(const Command& command);
   void Reject(const Command& command, UnavailableReason reason);
+  bool IsValidGameAction(const Command& command) const;
 
   Host& m_host;
   Snapshot m_state;

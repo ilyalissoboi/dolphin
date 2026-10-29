@@ -94,6 +94,7 @@ public:
   void DeleteTag(const QString& name);
 
   void PurgeCache();
+  void ResetTimePlayed(const std::string& game_id);
 
 signals:
   void DiscGroupsChanged();

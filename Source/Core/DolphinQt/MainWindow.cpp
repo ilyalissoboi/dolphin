@@ -676,6 +676,17 @@ BigPicture::HostState MainWindow::ReadBigPictureState()
     const auto& config = SConfig::GetInstance();
     settings_game = {config.GetGameID(), config.GetRevision(), config.GetTitleName(), true};
   }
+  else if (m_big_picture_properties_game)
+  {
+    // Game Properties edits a library game's settings until its options screen closes.
+    const auto current = m_big_picture_host ? m_big_picture_host->GetSnapshot() : nullptr;
+    if (state.lifecycle == BigPicture::Lifecycle::Idle && current &&
+        std::ranges::find(current->screens, BigPicture::Screen::GameOptions) !=
+            current->screens.end())
+      settings_game = *m_big_picture_properties_game;
+    else
+      m_big_picture_properties_game.reset();
+  }
   m_big_picture_settings->SetGame(std::move(settings_game));
   state.settings = m_big_picture_settings->ReadSnapshot();
   state.settings_menu = m_big_picture_settings->ReadMenu();
@@ -981,6 +992,68 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
   case Action::RefreshStates:
     RefreshBigPictureStateSlots();
     return {command, ResultStatus::Succeeded};
+  case Action::GameProperties:
+  case Action::GameStates:
+  case Action::BootState:
+  case Action::ResetPlayTime:
+  {
+    const auto game = m_game_list->FindGame(command.path);
+    if (!game)
+      return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+              tr("The selected game is no longer available: %1")
+                  .arg(QString::fromStdString(command.path))
+                  .toStdString()};
+    const auto& game_id = game->GetGameID();
+    if (command.action == Action::GameStates)
+    {
+      for (std::size_t slot = 0; slot < m_big_picture_state_slots.size(); ++slot)
+      {
+        const auto info = State::GetSlotInfo(game_id, static_cast<u32>(slot + 1));
+        m_big_picture_state_slots[slot] = {info.exists, info.readable, info.description,
+                                           info.preview};
+      }
+      m_big_picture_state_slots_ready = true;
+      return {command, ResultStatus::Succeeded};
+    }
+    if (command.action == Action::BootState)
+    {
+      if (!State::GetSlotInfo(game_id, static_cast<u32>(command.slot)).readable)
+        return {command, ResultStatus::Failed, BigPicture::UnavailableReason::EmptySlot,
+                tr("This slot is empty or unreadable. Refresh the slots and choose another.")
+                    .toStdString()};
+      if (!ContinuationLoadingAllowed() || m_system.GetMovie().IsMovieActive())
+        return {
+            command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+            tr("Loading save states is unavailable in Hardcore mode or NetPlay.").toStdString()};
+      StartGame(command.path, ScanForSecondDisc::Yes,
+                std::make_unique<BootSessionData>(
+                    State::GetSlotPath(game_id, static_cast<u32>(command.slot)),
+                    DeleteSavestateAfterBoot::No));
+      if (Core::IsUninitialized(m_system) && !m_standalone_boot)
+        return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+                tr("Failed to init core").toStdString()};
+      return {command, ResultStatus::Dispatched};
+    }
+    if (game_id.empty())
+      return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+              tr("This game has no game ID, so it has no per-game settings or play time.")
+                  .toStdString()};
+    if (command.action == Action::ResetPlayTime)
+    {
+      m_game_list->ResetTimePlayed(game_id);
+      return {command, ResultStatus::Succeeded};
+    }
+    m_big_picture_properties_game =
+        BigPictureSettings::Game{game_id, game->GetRevision(), game->GetLongName(), false};
+    m_big_picture_settings->SetGame(*m_big_picture_properties_game);
+    if (!m_big_picture_settings->Open(true))
+    {
+      m_big_picture_properties_game.reset();
+      return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
+              tr("Settings for this game cannot be stored per game.").toStdString()};
+    }
+    return {command, ResultStatus::Succeeded};
+  }
   case Action::Screenshot:
     ScreenShot();
     break;
@@ -1282,8 +1355,9 @@ void MainWindow::InitControllers()
       "   \xe2\x91\xa0 " + menu_text.library_change_view + "   \xe2\x91\xa1 " +
       tr("Settings").toStdString() + "   \xe2\x91\xa2 " + tr("Library Options").toStdString() +
       "   \xe2\x91\xa3 " + tr("Search").toStdString() + "   \xe2\x91\xa4 " +
-      tr("Refresh List").toStdString() + "   \xe2\x90\xae " + tr("Start Game").toStdString() +
-      "   \xe2\x90\xaf " + tr("Back").toStdString();
+      tr("Refresh List").toStdString() + "   \xe2\x91\xa5 " + tr("Game Options").toStdString() +
+      "   \xe2\x90\xae " + tr("Start Game").toStdString() + "   \xe2\x90\xaf " +
+      tr("Back").toStdString();
   menu_text.navigate = tr("Navigate").toStdString();
   menu_text.actions[static_cast<std::size_t>(BigPicture::Action::Achievements)] =
       tr("Achievements").toStdString();
@@ -1298,6 +1372,19 @@ void MainWindow::InitControllers()
       tr("A continuation save state is available. Start Fresh keeps it for later.").toStdString();
   menu_text.exit_and_save = tr("Exit and Save State").toStdString();
   menu_text.exit_without_saving = tr("Exit Without Saving").toStdString();
+  menu_text.game_options = tr("Game Options").toStdString();
+  menu_text.confirm_reset_play_time =
+      tr("Reset the play time for this game? This cannot be undone.").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::GameOptions)] =
+      menu_text.game_options;
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::GameProperties)] =
+      tr("Game Properties").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::GameStates)] =
+      tr("Load State").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::BootState)] =
+      tr("Load State").toStdString();
+  menu_text.actions[static_cast<std::size_t>(BigPicture::Action::ResetPlayTime)] =
+      tr("Reset Play Time").toStdString();
   menu_text.reasons[static_cast<std::size_t>(BigPicture::UnavailableReason::LoginRequired)] =
       tr("Log in to RetroAchievements to view achievements.").toStdString();
   menu_text.achievements_empty = tr("No achievements are available for this game.").toStdString();

@@ -149,7 +149,8 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   }
   else if (snapshot.host.library &&
            (screen == Screen::Library || screen == Screen::LibraryOptions ||
-            screen == Screen::FilePicker || screen == Screen::TextInput))
+            screen == Screen::FilePicker || screen == Screen::TextInput ||
+            screen == Screen::GameOptions))
   {
     auto library_menu = BuildLibraryMenu(snapshot, text);
     if (screen == Screen::FilePicker && snapshot.screens.size() >= 2 &&
@@ -184,10 +185,18 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     page.id = "confirmation";
     page.focus_revision = command.id;
     page.title = label(command.action);
-    page.description = command.action == Action::Reset     ? text.confirm_reset :
-                       command.action == Action::Exit      ? text.confirm_exit :
-                       command.action == Action::SaveState ? text.confirm_overwrite :
-                                                             text.confirm_stop;
+    page.description = command.action == Action::Reset         ? text.confirm_reset :
+                       command.action == Action::Exit          ? text.confirm_exit :
+                       command.action == Action::SaveState     ? text.confirm_overwrite :
+                       command.action == Action::ResetPlayTime ? text.confirm_reset_play_time :
+                                                                 text.confirm_stop;
+    if (command.action == Action::ResetPlayTime && snapshot.host.library)
+    {
+      const auto& games = snapshot.host.library->games;
+      if (const auto game = std::ranges::find(games, command.path, &LibraryGame::path);
+          game != games.end())
+        page.description += "\n" + game->title;
+    }
     if (command.action == Action::Exit && snapshot.host.lifecycle == Lifecycle::Idle)
       page.description = text.confirm_exit_idle;
     if (command.action == Action::SaveState && command.slot >= 1 &&
@@ -257,7 +266,11 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   else if (screen == Screen::SaveStates || screen == Screen::LoadStates)
   {
     const bool saving = screen == Screen::SaveStates;
-    const auto action = saving ? Action::SaveState : Action::LoadState;
+    // From the library's game options, a slot boots that game from the state.
+    const bool booting = !saving && snapshot.mode == Mode::Library;
+    const auto action = saving  ? Action::SaveState :
+                        booting ? Action::BootState :
+                                  Action::LoadState;
     page.id = saving ? "save-states" : "load-states";
     page.title = label(saving ? Action::SaveStates : Action::LoadStates);
     page.description = text.state_browser_help;
@@ -287,10 +300,22 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
       {
         NavigationRequest request{snapshot.generation, action};
         request.slot = static_cast<int>(slot + 1);
+        if (booting)
+          request.path = snapshot.options_path;
         menu.requests.emplace(id, std::move(request));
       }
     }
-    add("refresh", Action::RefreshStates, {}, true);
+    if (booting)
+    {
+      // Reread the slots of the same game; the controller keeps this browser on top.
+      add("refresh", Action::GameStates, {}, true);
+      page.toolbar.back().label = label(Action::RefreshStates);
+      page.toolbar.back().icon = GetActionIcon(Action::RefreshStates);
+      if (auto it = menu.requests.find("refresh"); it != menu.requests.end())
+        it->second.path = snapshot.options_path;
+    }
+    else
+      add("refresh", Action::RefreshStates, {}, true);
     add("back", Action::Back, {}, true);
     std::rotate(page.toolbar.begin(), page.toolbar.end() - 1, page.toolbar.end());
     const auto first = std::ranges::find_if(page.items, &MenuItem::enabled);

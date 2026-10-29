@@ -324,10 +324,22 @@ static std::string MakeStateFilename(u32 number)
                      SConfig::GetInstance().GetGameID(), number);
 }
 
+static bool IsFileNameSafeGameID(const std::string& game_id)
+{
+  return !game_id.empty() && game_id.find_first_of("/\\:*?\"<>|") == std::string::npos &&
+         std::ranges::none_of(game_id, [](unsigned char c) { return c < 0x20; });
+}
+
+std::string GetSlotPath(const std::string& game_id, u32 slot)
+{
+  if (!IsFileNameSafeGameID(game_id))
+    return {};
+  return fmt::format("{}{}.s{:02d}", File::GetUserPath(D_STATESAVES_IDX), game_id, slot);
+}
+
 std::string GetContinuationPath(const std::string& game_id)
 {
-  if (game_id.empty() || game_id.find_first_of("/\\:*?\"<>|") != std::string::npos ||
-      std::ranges::any_of(game_id, [](unsigned char c) { return c < 0x20; }))
+  if (!IsFileNameSafeGameID(game_id))
     return {};
   return File::GetUserPath(D_STATESAVES_IDX) + game_id + ".continue.sav";
 }
@@ -748,9 +760,14 @@ u64 GetUnixTimeOfSlot(u32 slot)
 
 SlotInfo GetSlotInfo(u32 slot)
 {
+  return GetSlotInfo(SConfig::GetInstance().GetGameID(), slot);
+}
+
+SlotInfo GetSlotInfo(const std::string& game_id, u32 slot)
+{
   std::lock_guard lk{s_state_saves_in_progress};
-  const auto filename = MakeStateFilename(slot);
-  if (!File::Exists(filename))
+  const auto filename = GetSlotPath(game_id, slot);
+  if (filename.empty() || !File::Exists(filename))
     return {};
   StateHeader header;
   if (!ReadHeader(filename, header))
