@@ -150,7 +150,7 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
   else if (snapshot.host.library &&
            (screen == Screen::Library || screen == Screen::LibraryOptions ||
             screen == Screen::FilePicker || screen == Screen::TextInput ||
-            screen == Screen::GameOptions))
+            screen == Screen::GameOptions || screen == Screen::GameFolders))
   {
     auto library_menu = BuildLibraryMenu(snapshot, text);
     if (screen == Screen::FilePicker && snapshot.screens.size() >= 2 &&
@@ -190,6 +190,12 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
                        command.action == Action::SaveState     ? text.confirm_overwrite :
                        command.action == Action::ResetPlayTime ? text.confirm_reset_play_time :
                                                                  text.confirm_stop;
+    if (command.action == Action::Library &&
+        command.library_operation == LibraryOperation::RemoveFolder)
+    {
+      page.title = text.library_actions[static_cast<std::size_t>(LibraryOperation::RemoveFolder)];
+      page.description = text.confirm_remove_folder + "\n" + command.path;
+    }
     if (command.action == Action::ResetPlayTime && snapshot.host.library)
     {
       const auto& games = snapshot.host.library->games;

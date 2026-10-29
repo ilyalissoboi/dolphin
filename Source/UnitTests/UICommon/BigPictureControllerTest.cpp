@@ -99,6 +99,50 @@ protected:
   std::uint64_t id = 0;
 };
 
+TEST_F(BigPictureControllerTest, GameFoldersOpenFromOptionsAndConfirmRemoval)
+{
+  Send(Action::OpenMenu);
+  Send(Action::ShowLibrary);
+  host.state.library = std::make_shared<LibrarySnapshot>();
+  host.execute = [](const Command& command) { return Result{command, ResultStatus::Succeeded}; };
+  controller.Refresh();
+  const auto library = [&](LibraryOperation operation, std::string path = {}) {
+    auto command = Make(Action::Library, 0, std::move(path));
+    command.library_operation = operation;
+    controller.Submit(command);
+  };
+  // Removal is only offered from the folder list.
+  library(LibraryOperation::RemoveFolder, "C:/Games");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  library(LibraryOperation::Options);
+  library(LibraryOperation::Folders);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameFolders);
+  library(LibraryOperation::Recursive);
+  library(LibraryOperation::Refresh);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameFolders);
+  const auto executed = host.executed.size();
+
+  library(LibraryOperation::RemoveFolder, "C:/Games");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Confirmation);
+  EXPECT_EQ(controller.GetSnapshot()->confirmation_default, Action::Cancel);
+  EXPECT_EQ(host.executed.size(), executed);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameFolders);
+  EXPECT_EQ(host.executed.size(), executed);
+  library(LibraryOperation::RemoveFolder, "C:/Games");
+  Send(Action::Confirm);
+  ASSERT_EQ(host.executed.size(), executed + 1);
+  EXPECT_EQ(host.executed.back().library_operation, LibraryOperation::RemoveFolder);
+  EXPECT_EQ(host.executed.back().path, "C:/Games");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameFolders);
+
+  // Adding a folder returns to the list once it is chosen.
+  library(LibraryOperation::AddFolder);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::FilePicker);
+  library(LibraryOperation::ChooseFolder, "C:/Added");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameFolders);
+}
+
 TEST_F(BigPictureControllerTest, GameOptionsTargetOneLibraryGameAndRouteItsScreens)
 {
   GameLibrary();

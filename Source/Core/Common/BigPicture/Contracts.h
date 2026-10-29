@@ -42,7 +42,8 @@ enum class Screen
   About,
   Achievements,
   Continuation,
-  GameOptions
+  GameOptions,
+  GameFolders
 };
 enum class Lifecycle
 {

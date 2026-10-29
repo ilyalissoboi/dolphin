@@ -76,6 +76,8 @@ void BigPictureLibrary::Publish(bool filter)
   m_publish_queued = false;
   if (m_callbacks.recursive)
     m_state.recursive = m_callbacks.recursive();
+  if (m_callbacks.folders)
+    m_state.folders = m_callbacks.folders();
   if (filter)
   {
     ++m_state.view_revision;
@@ -493,6 +495,15 @@ std::string BigPictureLibrary::Execute(BigPicture::LibraryOperation operation,
   case O::Refresh:
     if (m_callbacks.refresh)
       m_callbacks.refresh();
+    break;
+  case O::Folders:
+    break;
+  case O::RemoveFolder:
+    // Only a folder that is still configured; this never deletes anything on disk.
+    if (!m_callbacks.remove_folder ||
+        std::ranges::find(m_state.folders, value) == m_state.folders.end())
+      return S(tr("This folder is no longer in the library."));
+    m_callbacks.remove_folder(value);
     break;
   case O::View:
     if (const bool grid = value == "grid" ? true :

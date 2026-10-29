@@ -376,6 +376,8 @@ MenuIcon GetLibraryIcon(::BigPicture::LibraryOperation operation)
   case O::AddFolder:
   case O::EnterDirectory:
   case O::ChooseFolder:
+  case O::Folders:
+  case O::RemoveFolder:
     return MenuIcon::Folder;
   case O::OpenFile:
   case O::EditPath:

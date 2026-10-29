@@ -377,7 +377,15 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
          Config::SetBase(Config::MAIN_RECURSIVE_ISO_PATHS, recursive);
          Settings::Instance().RefreshGameList();
        },
-       [] { return true; }});
+       [] { return true; }, [] { return StringListToStdVector(Settings::Instance().GetPaths()); },
+       [](const std::string& path) {
+         Settings::Instance().RemovePath(QString::fromStdString(path));
+       }});
+  // Desktop configuration can change the folders while Big Picture shows them.
+  connect(&Settings::Instance(), &Settings::PathAdded, m_big_picture_library,
+          &BigPictureLibrary::RefreshFolders);
+  connect(&Settings::Instance(), &Settings::PathRemoved, m_big_picture_library,
+          &BigPictureLibrary::RefreshFolders);
 
   m_big_picture_host = new BigPictureHost(
       this, [this] { return ReadBigPictureState(); },
@@ -1283,6 +1291,16 @@ void MainWindow::InitControllers()
   library_label(LibraryOp::ClearSearch, tr("Clear Search"));
   library_label(LibraryOp::TextClear, tr("Clear"));
   library_label(LibraryOp::BrowseDiscs, tr("Browse Files"));
+  library_label(LibraryOp::Folders, tr("Game Folders"));
+  library_label(LibraryOp::RemoveFolder, tr("Remove Folder"));
+  menu_text.library_folders_help =
+      tr("Select a folder to remove it from the library. Its files are not deleted.").toStdString();
+  menu_text.library_no_folders =
+      tr("No game folders. Add one to build your library.").toStdString();
+  menu_text.confirm_remove_folder =
+      tr("Remove this folder from the library? Its games leave the library; no files are "
+         "deleted.")
+          .toStdString();
   menu_text.library_disc_games = tr("Library games — matching titles first").toStdString();
   menu_text.library_empty = tr("Add a game folder to build your library.").toStdString();
   menu_text.library_no_matches =
