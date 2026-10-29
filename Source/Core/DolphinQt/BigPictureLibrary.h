@@ -29,12 +29,16 @@ public:
     std::function<bool()> recursive;
     std::function<void(bool)> set_recursive;
     std::function<bool()> native_text_input;
+    std::function<std::vector<std::string>()> folders;
+    std::function<void(const std::string&)> remove_folder;
   };
   explicit BigPictureLibrary(QObject* parent, Callbacks callbacks);
   ~BigPictureLibrary() override;
   // Metadata-only refreshes keep decoded covers and their GPU cache revision.
   void SetGames(std::vector<BigPicture::LibraryGame> games, bool invalidate_covers = true);
   void SetScanning(bool scanning);
+  // Republishes the configured game folders after an external change.
+  void RefreshFolders() { Publish(); }
   void SetInitialSelection(std::string path);
   void SetDiscContext(std::string path, std::string game_id, std::string title,
                       std::vector<std::string> folders);

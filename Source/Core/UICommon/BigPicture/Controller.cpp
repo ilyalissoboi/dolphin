@@ -328,6 +328,9 @@ void Controller::Dispatch(const Command& command)
         case LibraryOperation::Options:
           push(Screen::LibraryOptions);
           break;
+        case LibraryOperation::Folders:
+          push(Screen::GameFolders);
+          break;
         case LibraryOperation::Search:
         case LibraryOperation::EditPath:
           push(Screen::TextInput);
@@ -453,6 +456,11 @@ void Controller::Submit(const Command& command)
         operation == LibraryOperation::ControllerKeyboard ||
         operation == LibraryOperation::TextDone)
       valid = valid && screen == Screen::TextInput;
+    else if (operation == LibraryOperation::RemoveFolder)
+      valid = valid && m_state.mode == Mode::Library && screen == Screen::GameFolders &&
+              !command.path.empty();
+    else if (operation == LibraryOperation::Recursive && screen == Screen::GameFolders)
+      valid = valid && m_state.mode == Mode::Library;
     else if (operation == LibraryOperation::EnterDirectory ||
              operation == LibraryOperation::ChooseFolder ||
              operation == LibraryOperation::EditPath || operation == LibraryOperation::Recursive ||
@@ -471,6 +479,10 @@ void Controller::Submit(const Command& command)
     else if (operation == LibraryOperation::Cover && m_state.mode == Mode::InGame)
       valid = valid && screen == Screen::Pause && m_state.host.library &&
               command.path == m_state.host.game_path && !command.path.empty();
+    else if (operation == LibraryOperation::AddFolder || operation == LibraryOperation::Refresh)
+      valid = valid && m_state.mode == Mode::Library &&
+              (screen == Screen::Library || screen == Screen::LibraryOptions ||
+               screen == Screen::GameFolders);
     else
       valid = valid && m_state.mode == Mode::Library &&
               (screen == Screen::Library || screen == Screen::LibraryOptions ||
@@ -580,6 +592,17 @@ void Controller::Submit(const Command& command)
       Dispatch(choose);
       return;
     }
+  }
+
+  if (command.action == Action::Library &&
+      command.library_operation == LibraryOperation::RemoveFolder)
+  {
+    // Removal only unlists the folder, but it drops its games, so it is confirmed like Stop.
+    m_state.confirmation = command;
+    m_state.screens.push_back(Screen::Confirmation);
+    m_state.result = Result{command, ResultStatus::Pending};
+    Publish();
+    return;
   }
 
   switch (command.action)

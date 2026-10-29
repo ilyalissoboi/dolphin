@@ -50,6 +50,8 @@ enum class LibraryOperation
   BrowseDiscs,
   ControllerKeyboard,
   ChooseBootDisc,
+  Folders,
+  RemoveFolder,
   Count
 };
 
@@ -109,6 +111,8 @@ struct LibrarySnapshot
   bool picker_library = false;
   bool picker_boot_disc = false;
   bool recursive = false;
+  // The library's game folders, as configured.
+  std::vector<std::string> folders;
   std::string picker_error;
   std::string draft;
   bool editing_path = false;

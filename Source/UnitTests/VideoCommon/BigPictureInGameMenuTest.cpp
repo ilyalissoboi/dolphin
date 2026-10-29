@@ -445,6 +445,47 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_TRUE(menu.Activate({"settings"}));
 }
 
+TEST_F(BigPictureInGameMenuTest, GameFoldersListFoldersAndConfirmRemovalByPath)
+{
+  snapshot.mode = Mode::Library;
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.screens = {Screen::Library, Screen::LibraryOptions};
+  auto library = std::make_shared<LibrarySnapshot>();
+  library->folders = {"C:/Games", "D:/More Games"};
+  snapshot.host.library = library;
+  text.library_actions[static_cast<std::size_t>(LibraryOperation::Folders)] = "Game Folders";
+  text.library_actions[static_cast<std::size_t>(LibraryOperation::RemoveFolder)] = "Remove Folder";
+  text.confirm_remove_folder = "Remove?";
+  auto menu = Build();
+  ASSERT_TRUE(menu.Activate({"folders"}));
+  EXPECT_EQ(menu.Activate({"folders"})->library_operation, LibraryOperation::Folders);
+
+  snapshot.screens.push_back(Screen::GameFolders);
+  menu = Build();
+  EXPECT_EQ(menu.page.title, "Game Folders");
+  EXPECT_EQ(menu.page.default_focus, "folder:C:/Games");
+  ASSERT_TRUE(menu.Activate({"folder:D:/More Games"}));
+  EXPECT_EQ(menu.Activate({"folder:D:/More Games"})->library_operation,
+            LibraryOperation::RemoveFolder);
+  EXPECT_EQ(menu.Activate({"folder:D:/More Games"})->path, "D:/More Games");
+  for (const auto* id : {"add-folder", "recursive", "refresh"})
+    EXPECT_TRUE(menu.Activate({id})) << id;
+
+  library->folders.clear();
+  menu = Build();
+  EXPECT_EQ(menu.page.default_focus, "add-folder");
+
+  Command remove{snapshot.generation, 1, Action::Library, "C:/Games"};
+  remove.library_operation = LibraryOperation::RemoveFolder;
+  snapshot.confirmation = remove;
+  snapshot.screens.push_back(Screen::Confirmation);
+  menu = Build();
+  EXPECT_EQ(menu.page.title, "Remove Folder");
+  EXPECT_EQ(menu.page.description, "Remove?\nC:/Games");
+  EXPECT_EQ(menu.page.default_focus, "cancel");
+  EXPECT_EQ(menu.Activate({"confirm"})->confirmation_id, 1u);
+}
+
 TEST_F(BigPictureInGameMenuTest, GameOptionsActOnTheSelectedGameAndBootItsStates)
 {
   snapshot.mode = Mode::Library;

@@ -67,6 +67,7 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     if (!library.query.empty())
       add("clear-search", O::ClearSearch);
     add("add-folder", O::AddFolder);
+    add("folders", O::Folders, {}, std::to_string(library.folders.size()));
     add("refresh", O::Refresh);
     action("settings", Action::Settings);
     add("view", O::View, {}, library.grid ? text.library_grid : text.library_list);
@@ -94,6 +95,27 @@ InGameMenu BuildLibraryMenu(const ::BigPicture::Snapshot& snapshot,
     action("desktop", Action::ReturnToDesktop);
     action("exit", Action::Exit);
     page.items.push_back({"back", text.back});
+  }
+  else if (screen == Screen::GameFolders)
+  {
+    page.id = "game-folders";
+    page.title = text.library_actions[static_cast<std::size_t>(O::Folders)];
+    page.description =
+        library.folders.empty() ? text.library_no_folders : text.library_folders_help;
+    if (library.scanning)
+      page.description += "\n" + text.library_scanning;
+    add("add-folder", O::AddFolder);
+    add("recursive", O::Recursive, {}, library.recursive ? text.on : text.off);
+    add("refresh", O::Refresh);
+    for (const auto& folder : library.folders)
+    {
+      // Selecting a folder asks to remove it from the library.
+      add("folder:" + folder, O::RemoveFolder, folder);
+      page.items.back().label = folder;
+    }
+    page.items.push_back({"back", text.back, {}, true, {}, false, MenuIcon::Back});
+    page.default_focus =
+        library.folders.empty() ? "add-folder" : "folder:" + library.folders.front();
   }
   else if (screen == Screen::GameOptions)
   {

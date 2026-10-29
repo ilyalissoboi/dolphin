@@ -166,6 +166,9 @@ struct NavigationText
   std::string confirm_reset_play_time;
   std::string settings_adjust;
   std::string settings_adjust_keyboard_hints;
+  std::string library_folders_help;
+  std::string library_no_folders;
+  std::string confirm_remove_folder;
 };
 
 struct NavigationRequest

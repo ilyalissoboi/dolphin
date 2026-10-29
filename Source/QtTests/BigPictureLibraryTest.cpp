@@ -249,6 +249,35 @@ TEST(BigPictureLibraryTest, ClearingSearchPreservesOtherFiltersAndCanClearAnUnco
   EXPECT_TRUE(library.GetSnapshot()->draft.empty());
 }
 
+TEST(BigPictureLibraryTest, GameFoldersListConfiguredFoldersAndRemoveOnlyThose)
+{
+  std::vector<std::string> folders{"C:/Games", "D:/More Games"};
+  std::vector<std::string> removed;
+  BigPictureLibrary library(nullptr, {{},
+                                      {},
+                                      {},
+                                      {},
+                                      {},
+                                      {},
+                                      {},
+                                      [&] { return folders; },
+                                      [&](const std::string& path) {
+                                        removed.push_back(path);
+                                        std::erase(folders, path);
+                                      }});
+  EXPECT_EQ(library.GetSnapshot()->folders, folders);
+  EXPECT_FALSE(library.Execute(O::RemoveFolder, "E:/Unknown", 0).empty());
+  EXPECT_TRUE(removed.empty());
+  EXPECT_TRUE(library.Execute(O::RemoveFolder, "C:/Games", 0).empty());
+  EXPECT_EQ(removed, std::vector<std::string>{"C:/Games"});
+  EXPECT_EQ(library.GetSnapshot()->folders, std::vector<std::string>{"D:/More Games"});
+
+  // External configuration changes reach the published list.
+  folders.push_back("F:/New");
+  library.RefreshFolders();
+  EXPECT_EQ(library.GetSnapshot()->folders.size(), 2u);
+}
+
 TEST(BigPictureLibraryTest, DiscPickerUsesUnfilteredLibraryAndPrefersOtherDiscsOfTheRunningGame)
 {
   BigPictureLibrary library(nullptr, {});
