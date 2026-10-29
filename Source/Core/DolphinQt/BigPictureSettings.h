@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
@@ -13,6 +14,7 @@
 
 #include "Common/BigPicture/Settings.h"
 #include "Common/WorkQueueThread.h"
+#include "DolphinQt/BigPictureFiles.h"
 #include "UICommon/Settings/Service.h"
 
 class InputConfig;
@@ -63,7 +65,14 @@ private:
     Devices,
     Profiles,
     Presets,
-    Text
+    Text,
+    Browse
+  };
+  struct BrowseJob
+  {
+    u64 revision = 0;
+    std::string path;
+    bool folders_only = false;
   };
   struct Profile
   {
@@ -78,6 +87,8 @@ private:
   std::vector<Profile> Profiles(const ControllerTarget& target);
   std::string ControllerUnavailable() const;
   void ScanPresets();
+  void Browse(std::string directory);
+  std::string BrowseStartDirectory(const Common::Settings::State& state) const;
   void Back();
   std::string MenuId(bool game) const;
   UICommon::Settings::Service m_service;
@@ -102,5 +113,14 @@ private:
   std::function<void()> m_changed;
   std::vector<std::string> m_presets;
   bool m_presets_loading = false;
+  std::string m_browse_directory;
+  BigPictureFiles::Listing m_browse_listing;
+  bool m_browse_loading = false;
+  bool m_browse_folders = false;
+  u64 m_browse_revision = 0;
+  // Read by the listing thread to skip superseded folders and stop at destruction.
+  std::atomic<u64> m_browse_latest = 0;
+  std::atomic<bool> m_browse_cancelled = false;
   Common::WorkQueueThread<bool> m_worker;
+  Common::WorkQueueThread<BrowseJob> m_browse_worker;
 };

@@ -230,13 +230,15 @@ std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& sta
          hints.Button(NavButton::Back, picker ? text.library_cancel : text.back);
 }
 std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
-                                         const ::BigPicture::NavigationText& text, bool row_options)
+                                         const ::BigPicture::NavigationText& text, bool row_options,
+                                         bool adjust)
 {
   using ::BigPicture::NavButton;
   const ControllerHints hints(status);
   return hints.Glyph(NavButton::Previous) + hints.Glyph(NavButton::Next) + " " +
-         text.settings_change_page + "   \xe2\x86\xa3 " + text.navigate +
-         (row_options ? "   \xe2\x86\xa0 " + text.settings_options : "") + "   " +
+         text.settings_change_page +
+         (adjust ? "   \xe2\x86\xa2 " + text.settings_adjust : std::string{}) + "   \xe2\x86\xa3 " +
+         text.navigate + (row_options ? "   \xe2\x86\xa0 " + text.settings_options : "") + "   " +
          hints.Glyph(NavButton::Confirm) + " " + text.select + "   " +
          hints.Glyph(NavButton::Back) + " " + text.back;
 }
