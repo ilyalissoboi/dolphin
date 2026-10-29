@@ -36,6 +36,12 @@ enum class SettingsOperation
   BrowseStart,
   BrowseEnter,
   BrowseChoose,
+  Mapping,
+  MapBind,
+  MapOptions,
+  MapClear,
+  MapDefaults,
+  MapDefaultsConfirm,
   Count
 };
 struct SettingsRequest
@@ -59,6 +65,8 @@ struct SettingsRow
   std::optional<bool> toggle;
   bool value_enabled = true;
   std::string category;
+  // Secondary request for the row's options (DPad Right / F2), alongside its navigation.
+  std::optional<SettingsRequest> options;
 };
 // Translated, value-only menu data. Profile/controller objects and config layers stay on the host.
 struct SettingsMenuSnapshot
@@ -78,5 +86,7 @@ struct SettingsMenuSnapshot
   // Rows that Left and Right activate on this page, e.g. to step a number.
   std::string decrease;
   std::string increase;
+  // Input detection owns the controller: the menu must not act on any input until it ends.
+  bool capturing = false;
 };
 }  // namespace BigPicture

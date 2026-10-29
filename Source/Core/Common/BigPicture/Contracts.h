@@ -229,4 +229,14 @@ struct Snapshot
   // Error presentation survives later rejected commands/acknowledgments until dismissed.
   std::optional<Result> error;
 };
+
+// Whether Big Picture's own Open Menu binding may open or close the menu now. While a controller
+// binding is being captured, every input belongs to the capture, including that binding.
+inline bool AcceptsMenuToggle(const Snapshot& snapshot)
+{
+  if (snapshot.host.settings_menu && snapshot.host.settings_menu->capturing)
+    return false;
+  return snapshot.mode == Mode::Library || snapshot.host.lifecycle == Lifecycle::Running ||
+         snapshot.host.lifecycle == Lifecycle::Paused;
+}
 }  // namespace BigPicture

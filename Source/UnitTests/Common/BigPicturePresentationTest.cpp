@@ -15,6 +15,22 @@ namespace
 using namespace std::chrono_literals;
 using namespace BigPicture;
 
+TEST(BigPicturePresentationTest, MenuToggleIsIgnoredWhileABindingIsCaptured)
+{
+  Snapshot snapshot;
+  EXPECT_FALSE(AcceptsMenuToggle(snapshot));
+  snapshot.host.lifecycle = Lifecycle::Paused;
+  EXPECT_TRUE(AcceptsMenuToggle(snapshot));
+  snapshot.host.lifecycle = Lifecycle::Idle;
+  snapshot.mode = Mode::Library;
+  EXPECT_TRUE(AcceptsMenuToggle(snapshot));
+  auto settings = std::make_shared<SettingsMenuSnapshot>();
+  snapshot.host.settings_menu = settings;
+  EXPECT_TRUE(AcceptsMenuToggle(snapshot));
+  settings->capturing = true;
+  EXPECT_FALSE(AcceptsMenuToggle(snapshot));
+}
+
 std::shared_ptr<const Snapshot> Menu(std::uint64_t generation = 1)
 {
   auto snapshot = std::make_shared<Snapshot>();

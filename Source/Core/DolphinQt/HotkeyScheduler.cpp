@@ -189,9 +189,7 @@ void HotkeyScheduler::Run()
     if (toggle)
     {
       const auto snapshot = presentation.GetSnapshot();
-      if (snapshot && (snapshot->mode == BigPicture::Mode::Library ||
-                       snapshot->host.lifecycle == BigPicture::Lifecycle::Running ||
-                       snapshot->host.lifecycle == BigPicture::Lifecycle::Paused))
+      if (snapshot && BigPicture::AcceptsMenuToggle(*snapshot))
       {
         if (snapshot->mode == BigPicture::Mode::Desktop)
         {

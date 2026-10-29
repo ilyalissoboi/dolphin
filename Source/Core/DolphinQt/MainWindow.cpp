@@ -400,6 +400,11 @@ MainWindow::MainWindow(Core::System& system, std::unique_ptr<BootParameters> boo
       },
       [this](std::shared_ptr<const BigPicture::Snapshot> snapshot) {
         BigPicture::GetPresentationState().Publish(snapshot);
+        // A pending binding capture belongs to the visible settings page only. A null snapshot
+        // comes from host destruction, after the settings object is gone.
+        if (snapshot &&
+            (snapshot->screens.empty() || snapshot->screens.back() != BigPicture::Screen::Settings))
+          m_big_picture_settings->CancelCapture();
         if (m_big_picture_text_input &&
             (!snapshot || snapshot->generation != m_big_picture_text_generation ||
              snapshot->screens.empty() ||
