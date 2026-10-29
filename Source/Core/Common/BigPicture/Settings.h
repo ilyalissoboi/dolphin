@@ -42,6 +42,13 @@ enum class SettingsOperation
   MapClear,
   MapDefaults,
   MapDefaultsConfirm,
+  MapExtensions,
+  MapExtension,
+  MapSettingEdit,
+  MapSettingStep,
+  MapSettingToggle,
+  MapSettingReset,
+  SaveProfile,
   Count
 };
 struct SettingsRequest

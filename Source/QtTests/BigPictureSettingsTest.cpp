@@ -23,6 +23,7 @@
 #include "DolphinQt/BigPictureSettings.h"
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
 #include "DolphinQt/Config/Binder/SharedSettings.h"
+#include "InputCommon/ControllerEmu/ControlGroup/Attachments.h"
 #include "InputCommon/ControllerEmu/ControlGroup/Buttons.h"
 #include "InputCommon/ControllerEmu/ControllerEmu.h"
 #include "InputCommon/ControllerInterface/CoreDevice.h"
@@ -34,6 +35,22 @@ namespace
 {
 using namespace Common::Settings;
 using O = BigPicture::SettingsOperation;
+class TestAttachment final : public ControllerEmu::AttachedController
+{
+public:
+  explicit TestAttachment(std::string name) : m_name(std::move(name))
+  {
+    if (m_name == "None")
+      return;
+    auto* buttons = new ControllerEmu::Buttons("Buttons");
+    groups.emplace_back(buttons);
+    buttons->AddInput(ControllerEmu::Translatability::DoNotTranslate, "C");
+  }
+  std::string GetName() const override { return m_name; }
+
+private:
+  std::string m_name;
+};
 class TestController final : public ControllerEmu::EmulatedController
 {
 public:
@@ -43,9 +60,17 @@ public:
     groups.emplace_back(buttons);
     buttons->AddInput(ControllerEmu::Translatability::DoNotTranslate, "A");
     buttons->AddInput(ControllerEmu::Translatability::DoNotTranslate, "B");
+    buttons->AddSetting(&dead_zone, {"Dead Zone", "%"}, 10.0, 0.0, 50.0);
+    buttons->AddSetting(&sideways, {"Sideways"}, false);
+    auto* extension = new ControllerEmu::Attachments("Extension");
+    groups.emplace_back(extension);
+    extension->AddAttachment(std::make_unique<TestAttachment>("None"));
+    extension->AddAttachment(std::make_unique<TestAttachment>("Nunchuk"));
   }
   std::string GetName() const override { return "GCPad1"; }
   InputConfig* GetConfig() const override { return m_config; }
+  ControllerEmu::SettingValue<double> dead_zone;
+  ControllerEmu::SettingValue<bool> sideways;
 
 private:
   InputConfig* m_config;
@@ -409,6 +434,62 @@ TEST_F(BigPictureSettingsTest, MappingBindsByPressingAnInputAndClearsOrRestoresD
   ASSERT_EQ(Activate("controllers"), Status::Success);
   ASSERT_EQ(Activate("pad0"), Status::Success);
   EXPECT_FALSE(HasRow("mapping"));
+}
+
+TEST_F(BigPictureSettingsTest, MappingTunesSettingsSwitchesExtensionsAndSavesProfiles)
+{
+  auto* controller = static_cast<TestController*>(input->GetController(0));
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  ASSERT_EQ(Activate("pad0"), Status::Success);
+  ASSERT_EQ(Activate("mapping"), Status::Success);
+  EXPECT_EQ(Row("map-extension").value, "None");
+  EXPECT_EQ(Row("set:Buttons/Dead Zone").value, "10 %");
+  ASSERT_TRUE(Row("set:Buttons/Sideways").toggle);
+  EXPECT_FALSE(*Row("set:Buttons/Sideways").toggle);
+
+  ASSERT_EQ(Activate("set:Buttons/Sideways"), Status::Success);
+  EXPECT_TRUE(controller->sideways.GetValue());
+  EXPECT_TRUE(*Row("set:Buttons/Sideways").toggle);
+
+  // Numbers use the stepper page, clamped to the setting's range.
+  ASSERT_EQ(Activate("set:Buttons/Dead Zone"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->increase, "adjust-1");
+  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 11);
+  ASSERT_EQ(Activate("adjust--10"), Status::Success);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 1);
+  ASSERT_EQ(Activate("adjust--1"), Status::Success);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 0);
+  EXPECT_FALSE(Row("adjust--1").enabled);
+  ASSERT_EQ(Activate("reset"), Status::Success);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 10);
+  Back();
+
+  // Choosing an extension shows its inputs in their own section.
+  EXPECT_FALSE(HasRow("map:ext:Nunchuk/Buttons/C"));
+  ASSERT_EQ(Activate("map-extension"), Status::Success);
+  EXPECT_TRUE(Row("ext-0").active);
+  ASSERT_EQ(Activate("ext-1"), Status::Success);
+  EXPECT_EQ(Row("map-extension").value, "Nunchuk");
+  ASSERT_TRUE(HasRow("map:ext:Nunchuk/Buttons/C"));
+  EXPECT_EQ(Row("map:ext:Nunchuk/Buttons/C").section, "Nunchuk: Buttons");
+
+  // Profiles are saved by name from the on-screen keyboard; bad names keep the editor open.
+  Back();
+  ASSERT_EQ(Activate("save-profile"), Status::Success);
+  EXPECT_TRUE(menu->ReadMenu()->text_input);
+  ASSERT_EQ(menu->Execute({menu->ReadMenu()->revision, O::TextKey, "bad/name"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_TRUE(menu->ReadMenu()->text_input);
+  ASSERT_EQ(Activate("text-clear"), Status::Success);
+  ASSERT_EQ(menu->Execute({menu->ReadMenu()->revision, O::TextKey, "My Pad"}), Status::Success);
+  ASSERT_EQ(Activate("text-done"), Status::Success);
+  EXPECT_FALSE(menu->ReadMenu()->text_input);
+  const auto path = input->GetUserProfileDirectoryPath() + "My Pad.ini";
+  Common::IniFile profile;
+  ASSERT_TRUE(profile.Load(path));
+  EXPECT_TRUE(profile.Exists("Profile"));
+  EXPECT_NE(menu->ReadMenu()->description.find("Saved profile My Pad."), std::string::npos);
 }
 
 TEST_F(BigPictureSettingsTest, GlobalMenuRejectsForgedScopeChangesAndGameMenuOmitsGlobalOptions)
