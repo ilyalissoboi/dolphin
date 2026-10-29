@@ -261,7 +261,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
     if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && item.enabled)
     {
       memory.item = item.id;
-      result.activated = "options";
+      result.activated = "options:" + item.id;
     }
     if (!requested.empty() && focus)
       ImGui::SetScrollHereY(0.5f);
@@ -347,6 +347,11 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
     result.activated = "search";
   else if (ImGui::IsKeyPressed(ImGuiKey_F5, false))
     result.activated = "refresh";
+  else if ((ImGui::IsKeyPressed(ImGuiKey_F6, false) ||
+            ImGui::IsKeyPressed(GetNavigationKey(::BigPicture::NavButton::Options, false),
+                                false)) &&
+           memory.item.starts_with("game:"))
+    result.activated = "options:" + memory.item;
   result.back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
   result.focused = memory.item;

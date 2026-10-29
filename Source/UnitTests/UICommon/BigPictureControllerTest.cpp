@@ -74,10 +74,104 @@ protected:
     };
     controller.Refresh();
   }
+  void GameLibrary()
+  {
+    Send(Action::OpenMenu);
+    Send(Action::ShowLibrary);
+    auto library = std::make_shared<LibrarySnapshot>();
+    LibraryGame game;
+    game.path = "game.iso";
+    game.game_id = "GTEST1";
+    library->games.push_back(game);
+    host.state.library = library;
+    host.execute = [this](const Command& command) {
+      if (command.action == Action::BootState)
+      {
+        host.state.lifecycle = Lifecycle::Booting;
+        return Result{command, ResultStatus::Dispatched};
+      }
+      return Result{command, ResultStatus::Succeeded};
+    };
+    controller.Refresh();
+  }
   FakeHost host;
   Controller controller{host};
   std::uint64_t id = 0;
 };
+
+TEST_F(BigPictureControllerTest, GameOptionsTargetOneLibraryGameAndRouteItsScreens)
+{
+  GameLibrary();
+  Send(Action::GameOptions, 0, "missing.iso");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Library);
+  Send(Action::GameOptions, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameOptions);
+  EXPECT_EQ(controller.GetSnapshot()->options_path, "game.iso");
+  EXPECT_TRUE(host.executed.empty());
+
+  // Every action from the options screen must name the game it was opened for.
+  Send(Action::GameProperties, 0, "missing.iso");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  EXPECT_TRUE(host.executed.empty());
+  Send(Action::GameProperties, 0, "game.iso");
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Settings);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameOptions);
+
+  Send(Action::GameStates, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::LoadStates);
+  const auto depth = controller.GetSnapshot()->screens.size();
+  Send(Action::GameStates, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.size(), depth);
+  Send(Action::BootState, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
+  Send(Action::BootState, 3, "game.iso");
+  EXPECT_EQ(host.executed.back().action, Action::BootState);
+  EXPECT_EQ(host.executed.back().slot, 3);
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+
+  // Like Boot, a state boot completes when the game runs.
+  host.state.lifecycle = Lifecycle::Running;
+  controller.Refresh();
+  EXPECT_FALSE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+  EXPECT_EQ(controller.GetSnapshot()->mode, Mode::Desktop);
+}
+
+TEST_F(BigPictureControllerTest, GameStatesFollowLoadingPolicyAndPlayTimeResetIsConfirmed)
+{
+  GameLibrary();
+  Send(Action::GameOptions, 0, "game.iso");
+  host.state.hardcore = true;
+  controller.Refresh();
+  Send(Action::GameStates, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Hardcore);
+  EXPECT_TRUE(host.executed.empty());
+  host.state.hardcore = false;
+  controller.Refresh();
+
+  Send(Action::ResetPlayTime, 0, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Confirmation);
+  EXPECT_EQ(controller.GetSnapshot()->confirmation_default, Action::Cancel);
+  Send(Action::Back);
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameOptions);
+  EXPECT_TRUE(host.executed.empty());
+  Send(Action::ResetPlayTime, 0, "game.iso");
+  Send(Action::Confirm);
+  ASSERT_EQ(host.executed.size(), 1u);
+  EXPECT_EQ(host.executed.back().action, Action::ResetPlayTime);
+  EXPECT_EQ(host.executed.back().path, "game.iso");
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::GameOptions);
+
+  // Game options are a library feature; a running game has its own menu.
+  Send(Action::Back);
+  host.state.lifecycle = Lifecycle::Running;
+  controller.Refresh();
+  EXPECT_NE(controller.GetSnapshot()->availability[static_cast<std::size_t>(Action::GameOptions)],
+            UnavailableReason::None);
+}
 
 TEST_F(BigPictureControllerTest, AchievementsRequireAnActiveLoginAndReturnToPause)
 {

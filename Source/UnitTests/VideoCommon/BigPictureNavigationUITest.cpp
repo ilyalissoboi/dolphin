@@ -920,6 +920,9 @@ TEST_F(BigPictureNavigationUITest, LibraryGridMatchesReferenceGeometryAndNavigat
   EXPECT_EQ(Press(page, ImGuiKey_F5).activated, "refresh");
   EXPECT_EQ(Press(page, ImGuiKey_GamepadL1).activated, "view-toggle");
   EXPECT_EQ(Press(page, ImGuiKey_GamepadR1).activated, "options");
+  EXPECT_EQ(Press(page, ImGuiKey_F6).activated, "options:game:5");
+  EXPECT_EQ(Press(page, GetNavigationKey(::BigPicture::NavButton::Options, false)).activated,
+            "options:game:5");
 }
 
 TEST_F(BigPictureNavigationUITest, LibraryViewChangesAndChildScreensRetainAndRevealTheSelectedGame)

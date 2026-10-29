@@ -18,6 +18,7 @@
 #include "Common/HookableEvent.h"
 #include "DolphinQt/BigPictureAchievements.h"
 #include "DolphinQt/BigPictureGraphicsConfig.h"
+#include "DolphinQt/BigPictureSettings.h"
 
 #ifdef USE_RETRO_ACHIEVEMENTS
 #include "Common/Config/Config.h"
@@ -27,7 +28,6 @@
 #include "DolphinQt/FIFO/FIFOPlayerWindow.h"
 
 class QMenu;
-class BigPictureSettings;
 class QStackedWidget;
 class QString;
 class QTimer;
@@ -286,6 +286,7 @@ private:
   BigPictureHost* m_big_picture_host = nullptr;
   BigPictureAchievements m_big_picture_achievements;
   std::shared_ptr<const BigPicture::LibraryImage> m_big_picture_avatar;
+  std::optional<BigPictureSettings::Game> m_big_picture_properties_game;
   std::unique_ptr<BigPictureSettings> m_big_picture_settings;
   bool m_settings_post_processing = false;
   BigPictureLibrary* m_big_picture_library = nullptr;

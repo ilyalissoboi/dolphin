@@ -105,6 +105,10 @@ struct SlotInfo
 };
 // A single locked metadata read for menu snapshots. This does not validate the state payload.
 SlotInfo GetSlotInfo(u32 slot);
+// The same, for a game that need not be running. An invalid game ID reads as an empty slot.
+SlotInfo GetSlotInfo(const std::string& game_id, u32 slot);
+// The numbered slot file for a game; empty if the game ID cannot name a file.
+std::string GetSlotPath(const std::string& game_id, u32 slot);
 
 // These don't happen instantly - they get scheduled as events.
 // ...But only if we're not in the main CPU thread.

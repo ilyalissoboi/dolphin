@@ -38,6 +38,7 @@ enum class DolphinKey
   F3,
   F4,
   F5,
+  F6,
 };
 
-using DolphinKeyMap = Common::EnumMap<int, DolphinKey::F5>;
+using DolphinKeyMap = Common::EnumMap<int, DolphinKey::F6>;

@@ -21,6 +21,19 @@ TEST(ContinuationStateTest, ContinuationNamesCannotAliasNumberedSlotsOrEscapeSav
   EXPECT_NE(State::GetContinuationPath("GMSE01"), State::GetContinuationPath("GMSP01"));
 }
 
+TEST(ContinuationStateTest, LibrarySlotPathsMatchNumberedSlotsAndRejectUnsafeGameIDs)
+{
+  EXPECT_EQ(State::GetSlotPath("GMSE01", 3), File::GetUserPath(D_STATESAVES_IDX) + "GMSE01.s03");
+  EXPECT_EQ(State::GetSlotPath("GMSE01", 10), File::GetUserPath(D_STATESAVES_IDX) + "GMSE01.s10");
+  EXPECT_TRUE(State::GetSlotPath("", 1).empty());
+  EXPECT_TRUE(State::GetSlotPath("../GMSE01", 1).empty());
+  EXPECT_TRUE(State::GetSlotPath("C:\\GMSE01", 1).empty());
+  EXPECT_FALSE(State::GetSlotInfo("../GMSE01", 1).exists);
+  // Executable IDs are made from file names; slots must accept what Save and Load accept.
+  EXPECT_EQ(State::GetSlotPath("ID-demo:test", 1),
+            File::GetUserPath(D_STATESAVES_IDX) + "ID-demo:test.s01");
+}
+
 TEST(ContinuationStateTest, DeletingContinuationLeavesNumberedAndUndoStatesUntouched)
 {
   const auto directory = File::CreateTempDir();

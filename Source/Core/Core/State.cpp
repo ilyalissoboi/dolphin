@@ -324,10 +324,26 @@ static std::string MakeStateFilename(u32 number)
                      SConfig::GetInstance().GetGameID(), number);
 }
 
+static bool IsFileNameSafeGameID(const std::string& game_id)
+{
+  return !game_id.empty() && game_id.find_first_of("/\\:*?\"<>|") == std::string::npos &&
+         std::ranges::none_of(game_id, [](unsigned char c) { return c < 0x20; });
+}
+
+std::string GetSlotPath(const std::string& game_id, u32 slot)
+{
+  // Numbered slots already use any game ID the host filesystem accepts (MakeStateFilename),
+  // such as an executable name containing ':' on Linux. Only refuse names that would leave the
+  // save-state folder, so library browsing finds the same files as Save and Load.
+  if (game_id.empty() || game_id.find_first_of("/\\") != std::string::npos ||
+      std::ranges::any_of(game_id, [](unsigned char c) { return c < 0x20; }))
+    return {};
+  return fmt::format("{}{}.s{:02d}", File::GetUserPath(D_STATESAVES_IDX), game_id, slot);
+}
+
 std::string GetContinuationPath(const std::string& game_id)
 {
-  if (game_id.empty() || game_id.find_first_of("/\\:*?\"<>|") != std::string::npos ||
-      std::ranges::any_of(game_id, [](unsigned char c) { return c < 0x20; }))
+  if (!IsFileNameSafeGameID(game_id))
     return {};
   return File::GetUserPath(D_STATESAVES_IDX) + game_id + ".continue.sav";
 }
@@ -746,11 +762,10 @@ u64 GetUnixTimeOfSlot(u32 slot)
          (DOUBLE_TIME_OFFSET * MS_PER_SEC);
 }
 
-SlotInfo GetSlotInfo(u32 slot)
+static SlotInfo ReadSlotInfo(const std::string& filename)
 {
   std::lock_guard lk{s_state_saves_in_progress};
-  const auto filename = MakeStateFilename(slot);
-  if (!File::Exists(filename))
+  if (filename.empty() || !File::Exists(filename))
     return {};
   StateHeader header;
   if (!ReadHeader(filename, header))
@@ -766,6 +781,17 @@ SlotInfo GetSlotInfo(u32 slot)
           readable ? BigPicture::ReadStatePreview(filename + ".preview",
                                                   std::bit_cast<u64>(header.legacy_header.time)) :
                      nullptr};
+}
+
+SlotInfo GetSlotInfo(u32 slot)
+{
+  // The running game's browser must read exactly the files that Save and Load use.
+  return ReadSlotInfo(MakeStateFilename(slot));
+}
+
+SlotInfo GetSlotInfo(const std::string& game_id, u32 slot)
+{
+  return ReadSlotInfo(GetSlotPath(game_id, slot));
 }
 
 static bool DecompressLZ4(Common::UniqueBuffer<u8>& raw_buffer, u64 size, File::IOFile& f)

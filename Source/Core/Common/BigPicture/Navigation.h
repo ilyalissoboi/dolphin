@@ -25,6 +25,8 @@ enum class NavButton
   Back,
   Previous,
   Next,
+  // Appended so stored bindings keep their positions.
+  Options,
   Count
 };
 constexpr std::size_t NAV_BUTTON_COUNT = static_cast<std::size_t>(NavButton::Count);
@@ -160,6 +162,8 @@ struct NavigationText
   std::string continuation_description;
   std::string exit_and_save;
   std::string exit_without_saving;
+  std::string game_options;
+  std::string confirm_reset_play_time;
 };
 
 struct NavigationRequest
