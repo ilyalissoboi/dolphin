@@ -205,6 +205,34 @@ TEST_F(BigPictureInGameMenuTest, SharedSettingsRowsCarryTypedEditsAndNestedBackR
   EXPECT_TRUE(Build().requests.empty());
 }
 
+TEST_F(BigPictureInGameMenuTest, MappingRowsOfferOptionsAndCaptureBlocksEveryRequest)
+{
+  snapshot.screens.push_back(Screen::Settings);
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-mapping";
+  view->back = SettingsRequest{3, SettingsOperation::Back};
+  SettingsRow row{"map:Buttons/A", "A"};
+  row.navigation = SettingsRequest{3, SettingsOperation::MapBind, "Buttons/A"};
+  row.options = SettingsRequest{3, SettingsOperation::MapOptions, "Buttons/A"};
+  view->rows.push_back(row);
+  snapshot.host.settings_menu = view;
+  auto menu = Build();
+  ASSERT_EQ(menu.page.items.front().id, "map:Buttons/A");
+  EXPECT_TRUE(menu.page.items.front().has_options);
+  EXPECT_EQ(menu.Activate({"map:Buttons/A"})->settings_menu->operation, SettingsOperation::MapBind);
+  ASSERT_TRUE(menu.Activate({"edit:map:Buttons/A"}));
+  EXPECT_EQ(menu.Activate({"edit:map:Buttons/A"})->settings_menu->operation,
+            SettingsOperation::MapOptions);
+
+  // While an input is captured, no press (including Back) may act in the menu.
+  view->rows.clear();
+  view->capturing = true;
+  menu = Build();
+  EXPECT_TRUE(menu.requests.empty());
+  EXPECT_FALSE(menu.Activate({{}, true}));
+  EXPECT_TRUE(menu.page.busy);
+}
+
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRootClosesWhileInterfaceRetainsMenuPreferences)
 {
   snapshot.screens.push_back(Screen::Settings);

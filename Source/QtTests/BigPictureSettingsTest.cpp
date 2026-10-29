@@ -23,7 +23,9 @@
 #include "DolphinQt/BigPictureSettings.h"
 #include "DolphinQt/Config/Binder/ConfigChangeBroadcaster.h"
 #include "DolphinQt/Config/Binder/SharedSettings.h"
+#include "InputCommon/ControllerEmu/ControlGroup/Buttons.h"
 #include "InputCommon/ControllerEmu/ControllerEmu.h"
+#include "InputCommon/ControllerInterface/CoreDevice.h"
 #include "InputCommon/InputConfig.h"
 #include "NullConfigLoader.h"
 #include "UICommon/UICommon.h"
@@ -35,12 +37,44 @@ using O = BigPicture::SettingsOperation;
 class TestController final : public ControllerEmu::EmulatedController
 {
 public:
-  explicit TestController(InputConfig* config) : m_config(config) {}
+  explicit TestController(InputConfig* config) : m_config(config)
+  {
+    auto* buttons = new ControllerEmu::Buttons("Buttons");
+    groups.emplace_back(buttons);
+    buttons->AddInput(ControllerEmu::Translatability::DoNotTranslate, "A");
+    buttons->AddInput(ControllerEmu::Translatability::DoNotTranslate, "B");
+  }
   std::string GetName() const override { return "GCPad1"; }
   InputConfig* GetConfig() const override { return m_config; }
 
 private:
   InputConfig* m_config;
+};
+// The "Test/0/Original" device, with one button whose state the test controls.
+class FakeDevice final : public ciface::Core::Device
+{
+public:
+  class Button final : public Input
+  {
+  public:
+    std::string GetName() const override { return "Fire"; }
+    ControlState GetState() const override { return state; }
+    ControlState state = 0;
+  };
+  FakeDevice()
+  {
+    SetId(0);
+    AddInput(button = new Button);
+  }
+  std::string GetName() const override { return "Original"; }
+  std::string GetSource() const override { return "Test"; }
+  Button* button;
+};
+class FakeDevices final : public ciface::Core::DeviceContainer
+{
+public:
+  FakeDevices() { m_devices.push_back(device); }
+  std::shared_ptr<FakeDevice> device = std::make_shared<FakeDevice>();
 };
 class GameLoader final : public Config::ConfigLayerLoader
 {
@@ -297,6 +331,84 @@ TEST_F(BigPictureSettingsTest, PathSettingsBrowseForFoldersAndFilesWithoutTyping
   EXPECT_EQ(
       Config::GetBase(Config::MAIN_DEFAULT_ISO),
       QDir::toNativeSeparators(QString::fromStdString(base + "/dumps/game.iso")).toStdString());
+}
+
+TEST_F(BigPictureSettingsTest, MappingBindsByPressingAnInputAndClearsOrRestoresDefaults)
+{
+  FakeDevices detection;
+  menu = std::make_unique<BigPictureSettings>(
+      nullptr, std::function<void()>{},
+      std::vector<BigPictureSettings::ControllerTarget>{
+          {"pad0", "Test controller", input.get(), 0}},
+      [this] { return devices; }, &detection);
+  menu->SetEnvironment(environment);
+  menu->SetGame({"RTEST1", 0, "Test game", false});
+  menu->Open();
+  const auto wait = [&](auto predicate) {
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!predicate() && std::chrono::steady_clock::now() < until)
+    {
+      QCoreApplication::processEvents();
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return predicate();
+  };
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  ASSERT_EQ(Activate("pad0"), Status::Success);
+  ASSERT_EQ(Activate("mapping"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "map:Buttons/A");
+  EXPECT_EQ(Row("map:Buttons/A").value, "Unbound");
+  EXPECT_EQ(Row("map:Buttons/A").section, "Buttons");
+  ASSERT_TRUE(Row("map:Buttons/A").options);
+
+  // A press that is held when capture starts is ignored; a fresh press binds.
+  const auto tick = [] {
+    for (int i = 0; i < 4; ++i)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      QCoreApplication::processEvents();
+    }
+  };
+  detection.device->button->state = 1;
+  ASSERT_EQ(Activate("map:Buttons/A"), Status::Success);
+  EXPECT_TRUE(menu->ReadMenu()->capturing);
+  EXPECT_TRUE(menu->ReadMenu()->rows.empty());
+  tick();
+  detection.device->button->state = 0;
+  tick();
+  EXPECT_TRUE(menu->ReadMenu()->capturing);
+  detection.device->button->state = 1;
+  tick();
+  detection.device->button->state = 0;
+  ASSERT_TRUE(wait([&] { return !menu->ReadMenu()->capturing; }));
+  EXPECT_EQ(Row("map:Buttons/A").value, "Fire");
+  EXPECT_EQ(input->GetController(0)->groups[0]->controls[0]->control_ref->GetExpression(), "Fire");
+
+  // Leaving the settings screen ends a capture without binding.
+  ASSERT_EQ(Activate("map:Buttons/B"), Status::Success);
+  EXPECT_TRUE(menu->ReadMenu()->capturing);
+  menu->CancelCapture();
+  EXPECT_FALSE(menu->ReadMenu()->capturing);
+  EXPECT_EQ(Row("map:Buttons/B").value, "Unbound");
+
+  ASSERT_EQ(menu->Execute(*Row("map:Buttons/A").options), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "map-bind");
+  ASSERT_EQ(Activate("map-clear"), Status::Success);
+  EXPECT_EQ(Row("map:Buttons/A").value, "Unbound");
+
+  ASSERT_EQ(Activate("map-defaults"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "map-defaults-cancel");
+  ASSERT_EQ(Activate("map-defaults-cancel"), Status::Success);
+  EXPECT_TRUE(HasRow("map:Buttons/A"));
+  ASSERT_EQ(Activate("map-defaults"), Status::Success);
+  ASSERT_EQ(Activate("map-defaults-confirm"), Status::Success);
+  EXPECT_TRUE(HasRow("map:Buttons/A"));
+
+  // Mapping is global; game settings select profiles instead.
+  ASSERT_TRUE(menu->Open(true));
+  ASSERT_EQ(Activate("controllers"), Status::Success);
+  ASSERT_EQ(Activate("pad0"), Status::Success);
+  EXPECT_FALSE(HasRow("mapping"));
 }
 
 TEST_F(BigPictureSettingsTest, GlobalMenuRejectsForgedScopeChangesAndGameMenuOmitsGlobalOptions)

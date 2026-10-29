@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <string>
@@ -18,6 +19,20 @@
 #include "UICommon/Settings/Service.h"
 
 class InputConfig;
+class QTimer;
+
+namespace ciface::Core
+{
+class Device;
+class DeviceContainer;
+class InputDetector;
+}  // namespace ciface::Core
+
+namespace ControllerEmu
+{
+class Control;
+class EmulatedController;
+}  // namespace ControllerEmu
 
 // Qt-owner settings workflow. The renderer receives translated rows and value requests only.
 class BigPictureSettings final : public QObject
@@ -39,9 +54,11 @@ public:
     InputConfig* config = nullptr;
     int index = 0;
   };
+  // Input detection reads detection_source; it defaults to the global controller interface.
   explicit BigPictureSettings(QObject* parent, std::function<void()> changed = {},
                               std::vector<ControllerTarget> targets = {},
-                              std::function<std::vector<std::string>()> devices = {});
+                              std::function<std::vector<std::string>()> devices = {},
+                              const ciface::Core::DeviceContainer* detection_source = nullptr);
   ~BigPictureSettings() override;
   bool Open(bool game = false);
   void SetGame(Game game);
@@ -50,6 +67,9 @@ public:
   std::shared_ptr<const BigPicture::SettingsMenuSnapshot> ReadMenu();
   Common::Settings::Result Apply(const Common::Settings::Request& request);
   Common::Settings::Status Execute(const BigPicture::SettingsRequest& request);
+  // Stops waiting for a binding input, e.g. once the settings screen is no longer shown.
+  // Does not notify; the next menu read reflects it.
+  void CancelCapture();
 
 signals:
   void SettingApplied(const QString& id);
@@ -66,7 +86,19 @@ private:
     Profiles,
     Presets,
     Text,
-    Browse
+    Browse,
+    Mapping,
+    MapControl,
+    MapDefaults,
+    Capture
+  };
+  struct MappingControl
+  {
+    // "<group name>/<control name>": stable across translations and binding changes.
+    std::string key;
+    std::string group;
+    std::string label;
+    ControllerEmu::Control* control = nullptr;
   };
   struct BrowseJob
   {
@@ -88,6 +120,10 @@ private:
   std::string ControllerUnavailable() const;
   void ScanPresets();
   void Browse(std::string directory);
+  // Caller holds the controller's state lock.
+  std::vector<MappingControl> MappingControls(ControllerEmu::EmulatedController& controller) const;
+  bool StartCapture(const ControllerTarget& target, const std::string& key);
+  void UpdateCapture();
   std::string BrowseStartDirectory(const Common::Settings::State& state) const;
   void Back();
   std::string MenuId(bool game) const;
@@ -121,6 +157,14 @@ private:
   // Read by the listing thread to skip superseded folders and stop at destruction.
   std::atomic<u64> m_browse_latest = 0;
   std::atomic<bool> m_browse_cancelled = false;
+  std::string m_map_control;
+  std::string m_map_message;
+  const ciface::Core::DeviceContainer* m_detection_source;
+  // Set while a binding capture is open; detection starts once its inputs are released.
+  std::shared_ptr<ciface::Core::Device> m_capture_device;
+  std::chrono::steady_clock::time_point m_capture_release_deadline;
+  std::unique_ptr<ciface::Core::InputDetector> m_capture;
+  QTimer* m_capture_timer = nullptr;
   Common::WorkQueueThread<bool> m_worker;
   Common::WorkQueueThread<BrowseJob> m_browse_worker;
 };

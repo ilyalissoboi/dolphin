@@ -22,7 +22,7 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   menu.page.default_focus = view.default_focus;
   menu.page.overlay = snapshot.mode == Mode::InGame;
   menu.page.category_page = view.category_page;
-  menu.page.busy = snapshot.pending.has_value();
+  menu.page.busy = snapshot.pending.has_value() || view.capturing;
   menu.page.decrease = view.decrease;
   menu.page.increase = view.increase;
   if (view.text_input)
@@ -52,8 +52,8 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
     item.section = row.section;
     item.toggle = row.toggle;
     item.value_enabled = row.value_enabled;
-    item.has_options = view.category_page && row.navigation &&
-                       row.navigation->operation == SettingsOperation::Edit;
+    item.has_options = row.options || (view.category_page && row.navigation &&
+                                       row.navigation->operation == SettingsOperation::Edit);
     const auto category = row.category.empty() ? row.id : row.category;
     if (row.id == "interface.big_picture_theme")
       item.icon = MenuIcon::Theme;
@@ -140,7 +140,7 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
     if (item.has_options)
     {
       NavigationRequest options_request{snapshot.generation, Action::SettingsMenu};
-      options_request.settings_menu = row.navigation;
+      options_request.settings_menu = row.options ? row.options : row.navigation;
       menu.requests.emplace("edit:" + row.id, std::move(options_request));
     }
     NavigationRequest request{snapshot.generation, Action::SettingsMenu};
@@ -210,6 +210,15 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   if (snapshot.pending)
     menu.page.toolbar.insert(menu.page.toolbar.begin(),
                              {"back", text.back, {}, false, {}, false, MenuIcon::Back});
+  if (view.capturing)
+  {
+    // The press being captured, including Back, must not also act in the menu.
+    menu.requests.clear();
+    for (auto& item : menu.page.items)
+      item.enabled = false;
+    for (auto& item : menu.page.toolbar)
+      item.enabled = false;
+  }
   return menu;
 }
 }  // namespace VideoCommon::BigPicture

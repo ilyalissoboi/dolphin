@@ -4,8 +4,10 @@
 #include "DolphinQt/BigPictureSettings.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <set>
+#include <span>
 #include <string_view>
 
 #include <fmt/format.h>
@@ -13,6 +15,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QThread>
+#include <QTimer>
 
 #include "Common/FileSearch.h"
 #include "Common/IniFile.h"
@@ -21,8 +24,12 @@
 #include "Core/HW/Wiimote.h"
 #include "DolphinQt/Config/Binder/SharedSettings.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
+#include "InputCommon/ControlReference/ControlReference.h"
+#include "InputCommon/ControllerEmu/Control/Control.h"
+#include "InputCommon/ControllerEmu/ControlGroup/ControlGroup.h"
 #include "InputCommon/ControllerEmu/ControllerEmu.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
+#include "InputCommon/ControllerInterface/MappingCommon.h"
 #include "InputCommon/InputConfig.h"
 #include "VideoCommon/PostProcessing/MultipassPostProcessing.h"
 
@@ -30,6 +37,9 @@ namespace
 {
 using namespace Common::Settings;
 using O = BigPicture::SettingsOperation;
+constexpr auto CAPTURE_RELEASE_WAIT = std::chrono::seconds(1);
+constexpr auto CAPTURE_INITIAL_WAIT = std::chrono::seconds(3);
+constexpr auto CAPTURE_MAXIMUM_WAIT = std::chrono::seconds(5);
 QString Q(const std::string& value)
 {
   return QString::fromStdString(value);
@@ -42,6 +52,12 @@ Config::Location ProfileLocation(const BigPictureSettings::ControllerTarget& tar
 {
   return {Config::System::GameSettingsOnly, "Controls",
           target.config->GetProfileKey() + "Profile" + std::to_string(target.index + 1)};
+}
+// Device qualifiers are quoted in expressions; the menu shows them without the backticks.
+std::string BindingLabel(std::string expression)
+{
+  std::erase(expression, '`');
+  return expression.empty() ? S(BigPictureSettings::tr("Unbound")) : expression;
 }
 std::string Display(const Value& value)
 {
@@ -89,9 +105,11 @@ bool ValidGameId(const std::string& id)
 
 BigPictureSettings::BigPictureSettings(QObject* parent, std::function<void()> changed,
                                        std::vector<ControllerTarget> targets,
-                                       std::function<std::vector<std::string>()> devices)
+                                       std::function<std::vector<std::string>()> devices,
+                                       const ciface::Core::DeviceContainer* detection_source)
     : QObject(parent), m_targets(std::move(targets)), m_input_devices(std::move(devices)),
       m_changed(std::move(changed)),
+      m_detection_source(detection_source ? detection_source : &g_controller_interface),
       m_worker("BigPicturePresets",
                [this](bool) {
                  auto presets = VideoCommon::MultipassPostProcessing::GetPresetList();
@@ -154,6 +172,7 @@ std::string BigPictureSettings::BrowseStartDirectory(const State& state) const
 bool BigPictureSettings::Open(bool game)
 {
   Q_ASSERT(QThread::currentThread() == thread());
+  CancelCapture();
   m_service.SetContext({EditTarget::Base});
   if (!m_game.active)
     m_game_context = {};
@@ -169,6 +188,7 @@ void BigPictureSettings::SetGame(Game game)
   Q_ASSERT(QThread::currentThread() == thread());
   if (m_game == game)
     return;
+  CancelCapture();
   m_service.SetContext({EditTarget::Base});
   m_game_context = {};
   m_game = std::move(game);
@@ -269,6 +289,130 @@ std::string BigPictureSettings::ControllerUnavailable() const
     return S(tr("Stop emulation before changing controllers."));
   return {};
 }
+std::vector<BigPictureSettings::MappingControl>
+BigPictureSettings::MappingControls(ControllerEmu::EmulatedController& controller) const
+{
+  using ControllerEmu::GroupType;
+  std::vector<MappingControl> result;
+  for (const auto& group : controller.groups)
+  {
+    // Extensions and motion-sensor passthrough remain desktop mapping for now.
+    if (group->type == GroupType::Attachments || group->type == GroupType::IMUAccelerometer ||
+        group->type == GroupType::IMUGyroscope || group->type == GroupType::IMUCursor ||
+        group->type == GroupType::IRPassthrough)
+      continue;
+    for (const auto& control : group->controls)
+    {
+      if (!control->control_ref->IsInput())
+        continue;
+      result.push_back({group->name + "/" + control->name, S(tr(group->ui_name.c_str())),
+                        control->translate == ControllerEmu::Translatability::Translate ?
+                            S(tr(control->ui_name.c_str())) :
+                            control->ui_name,
+                        control.get()});
+    }
+  }
+  return result;
+}
+bool BigPictureSettings::StartCapture(const ControllerTarget& target, const std::string& key)
+{
+  auto* controller = target.config->GetController(target.index);
+  const auto lock = controller->GetStateLock();
+  const auto controls = MappingControls(*controller);
+  if (std::ranges::find(controls, key, &MappingControl::key) == controls.end())
+    return false;
+  m_capture_device = m_detection_source->FindDevice(controller->GetDefaultDevice());
+  if (!m_capture_device)
+  {
+    m_map_message = S(tr("The input device %1 is not connected.")
+                          .arg(Q(controller->GetDefaultDevice().ToString())));
+    return false;
+  }
+  // Detection never reports an input that is held when it starts, so wait until the press that
+  // opened this page is released. Inputs that never rest only delay the start briefly.
+  m_capture_release_deadline = std::chrono::steady_clock::now() + CAPTURE_RELEASE_WAIT;
+  m_map_control = key;
+  if (!m_capture_timer)
+  {
+    m_capture_timer = new QTimer(this);
+    m_capture_timer->setInterval(16);
+    connect(m_capture_timer, &QTimer::timeout, this, &BigPictureSettings::UpdateCapture);
+  }
+  m_capture_timer->start();
+  return true;
+}
+void BigPictureSettings::UpdateCapture()
+{
+  if (!m_capture_device)
+    return;
+  const auto targets = Targets();
+  const auto* target = Target(targets);
+  if (!target || m_page != Page::Capture)
+  {
+    CancelCapture();
+    return;
+  }
+  auto* controller = target->config->GetController(target->index);
+  std::string bound;
+  {
+    const auto lock = controller->GetStateLock();
+    if (!m_capture)
+    {
+      const bool held = std::ranges::any_of(m_capture_device->Inputs(), [](const auto* input) {
+        return input->IsPressedForCapture();
+      });
+      if (held && std::chrono::steady_clock::now() < m_capture_release_deadline)
+        return;
+      const std::string device = controller->GetDefaultDevice().ToString();
+      m_capture = std::make_unique<ciface::Core::InputDetector>();
+      m_capture->Start(*m_detection_source, std::span(&device, 1));
+      return;
+    }
+    m_capture->Update(CAPTURE_INITIAL_WAIT, {}, CAPTURE_MAXIMUM_WAIT);
+    if (!m_capture->IsComplete())
+      return;
+    auto results = m_capture->TakeResults();
+    m_capture.reset();
+    m_capture_device.reset();
+    const auto controls = MappingControls(*controller);
+    const auto control = std::ranges::find(controls, m_map_control, &MappingControl::key);
+    if (control != controls.end() && ciface::MappingCommon::ContainsCompleteDetection(results))
+    {
+      ciface::MappingCommon::RemoveSpuriousTriggerCombinations(&results);
+      auto* reference = control->control->control_ref.get();
+      reference->SetExpression(ciface::MappingCommon::BuildExpression(
+          results, controller->GetDefaultDevice(), ciface::MappingCommon::Quote::On));
+      controller->UpdateSingleControlReference(g_controller_interface, reference);
+      bound = control->label;
+    }
+  }
+  m_capture_timer->stop();
+  if (!bound.empty())
+  {
+    target->config->SaveConfig();
+    target->config->GenerateControllerTextures();
+    m_map_message = S(tr("Bound %1.").arg(Q(bound)));
+  }
+  else
+  {
+    m_map_message = S(tr("No input was detected; the binding is unchanged."));
+  }
+  m_page = Page::Mapping;
+  ++m_revision;
+  if (m_changed)
+    m_changed();
+}
+void BigPictureSettings::CancelCapture()
+{
+  if (!m_capture_device)
+    return;
+  m_capture.reset();
+  m_capture_device.reset();
+  m_capture_timer->stop();
+  if (m_page == Page::Capture)
+    m_page = Page::Mapping;
+  ++m_revision;
+}
 void BigPictureSettings::ScanPresets()
 {
   if (m_presets_loading)
@@ -295,10 +439,18 @@ void BigPictureSettings::Back()
     break;
   case Page::Devices:
   case Page::Profiles:
+  case Page::Mapping:
     m_page = Page::Controller;
     break;
   case Page::Controller:
     m_page = Page::Controllers;
+    break;
+  case Page::Capture:
+    CancelCapture();
+    break;
+  case Page::MapControl:
+  case Page::MapDefaults:
+    m_page = Page::Mapping;
     break;
   default:
     m_page = Page::Home;
@@ -322,9 +474,15 @@ std::string BigPictureSettings::MenuId(bool game) const
   case Page::Category:
     category = m_category;
     break;
+  case Page::MapControl:
+  case Page::Capture:
+    edit = m_map_control;
+    [[fallthrough]];
   case Page::Controller:
   case Page::Devices:
   case Page::Profiles:
+  case Page::Mapping:
+  case Page::MapDefaults:
     controller = m_controller;
     break;
   default:
@@ -667,8 +825,9 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
     if (m_page == Page::Controllers)
     {
       view->title = S(tr("Controllers"));
-      view->description += "\n" + S(tr("Select an existing emulated controller. Full mapping and "
-                                       "controller types are available on the desktop."));
+      view->description += "\n" + S(tr("Select an emulated controller to choose its device, "
+                                       "profile and button mapping. Controller types and "
+                                       "extensions are configured on the desktop."));
       for (const auto& candidate : targets)
         nav(candidate.id, Q(candidate.label), O::Controller, candidate.id);
     }
@@ -694,6 +853,9 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           nav("devices", tr("Input device"), O::Devices, {}, device, unavailable.empty());
           view->rows.back().value = device;
           view->rows.back().help = S(tr("Select the input device for this controller."));
+          nav("mapping", tr("Mapping"), O::Mapping, {}, {}, unavailable.empty());
+          view->rows.back().help =
+              S(tr("Bind each button, stick and trigger by pressing an input."));
         }
         std::string profile_value;
         if (game)
@@ -714,6 +876,69 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
         if (game)
           nav("clear-profile", tr("Use inherited profile"), O::ClearProfile, {}, {},
               unavailable.empty() && m_game_context.layer->Exists(ProfileLocation(*target)));
+      }
+      else if (m_page == Page::Mapping || m_page == Page::MapControl ||
+               m_page == Page::MapDefaults || m_page == Page::Capture)
+      {
+        const auto lock = controller->GetStateLock();
+        const auto controls = MappingControls(*controller);
+        const auto selected = std::ranges::find(controls, m_map_control, &MappingControl::key);
+        if (m_page == Page::Mapping)
+        {
+          view->title = S(tr("%1 Mapping").arg(Q(target->label)));
+          view->description += "\n" + S(tr("Input device: %1").arg(Q(device)));
+          if (!m_map_message.empty())
+            view->description += "\n" + m_map_message;
+          nav("map-defaults", tr("Default Mapping"), O::MapDefaults, {}, {}, unavailable.empty());
+          for (const auto& control : controls)
+          {
+            nav("map:" + control.key, Q(control.label), O::MapBind, control.key, {},
+                unavailable.empty());
+            auto& row = view->rows.back();
+            row.value = BindingLabel(control.control->control_ref->GetExpression());
+            row.section = control.group;
+            row.help = S(tr("Press to bind a new input. Options: clear the binding."));
+            if (row.enabled)
+              row.options = BigPicture::SettingsRequest{m_revision, O::MapOptions, control.key};
+          }
+          if (!controls.empty())
+            view->default_focus = "map:" + controls.front().key;
+        }
+        else if (m_page == Page::MapDefaults)
+        {
+          view->title = S(tr("Default Mapping"));
+          view->description +=
+              "\n" + S(tr("Replace every binding of %1 with Dolphin's defaults? This also "
+                          "selects the default input device.")
+                           .arg(Q(target->label)));
+          nav("map-defaults-cancel", tr("Cancel"), O::Back);
+          nav("map-defaults-confirm", tr("Replace All Bindings"), O::MapDefaultsConfirm, {}, {},
+              unavailable.empty());
+          view->default_focus = "map-defaults-cancel";
+        }
+        else if (selected != controls.end())
+        {
+          const auto binding = BindingLabel(selected->control->control_ref->GetExpression());
+          view->title = selected->label;
+          if (m_page == Page::Capture)
+          {
+            view->capturing = true;
+            view->title = S(tr("Press an Input"));
+            view->description +=
+                "\n" + S(tr("Press the button, key or direction for %1 on %2. Waiting ends after "
+                            "a few seconds without input.")
+                             .arg(Q(selected->label), Q(device)));
+          }
+          else
+          {
+            view->description += "\n" + S(tr("Current binding: %1").arg(Q(binding)));
+            nav("map-bind", tr("Bind New Input"), O::MapBind, selected->key, {},
+                unavailable.empty());
+            nav("map-clear", tr("Clear Binding"), O::MapClear, selected->key, {},
+                unavailable.empty() && !selected->control->control_ref->GetExpression().empty());
+            view->default_focus = "map-bind";
+          }
+        }
       }
       else if (m_page == Page::Devices)
       {
@@ -766,8 +991,11 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     return Status::Stale;
   // Only published actions are executable. Old pages and forged IDs cannot select a new target.
   const auto matches = [&](const BigPicture::SettingsRow& row) {
-    return row.enabled && row.navigation && row.navigation->operation == request.operation &&
-           row.navigation->value == request.value;
+    const auto same = [&](const std::optional<BigPicture::SettingsRequest>& published) {
+      return published && published->operation == request.operation &&
+             published->value == request.value;
+    };
+    return row.enabled && (same(row.navigation) || same(row.options));
   };
   const bool text_key =
       m_page == Page::Text && request.operation == O::TextKey && request.value.size() <= 4096 &&
@@ -810,6 +1038,53 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
   case O::Profiles:
     m_page = Page::Profiles;
     break;
+  case O::Mapping:
+    m_map_message.clear();
+    m_page = Page::Mapping;
+    break;
+  case O::MapOptions:
+    m_map_control = request.value;
+    m_page = Page::MapControl;
+    break;
+  case O::MapDefaults:
+    m_page = Page::MapDefaults;
+    break;
+  case O::MapBind:
+    if (!target || !ControllerUnavailable().empty())
+      return Status::Unavailable;
+    // A disconnected device reports why on the mapping page instead.
+    m_page = StartCapture(*target, request.value) ? Page::Capture : Page::Mapping;
+    break;
+  case O::MapClear:
+  case O::MapDefaultsConfirm:
+  {
+    if (!target || !ControllerUnavailable().empty())
+      return Status::Unavailable;
+    auto* controller = target->config->GetController(target->index);
+    if (request.operation == O::MapDefaultsConfirm)
+    {
+      // As the desktop mapping window's Default button.
+      controller->LoadDefaults(g_controller_interface);
+      controller->UpdateReferences(g_controller_interface);
+      m_map_message = S(tr("Restored the default mapping."));
+    }
+    else
+    {
+      const auto lock = controller->GetStateLock();
+      const auto controls = MappingControls(*controller);
+      const auto control = std::ranges::find(controls, request.value, &MappingControl::key);
+      if (control == controls.end())
+        return Status::InvalidValue;
+      control->control->control_ref->SetExpression({});
+      controller->UpdateSingleControlReference(g_controller_interface,
+                                               control->control->control_ref.get());
+      m_map_message = S(tr("Cleared %1.").arg(Q(control->label)));
+    }
+    target->config->SaveConfig();
+    target->config->GenerateControllerTextures();
+    m_page = Page::Mapping;
+    break;
+  }
   case O::PresetFolder:
     m_page = Page::Presets;
     m_preset_folder = request.value;
