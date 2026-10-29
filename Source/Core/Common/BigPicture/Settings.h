@@ -33,6 +33,9 @@ enum class SettingsOperation
   TextErase,
   TextClear,
   TextDone,
+  BrowseStart,
+  BrowseEnter,
+  BrowseChoose,
   Count
 };
 struct SettingsRequest
@@ -72,5 +75,8 @@ struct SettingsMenuSnapshot
   bool category_page = false;
   bool text_input = false;
   std::string draft;
+  // Rows that Left and Right activate on this page, e.g. to step a number.
+  std::string decrease;
+  std::string increase;
 };
 }  // namespace BigPicture

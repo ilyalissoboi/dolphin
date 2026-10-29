@@ -79,6 +79,9 @@ struct MenuPage
   bool settings_text = false;
   std::shared_ptr<const ::BigPicture::AchievementsSnapshot> achievements;
   std::string empty_text;
+  // Items that Left and Right activate instead of changing the settings page.
+  std::string decrease;
+  std::string increase;
 };
 
 struct MenuResult
@@ -194,5 +197,5 @@ std::string GetLaunchControllerPrompts(const ::BigPicture::NavigationStatus& sta
                                        const ::BigPicture::NavigationText& text, bool picker);
 std::string GetSettingsControllerPrompts(const ::BigPicture::NavigationStatus& status,
                                          const ::BigPicture::NavigationText& text,
-                                         bool row_options = true);
+                                         bool row_options = true, bool adjust = false);
 }  // namespace VideoCommon::BigPicture

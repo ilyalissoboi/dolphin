@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "Common/FileUtil.h"
+#include "Common/IOFile.h"
 #include "Common/IniFile.h"
 #include "Common/ScopeGuard.h"
 #include "Core/Config/GraphicsSettings.h"
@@ -144,8 +145,12 @@ TEST_F(BigPictureSettingsTest, ColdPagesAndQueuedValueEditsDoNotConstructDesktop
   EXPECT_FALSE(HasRow("global"));
   ASSERT_EQ(Activate("Audio"), Status::Success);
   ASSERT_EQ(Activate("audio.volume"), Status::Success);
-  ASSERT_EQ(Activate("volume-37"), Status::Success);
-  EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 37);
+  // Volume uses the same stepper as other ranged numbers, not a row per value.
+  EXPECT_EQ(menu->ReadMenu()->decrease, "adjust--1");
+  EXPECT_EQ(menu->ReadMenu()->increase, "adjust-1");
+  EXPECT_FALSE(HasRow("volume-37"));
+  ASSERT_EQ(Activate("adjust--10"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 90);
   EXPECT_NE(retained->id, menu->ReadMenu()->id);
   Back();
   ASSERT_EQ(Activate("Interface"), Status::Success);
@@ -237,6 +242,61 @@ TEST_F(BigPictureSettingsTest, TextEditorKeepsDraftsUntilDoneAndHandlesUnicodeAn
   ASSERT_EQ(Activate("text-clear"), Status::Success);
   Back();
   EXPECT_EQ(Config::GetBase(Config::MAIN_DEFAULT_ISO), "C:/日本語/a");
+}
+
+TEST_F(BigPictureSettingsTest, PathSettingsBrowseForFoldersAndFilesWithoutTyping)
+{
+  const auto listed = [&](const std::string& id) {
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!HasRow(id) && std::chrono::steady_clock::now() < until)
+    {
+      QCoreApplication::processEvents();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return HasRow(id);
+  };
+  QTemporaryDir root;
+  ASSERT_TRUE(root.isValid());
+  const auto base = root.path().toStdString();
+  ASSERT_TRUE(QDir(root.path()).mkpath(QStringLiteral("dumps/inner")));
+  {
+    File::IOFile game(base + "/dumps/game.iso", "wb");
+    ASSERT_TRUE(game.WriteString("disc"));
+  }
+
+  // A folder setting starts where its value lives and can choose the open folder.
+  Config::SetBase(Config::MAIN_DUMP_PATH, base + "/dumps");
+  ASSERT_EQ(Activate("Paths"), Status::Success);
+  ASSERT_EQ(Activate("native.main_dump_path"), Status::Success);
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "browse");
+  EXPECT_TRUE(HasRow("enter-value"));
+  ASSERT_EQ(Activate("browse"), Status::Success);
+  ASSERT_TRUE(listed("browse:" + base + "/dumps/inner"));
+  // Folder pickers list folders only.
+  EXPECT_FALSE(HasRow("browse:" + base + "/dumps/game.iso"));
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "browse-use");
+  ASSERT_EQ(Activate("browse:" + base + "/dumps/inner"), Status::Success);
+  ASSERT_TRUE(listed("browse-up"));
+  EXPECT_EQ(Row("browse-up").navigation->value, base + "/dumps");
+  ASSERT_EQ(Activate("browse-use"), Status::Success);
+  EXPECT_EQ(Config::GetBase(Config::MAIN_DUMP_PATH),
+            QDir::toNativeSeparators(QString::fromStdString(base + "/dumps/inner")).toStdString());
+  EXPECT_TRUE(HasRow("browse"));
+
+  // Only published entries can be chosen, and a file setting needs an existing file.
+  Back();
+  ASSERT_EQ(Activate("native.main_default_iso"), Status::Success);
+  Config::SetBase(Config::MAIN_DEFAULT_ISO, base + "/dumps/missing.iso");
+  ASSERT_EQ(Activate("browse"), Status::Success);
+  const auto game = "browse:" + base + "/dumps/game.iso";
+  ASSERT_TRUE(listed(game));
+  EXPECT_FALSE(HasRow("browse-use"));
+  EXPECT_EQ(menu->Execute({menu->ReadMenu()->revision, O::BrowseChoose, base + "/elsewhere.iso"}),
+            Status::Unavailable);
+  ASSERT_EQ(Activate(game), Status::Success);
+  EXPECT_EQ(
+      Config::GetBase(Config::MAIN_DEFAULT_ISO),
+      QDir::toNativeSeparators(QString::fromStdString(base + "/dumps/game.iso")).toStdString());
 }
 
 TEST_F(BigPictureSettingsTest, GlobalMenuRejectsForgedScopeChangesAndGameMenuOmitsGlobalOptions)
@@ -362,13 +422,13 @@ TEST_F(BigPictureSettingsTest, MenuEditsAndDesktopBindingsRoundTripInBothDirecti
   ConfigWidget::BindCatalog(&desktop, Config::MAIN_AUDIO_VOLUME);
   ASSERT_EQ(Activate("Audio"), Status::Success);
   ASSERT_EQ(Activate("audio.volume"), Status::Success);
-  ASSERT_EQ(Activate("volume-37"), Status::Success);
+  ASSERT_EQ(Activate("adjust--10"), Status::Success);
   QCoreApplication::processEvents();
-  EXPECT_EQ(desktop.value(), 37);
-  const auto old = *Row("volume-45").edit;
+  EXPECT_EQ(desktop.value(), 90);
+  const auto old = *Row("adjust-1").edit;
   desktop.setValue(48);
   QCoreApplication::processEvents();
-  EXPECT_EQ(menu->ReadMenu()->default_focus, "volume-48");
+  EXPECT_EQ(Row("adjust-1").edit->display_value, 49);
   EXPECT_EQ(menu->Apply(old).status, Status::Stale);
   EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 48);
 }

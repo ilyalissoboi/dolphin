@@ -320,10 +320,24 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   memory.scroll = ImGui::GetScrollY() / scale;
   ImGui::EndChild();
 
+  // A stepper page uses Left and Right (with key repeat) for its value; the shoulder buttons
+  // still change the settings page.
+  const bool stepper = !page.increase.empty() && !page.busy;
+  const bool step_down = stepper && (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+                                     ImGui::IsKeyPressed(ImGuiKey_GamepadDpadLeft));
+  const bool step_up = stepper && (ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+                                   ImGui::IsKeyPressed(ImGuiKey_GamepadDpadRight));
+  if (step_down || step_up)
+  {
+    ImGui::NavMoveRequestCancel();
+    result.activated = step_down ? page.decrease : page.increase;
+  }
   int direction = 0;
-  if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_GamepadL1))
+  if ((!stepper && ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ||
+      ImGui::IsKeyPressed(ImGuiKey_GamepadL1))
     direction = -1;
-  if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) || ImGui::IsKeyPressed(ImGuiKey_GamepadR1))
+  if ((!stepper && ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ||
+      ImGui::IsKeyPressed(ImGuiKey_GamepadR1))
     direction = 1;
   if (direction && !categories.empty())
   {

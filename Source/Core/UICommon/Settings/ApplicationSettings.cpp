@@ -268,6 +268,12 @@ void AppendApplicationSettings(std::vector<Entry>& entries)
           "\n" + std::string(_trans(
                      "Restart Dolphin to apply changes to resource and storage directories."));
   }
+  // Pickers browse for these; the remaining paths name files.
+  for (const auto* folder :
+       {&Config::MAIN_GBA_SAVES_PATH, &Config::MAIN_WII_SD_CARD_SYNC_FOLDER_PATH,
+        &Config::MAIN_FS_PATH, &Config::MAIN_DUMP_PATH, &Config::MAIN_LOAD_PATH,
+        &Config::MAIN_RESOURCEPACK_PATH, &Config::MAIN_WFS_PATH})
+    find(*folder).descriptor.directory = true;
   find(Config::GFX_ENABLE_GPU_TEXTURE_DECODING).unavailable = [](const Environment& env,
                                                                  const Context& context) {
     const bool mipmaps = context.target == EditTarget::Base ?

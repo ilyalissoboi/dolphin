@@ -1343,6 +1343,11 @@ void MainWindow::InitControllers()
       "   \xe2\x8f\xb5\xe2\x8f\xb7 " + tr("Navigate").toStdString() + "   \xe2\x90\xae " +
       tr("Select").toStdString() + "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.settings_keyboard_options = "\xe2\x91\xa1 " + tr("Setting Options").toStdString();
+  menu_text.settings_adjust = tr("Adjust Value").toStdString();
+  menu_text.settings_adjust_keyboard_hints =
+      "\xe2\x8f\xb4\xe2\x8f\xb6 " + menu_text.settings_adjust + "   \xe2\x8f\xb5\xe2\x8f\xb7 " +
+      tr("Navigate").toStdString() + "   \xe2\x90\xae " + tr("Select").toStdString() +
+      "   \xe2\x90\xaf " + tr("Back").toStdString();
   menu_text.start_keyboard_hints = "\xe2\x8f\xb4\xe2\x8f\xb6 " + tr("Navigate").toStdString() +
                                    "   \xe2\x90\xae " + tr("Select").toStdString() +
                                    "   \xe2\x90\xaf " + tr("Back").toStdString();

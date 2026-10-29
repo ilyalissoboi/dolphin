@@ -23,6 +23,8 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   menu.page.overlay = snapshot.mode == Mode::InGame;
   menu.page.category_page = view.category_page;
   menu.page.busy = snapshot.pending.has_value();
+  menu.page.decrease = view.decrease;
+  menu.page.increase = view.increase;
   if (view.text_input)
   {
     menu.page.presentation = MenuPresentation::List;
@@ -101,8 +103,14 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
       item.icon = MenuIcon::Reset;
     else if (row.id == "inherit")
       item.icon = MenuIcon::Back;
-    else if (row.navigation && row.navigation->operation == SettingsOperation::PresetFolder)
+    else if (row.navigation && (row.navigation->operation == SettingsOperation::PresetFolder ||
+                                row.navigation->operation == SettingsOperation::BrowseStart ||
+                                row.navigation->operation == SettingsOperation::BrowseEnter))
       item.icon = MenuIcon::Folder;
+    else if (row.navigation && row.navigation->operation == SettingsOperation::BrowseChoose)
+      item.icon = row.id == "browse-use" ? MenuIcon::Check : MenuIcon::File;
+    else if (row.navigation && row.navigation->operation == SettingsOperation::TextStart)
+      item.icon = MenuIcon::Keyboard;
     else if (row.id == "game")
       item.icon = MenuIcon::Disc;
     else if (row.navigation && row.navigation->operation >= SettingsOperation::Controllers &&

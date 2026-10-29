@@ -14,12 +14,12 @@
 #include <QBuffer>
 #include <QCollator>
 #include <QDir>
-#include <QDirIterator>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QThread>
 
+#include "DolphinQt/BigPictureFiles.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
 #include "UICommon/UICommon.h"
 
@@ -27,7 +27,6 @@ namespace
 {
 constexpr std::size_t MAX_COVER_JOBS = 4;
 constexpr std::size_t MAX_ENCODED_COVER = 16 * 1024 * 1024;
-constexpr std::size_t MAX_FILES = 4096;
 QString Q(const std::string& text)
 {
   return QString::fromStdString(text);
@@ -396,50 +395,10 @@ void BigPictureLibrary::RunJob(Job job)
     });
     return;
   }
-  std::vector<BigPicture::LibraryFile> files;
-  std::string parent, error;
-  if (job.path.empty())
-  {
-    files.push_back({S(QDir::homePath()), S(tr("Home")), true});
-    for (const auto& drive : QDir::drives())
-      files.push_back({S(drive.absoluteFilePath()), S(drive.absoluteFilePath()), true});
-  }
-  else
-  {
-    QFileInfo info(Q(job.path));
-    if (!info.isDir() || !info.isReadable())
-      error = S(tr("This folder is unavailable or unreadable."));
-    else
-    {
-      QDir dir(info.absoluteFilePath());
-      if (!dir.isRoot())
-      {
-        dir.cdUp();
-        parent = S(dir.absolutePath());
-      }
-      QDirIterator it(info.absoluteFilePath(),
-                      QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::Readable);
-      std::size_t examined = 0;
-      while (it.hasNext() && files.size() < MAX_FILES && examined++ < MAX_FILES * 4 &&
-             !m_destroying)
-      {
-        it.next();
-        const auto entry = it.fileInfo();
-        if (entry.isDir() || (!job.folders_only && IsGameFile(entry, job.disc)))
-          files.push_back({S(entry.absoluteFilePath()), S(entry.fileName()), entry.isDir()});
-      }
-      if (it.hasNext())
-        error = S(tr("This folder is too large. Enter a more specific path."));
-      QCollator collator;
-      collator.setNumericMode(true);
-      collator.setCaseSensitivity(Qt::CaseInsensitive);
-      std::ranges::sort(files, [&](const auto& a, const auto& b) {
-        if (a.directory != b.directory)
-          return a.directory;
-        return collator.compare(Q(a.name), Q(b.name)) < 0;
-      });
-    }
-  }
+  std::function<bool(const QFileInfo&)> include_file;
+  if (!job.folders_only)
+    include_file = [disc = job.disc](const QFileInfo& entry) { return IsGameFile(entry, disc); };
+  auto [files, parent, error] = BigPictureFiles::List(job.path, include_file, m_destroying);
   QueueOnObject(this, [this, revision = job.revision, files = std::move(files),
                        parent = std::move(parent), error = std::move(error)] {
     m_directory_pending = false;

@@ -95,6 +95,8 @@ struct Descriptor
   // Slider ticks are exact stored values, in display order; they need not be monotonic.
   std::vector<Value> ticks;
   std::string section;
+  // For Control::Path: the value names a folder rather than a file.
+  bool directory = false;
 };
 struct State
 {

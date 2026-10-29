@@ -164,6 +164,8 @@ struct NavigationText
   std::string exit_without_saving;
   std::string game_options;
   std::string confirm_reset_play_time;
+  std::string settings_adjust;
+  std::string settings_adjust_keyboard_hints;
 };
 
 struct NavigationRequest

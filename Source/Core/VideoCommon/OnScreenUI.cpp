@@ -936,6 +936,8 @@ std::string OnScreenUI::GetNavigationPrompts(const BigPicture::MenuPage& page,
     case Presentation::Library:
       return text.library_keyboard_hints;
     case Presentation::Settings:
+      if (!page.increase.empty())
+        return text.settings_adjust_keyboard_hints;
       return text.settings_keyboard_hints +
              (setting_options ? "   " + text.settings_keyboard_options : "");
     case Presentation::FilePicker:
@@ -958,7 +960,8 @@ std::string OnScreenUI::GetNavigationPrompts(const BigPicture::MenuPage& page,
   case Presentation::Library:
     return BigPicture::GetLibraryControllerPrompts(m_navigation, text);
   case Presentation::Settings:
-    return BigPicture::GetSettingsControllerPrompts(m_navigation, text, setting_options);
+    return BigPicture::GetSettingsControllerPrompts(m_navigation, text, setting_options,
+                                                    !page.increase.empty());
   case Presentation::FilePicker:
   case Presentation::Launch:
     return BigPicture::GetLaunchControllerPrompts(m_navigation, text,

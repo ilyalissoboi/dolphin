@@ -1217,6 +1217,20 @@ TEST_F(BigPictureNavigationUITest, SettingsSwitchesCategoriesAndKeepsRowOptionsA
     Press(page, ImGuiKey_GamepadDpadRight);
   EXPECT_NE(toolkit.GetMemory(page.id).item, "setting-options");
   EXPECT_EQ(toolkit.GetMemory(page.id).item, "global");
+
+  // A number's options page steps its value with Left and Right; shoulders still change page.
+  MenuPage stepper = page;
+  stepper.id = "volume-options";
+  stepper.category_page = false;
+  stepper.items = {{"adjust--1", "Decrease by 1"}, {"adjust-1", "Increase by 1"}};
+  stepper.default_focus = "adjust-1";
+  stepper.decrease = "adjust--1";
+  stepper.increase = "adjust-1";
+  Settle(stepper);
+  EXPECT_EQ(Press(stepper, ImGuiKey_LeftArrow).activated, "adjust--1");
+  EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadRight).activated, "adjust-1");
+  EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadLeft).activated, "adjust--1");
+  EXPECT_EQ(Press(stepper, ImGuiKey_GamepadR1).activated, "Display");
 }
 
 TEST_F(BigPictureNavigationUITest, SettingsContentKeepsSpaceBelowHeaderAndAboveFooter)

@@ -11,6 +11,7 @@
 #include <fmt/format.h>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QThread>
 
 #include "Common/FileSearch.h"
@@ -90,13 +91,32 @@ BigPictureSettings::BigPictureSettings(QObject* parent, std::function<void()> ch
                                        std::vector<ControllerTarget> targets,
                                        std::function<std::vector<std::string>()> devices)
     : QObject(parent), m_targets(std::move(targets)), m_input_devices(std::move(devices)),
-      m_changed(std::move(changed)), m_worker("BigPicturePresets", [this](bool) {
-        auto presets = VideoCommon::MultipassPostProcessing::GetPresetList();
-        std::ranges::sort(presets);
-        presets.erase(std::unique(presets.begin(), presets.end()), presets.end());
-        QueueOnObject(this, [this, presets = std::move(presets)] {
-          m_presets = presets;
-          m_presets_loading = false;
+      m_changed(std::move(changed)),
+      m_worker("BigPicturePresets",
+               [this](bool) {
+                 auto presets = VideoCommon::MultipassPostProcessing::GetPresetList();
+                 std::ranges::sort(presets);
+                 presets.erase(std::unique(presets.begin(), presets.end()), presets.end());
+                 QueueOnObject(this, [this, presets = std::move(presets)] {
+                   m_presets = presets;
+                   m_presets_loading = false;
+                   ++m_revision;
+                   if (m_changed)
+                     m_changed();
+                 });
+               }),
+      m_browse_worker("BigPictureSettingsBrowse", [this](BrowseJob job) {
+        if (job.revision != m_browse_latest)
+          return;
+        std::function<bool(const QFileInfo&)> include_file;
+        if (!job.folders_only)
+          include_file = [](const QFileInfo&) { return true; };
+        auto listing = BigPictureFiles::List(job.path, include_file, m_browse_cancelled);
+        QueueOnObject(this, [this, revision = job.revision, listing = std::move(listing)] {
+          if (revision != m_browse_revision)
+            return;
+          m_browse_listing = listing;
+          m_browse_loading = false;
           ++m_revision;
           if (m_changed)
             m_changed();
@@ -107,7 +127,29 @@ BigPictureSettings::BigPictureSettings(QObject* parent, std::function<void()> ch
 }
 BigPictureSettings::~BigPictureSettings()
 {
+  m_browse_cancelled = true;
+  m_browse_worker.StopAndCancel();
   m_worker.StopAndCancel();
+}
+void BigPictureSettings::Browse(std::string directory)
+{
+  m_browse_directory = std::move(directory);
+  m_browse_listing = {};
+  m_browse_loading = true;
+  m_browse_latest = ++m_browse_revision;
+  m_browse_worker.Push({m_browse_revision, m_browse_directory, m_browse_folders});
+}
+std::string BigPictureSettings::BrowseStartDirectory(const State& state) const
+{
+  // Start where the current value lives; fall back to the locations list.
+  const auto* value = std::get_if<std::string>(&state.value);
+  if (!value || value->empty())
+    return {};
+  const QFileInfo info(Q(*value));
+  if (state.descriptor.directory && info.isDir())
+    return S(info.absoluteFilePath());
+  const QFileInfo parent(info.absolutePath());
+  return parent.isDir() ? S(parent.absoluteFilePath()) : std::string{};
 }
 bool BigPictureSettings::Open(bool game)
 {
@@ -248,6 +290,7 @@ void BigPictureSettings::Back()
     m_page = Page::Category;
     break;
   case Page::Text:
+  case Page::Browse:
     m_page = Page::Edit;
     break;
   case Page::Devices:
@@ -273,6 +316,7 @@ std::string BigPictureSettings::MenuId(bool game) const
     [[fallthrough]];
   case Page::Edit:
   case Page::Text:
+  case Page::Browse:
     edit = m_edit;
     [[fallthrough]];
   case Page::Category:
@@ -286,6 +330,9 @@ std::string BigPictureSettings::MenuId(bool game) const
   default:
     break;
   }
+  // Each browsed folder keeps its own focus and scroll.
+  if (m_page == Page::Browse)
+    preset_folder = m_browse_directory;
   // Keep the existing ID format: retained focus and scroll depend on these stable keys.
   return fmt::format("settings-{}-{}-{}-{}-{}{}", static_cast<int>(m_page), category, edit,
                      controller, preset_folder, game ? m_game.id : "global");
@@ -448,7 +495,7 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
     if (!view->rows.empty())
       view->default_focus = view->rows.front().id;
   }
-  else if (m_page == Page::Edit || m_page == Page::Presets)
+  else if (m_page == Page::Edit || m_page == Page::Presets || m_page == Page::Browse)
   {
     const auto it = std::ranges::find(values->settings, m_edit,
                                       [](const State& state) { return state.descriptor.id; });
@@ -480,7 +527,35 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                                            tr("Applies immediately."));
     if (!state.enabled)
       view->description += "\n" + state.disabled_reason;
-    if (m_page == Page::Presets)
+    if (m_page == Page::Browse)
+    {
+      view->description +=
+          "\n" + (m_browse_directory.empty() ? S(tr("Locations")) :
+                                               S(QDir::toNativeSeparators(Q(m_browse_directory))));
+      if (m_browse_loading)
+        view->description += "\n" + S(tr("Loading…"));
+      if (!m_browse_listing.error.empty())
+        view->description += "\n" + m_browse_listing.error;
+      if (state.descriptor.directory && !m_browse_directory.empty() && !m_browse_loading)
+        nav("browse-use", tr("Use This Folder"), O::BrowseChoose, m_browse_directory, {},
+            state.enabled);
+      if (!m_browse_listing.parent.empty())
+        nav("browse-up", tr("Parent Folder"), O::BrowseEnter, m_browse_listing.parent);
+      if (!m_browse_directory.empty())
+        nav("browse-roots", tr("Locations"), O::BrowseEnter);
+      for (const auto& file : m_browse_listing.files)
+        nav("browse:" + file.path, Q(file.name), file.directory ? O::BrowseEnter : O::BrowseChoose,
+            file.path, {}, file.directory || state.enabled);
+      nav("enter-value", tr("Enter Path"), O::TextStart, {}, {}, state.enabled);
+      // Choosing the open folder comes first; otherwise start on the first entry.
+      const auto first = std::ranges::find_if(
+          view->rows, [](const auto& row) { return row.id.starts_with("browse:"); });
+      view->default_focus = !view->rows.empty() && view->rows.front().id == "browse-use" ?
+                                "browse-use" :
+                            first != view->rows.end() ? first->id :
+                                                        view->rows.front().id;
+    }
+    else if (m_page == Page::Presets)
     {
       view->description += "\n" + m_preset_folder;
       if (m_presets_loading)
@@ -520,16 +595,6 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           const std::string id = "choice-" + std::to_string(index);
           edit(id, Q(choice.label), state, choice.value);
           if (choice.value == state.value)
-            view->default_focus = id;
-        }
-      }
-      else if (state.descriptor.control == Control::Number && m_edit == "audio.volume")
-      {
-        for (int value = 0; value <= 100; ++value)
-        {
-          const std::string id = "volume-" + std::to_string(value);
-          edit(id, tr("%1%").arg(value), state, value);
-          if (Value(value) == state.value)
             view->default_focus = id;
         }
       }
@@ -573,13 +638,19 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           }
           nav("enter-value", tr("Enter Value"), O::TextStart, {}, {}, state.enabled);
           view->default_focus = "adjust-1";
+          view->decrease = "adjust--1";
+          view->increase = "adjust-1";
         }
       }
-      else if (state.descriptor.control == Control::Text ||
-               state.descriptor.control == Control::Path)
-        nav("enter-value",
-            state.descriptor.control == Control::Path ? tr("Enter Path") : tr("Enter Value"),
-            O::TextStart, {}, {}, state.enabled);
+      else if (state.descriptor.control == Control::Path)
+      {
+        nav("browse", state.descriptor.directory ? tr("Choose Folder") : tr("Choose File"),
+            O::BrowseStart, {}, {}, state.enabled);
+        nav("enter-value", tr("Enter Path"), O::TextStart, {}, {}, state.enabled);
+        view->default_focus = "browse";
+      }
+      else if (state.descriptor.control == Control::Text)
+        nav("enter-value", tr("Enter Value"), O::TextStart, {}, {}, state.enabled);
       edit("reset", tr("Reset to default"), state, false, Operation::ResetDefault);
       if (game)
       {
@@ -750,6 +821,37 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
       ScanPresets();
     else
       g_controller_interface.RefreshDevices();
+    break;
+  case O::BrowseStart:
+  case O::BrowseChoose:
+  {
+    const auto values = ReadSnapshot();
+    const auto state =
+        std::ranges::find(values->settings, m_edit, [](const auto& s) { return s.descriptor.id; });
+    if (state == values->settings.end() || !state->enabled ||
+        state->descriptor.control != Control::Path)
+      return Status::Unavailable;
+    if (request.operation == O::BrowseStart)
+    {
+      m_browse_folders = state->descriptor.directory;
+      Browse(BrowseStartDirectory(*state));
+      m_page = Page::Browse;
+      break;
+    }
+    // The listing may be stale; the choice must still be the right kind of path.
+    const QFileInfo chosen(Q(request.value));
+    if (state->descriptor.directory ? !chosen.isDir() : !chosen.isFile())
+      return Status::InvalidValue;
+    // Stored like the desktop path pickers store it.
+    const auto result = Apply({values->revision, m_edit, Operation::Set,
+                               S(QDir::toNativeSeparators(chosen.absoluteFilePath()))});
+    if (result.status != Status::Success)
+      return result.status;
+    m_page = Page::Edit;
+    break;
+  }
+  case O::BrowseEnter:
+    Browse(request.value);
     break;
   case O::TextStart:
   {

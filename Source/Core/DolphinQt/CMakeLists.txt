@@ -95,6 +95,8 @@ PRIVATE
 add_executable(dolphin-emu
   BigPictureAchievements.cpp
   BigPictureAchievements.h
+  BigPictureFiles.cpp
+  BigPictureFiles.h
   BigPictureHost.cpp
   BigPictureHost.h
   BigPictureLibrary.cpp
