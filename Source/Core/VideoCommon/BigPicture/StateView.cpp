@@ -23,8 +23,8 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   const float scale = std::max(0.01f, std::min(display.x / 1280, display.y / 720) * options.scale);
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
-  const float header = 44 * scale;
-  const float footer = 34 * scale;
+  const float header = Style::BAR_HEIGHT * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
   const float margin = std::max(15 * scale, display.x * options.safe_area);
   const float top = std::max(header, display.y * options.safe_area);
   const float bottom = std::min(display.y - footer, display.y * (1 - options.safe_area));
@@ -40,22 +40,11 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   const float left = (display.x - grid_width) * 0.5f;
   auto& memory = m_memory[page.id];
   const auto previous = memory.item;
-  const auto enabled = [&](const std::string& id) {
-    return std::ranges::any_of(page.items,
-                               [&](const auto& item) { return item.enabled && item.id == id; }) ||
-           std::ranges::any_of(page.toolbar,
-                               [&](const auto& item) { return item.enabled && item.id == id; });
-  };
-  if (!enabled(memory.item) && !page.busy)
+  if (!HasEnabledItem(page.items, memory.item) && !HasEnabledItem(page.toolbar, memory.item) &&
+      !page.busy)
     memory.item = page.default_focus;
-  const bool entering = m_current_page != page.id || previous != memory.item ||
-                        m_layout_width != display.x || m_layout_height != display.y ||
-                        m_layout_scale != scale || GImGui->NavWindow == nullptr ||
-                        (m_settings_busy && !page.busy);
-  m_current_page = page.id;
-  m_layout_width = display.x;
-  m_layout_height = display.y;
-  m_layout_scale = scale;
+  const bool entering = TrackLayout(page.id, display, scale).Any() || previous != memory.item ||
+                        GImGui->NavWindow == nullptr || (m_settings_busy && !page.busy);
   m_settings_busy = page.busy;
 
   auto background = palette.background;
@@ -64,7 +53,7 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
                                                 ImGui::GetColorU32(background));
   const Style::ScopedMenuStyle style(
       palette, {.item_spacing = ImVec2(gap, 10 * scale), .scrollbar_size = 12 * scale});
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
   if (entering)
@@ -158,7 +147,7 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
                      image_width, ImGui::GetColorU32(palette.secondary));
       cards->AddText(ImVec2(content_min.x, content_min.y + image_height + 10 * scale),
                      ImGui::GetColorU32(palette.text), item.label.c_str());
-      ImGui::PushFont(font, 14 * scale / font_scale);
+      ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
       cards->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                      ImVec2(content_min.x, content_min.y + image_height + 36 * scale),
                      ImGui::GetColorU32(palette.text), item.detail.c_str(), nullptr, image_width);
@@ -170,7 +159,7 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
   }
   memory.scroll = ImGui::GetScrollY() / scale;
   ImGui::EndChild();
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
                         ImGui::GetColorU32(palette.header_text), margin);
   ImGui::PopFont();

@@ -24,7 +24,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
   const float margin = std::max(12 * scale, display.x * options.safe_area);
-  const float footer = 34 * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
   const float sidebar = std::min(200 * scale, display.x * 0.28f);
   auto& memory = m_memory[page.id];
   const auto previous_subset = memory.selected;
@@ -49,13 +49,8 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   const bool subset_changed = previous_subset != memory.selected;
   if (selected && subset_changed)
     memory.item = subset_key(*selected);
-  bool entering = subset_changed || m_current_page != page.id || m_layout_width != display.x ||
-                  m_layout_height != display.y || m_layout_scale != scale ||
-                  GImGui->NavWindow == nullptr;
-  m_current_page = page.id;
-  m_layout_width = display.x;
-  m_layout_height = display.y;
-  m_layout_scale = scale;
+  bool entering =
+      TrackLayout(page.id, display, scale).Any() || subset_changed || GImGui->NavWindow == nullptr;
   bool valid_focus = memory.item == "back";
   if (subsets)
     for (const auto& subset : *subsets)
@@ -85,7 +80,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   const Style::ScopedMenuStyle style(palette, {.item_spacing = ImVec2(0, 6 * scale),
                                                .scrollbar_size = 10 * scale,
                                                .show_nav_cursor = false});
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   const auto color = [&](const auto& value) { return ImGui::GetColorU32(value); };
   const auto badge = [&](ImDrawList* draw, const std::string& key, ImVec2 pos, float size) {
     const auto texture = image ? image(key) : ImTextureID{};
@@ -108,7 +103,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
     draw->AddRectFilled(min, ImVec2(min.x + width, min.y + height), IM_COL32(0, 0, 0, 255));
     draw->AddRectFilled(min, ImVec2(min.x + width * value, min.y + height),
                         color(palette.selected));
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     const auto text = ImGui::CalcTextSize(label.c_str());
     draw->PushClipRect(min, ImVec2(min.x + width, min.y + height), true);
     draw->AddText(ImVec2(min.x + (width - text.x) * 0.5f, min.y + (height - text.y) * 0.5f),
@@ -116,7 +111,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
     draw->PopClipRect();
     ImGui::PopFont();
   };
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   const float summary_width = std::max(scale, display.x - margin * 2 - 102 * scale);
   const float summary_height =
       selected ?
@@ -149,7 +144,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   draw->PopClipRect();
   if (selected)
   {
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     draw->PushClipRect(ImVec2(header_x, 42 * scale),
                        ImVec2(display.x - margin, header - 32 * scale), true);
     draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(header_x, 42 * scale),
@@ -202,7 +197,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
       side->PushClipRect(min, max, true);
       badge(side, "achievement:subset:" + std::to_string(subset.id),
             ImVec2(min.x + 14 * scale, min.y + 9 * scale), 28 * scale);
-      ImGui::PushFont(font, 14 * scale / font_scale);
+      ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
       side->AddText(ImVec2(min.x + 50 * scale, min.y + 15 * scale), color(palette.text),
                     subset.title.c_str());
       ImGui::PopFont();
@@ -276,7 +271,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
         const std::string id = "achievement:" + std::to_string(achievement.id);
         ImGui::PushID(id.c_str());
         const float text_width = std::max(scale, row_width - 160 * scale);
-        ImGui::PushFont(font, 14 * scale / font_scale);
+        ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
         const float tag_width =
             achievement.type.empty() ?
                 0 :
@@ -287,7 +282,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
         const auto title_size =
             ImGui::CalcTextSize(achievement.title.c_str(), nullptr, false, title_width);
         const float title_height = title_size.y;
-        ImGui::PushFont(font, 14 * scale / font_scale);
+        ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
         const float description_height =
             ImGui::CalcTextSize(achievement.description.c_str(), nullptr, false, text_width).y;
         ImGui::PopFont();
@@ -318,7 +313,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
                         color(palette.text), achievement.title.c_str(), nullptr, title_width);
           if (!achievement.type.empty())
           {
-            ImGui::PushFont(font, 14 * scale / font_scale);
+            ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
             const auto tag_size = ImGui::CalcTextSize(achievement.type.c_str());
             const ImVec2 tag(text_x + std::min(title_size.x, title_width) + 8 * scale,
                              min.y + 6 * scale);
@@ -333,7 +328,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
             rows->PopClipRect();
             ImGui::PopFont();
           }
-          ImGui::PushFont(font, 14 * scale / font_scale);
+          ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
           const float description_y = min.y + title_height + 9 * scale;
           rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(text_x, description_y),
                         color(palette.text), achievement.description.c_str(), nullptr, text_width);
@@ -360,7 +355,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   content_memory.scroll = ImGui::GetScrollY() / scale;
   ImGui::EndChild();
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, color(palette.header));
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
                         color(palette.header_text), margin);
   ImGui::PopFont();

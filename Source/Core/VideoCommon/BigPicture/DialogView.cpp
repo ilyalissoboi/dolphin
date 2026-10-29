@@ -28,15 +28,15 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
                                 display.y * (1 - 2 * options.safe_area) / 400}));
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
-  const float header = 44 * scale;
-  const float footer = 34 * scale;
+  const float header = Style::BAR_HEIGHT * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
   const float padding = 16 * scale;
   const float width = 600 * scale;
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   const auto explanation =
       ImGui::CalcTextSize(page.description.c_str(), nullptr, false, width - 2 * padding);
   ImGui::PopFont();
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   std::vector<float> heights;
   float content_height = padding * 2;
   if (!page.description.empty())
@@ -45,7 +45,7 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
   {
     const float wrap = width - 2 * padding - 48 * scale;
     const auto label = ImGui::CalcTextSize(item.label.c_str(), nullptr, false, wrap);
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     const auto detail = ImGui::CalcTextSize(item.detail.c_str(), nullptr, false, wrap);
     ImGui::PopFont();
     const float height = std::max(
@@ -58,14 +58,10 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
   const ImVec2 size(width, std::min(header + content_height, available_height));
   const ImVec2 position((display.x - size.x) * 0.5f, (display.y - footer - size.y) * 0.5f);
   auto& memory = m_memory[page.id];
-  const auto valid = [&](const std::string& id) {
-    return std::ranges::any_of(page.items,
-                               [&](const auto& item) { return item.enabled && item.id == id; });
-  };
+  const auto valid = [&](const std::string& id) { return HasEnabledItem(page.items, id); };
   const bool revision_changed = memory.revision != page.focus_revision;
-  const bool entering = m_current_page != page.id || revision_changed || m_layout_width != size.x ||
-                        m_layout_height != size.y || m_layout_scale != scale ||
-                        GImGui->NavWindow == nullptr;
+  const bool entering =
+      TrackLayout(page.id, size, scale).Any() || revision_changed || GImGui->NavWindow == nullptr;
   if (revision_changed || !valid(memory.item))
   {
     const auto first = std::ranges::find_if(page.items, &MenuItem::enabled);
@@ -76,10 +72,6 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
   }
   const auto focus_id = memory.item;
   memory.revision = page.focus_revision;
-  m_current_page = page.id;
-  m_layout_width = size.x;
-  m_layout_height = size.y;
-  m_layout_scale = scale;
 
   if (!page.background)
   {
@@ -88,23 +80,11 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), display,
                                                   ImGui::GetColorU32(backdrop));
   }
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8 * scale);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12 * scale);
+  // Rows draw their own focus frame; the dialog uses no ImGui buttons.
+  const Style::ScopedMenuStyle style(palette, {.background = palette.background,
+                                               .scrollbar_size = 12 * scale,
+                                               .show_nav_cursor = false,
+                                               .window_rounding = Style::DIALOG_ROUNDING * scale});
   ImGui::SetNextWindowPos(position);
   ImGui::SetNextWindowSize(size);
   if (entering)
@@ -115,7 +95,8 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
                    ImGuiWindowFlags_NoScrollWithMouse);
   auto* draw = ImGui::GetWindowDrawList();
   draw->AddRectFilled(position, ImVec2(position.x + size.x, position.y + header),
-                      ImGui::GetColorU32(palette.header), 8 * scale, ImDrawFlags_RoundCornersTop);
+                      ImGui::GetColorU32(palette.header), Style::DIALOG_ROUNDING * scale,
+                      ImDrawFlags_RoundCornersTop);
   draw->PushClipRect(position, ImVec2(position.x + width - header, position.y + header), true);
   draw->AddText(
       ImVec2(position.x + padding, position.y + (header - ImGui::GetTextLineHeight()) * 0.5f),
@@ -144,7 +125,7 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
     ImGui::SetScrollY(memory.scroll * scale);
   if (!page.description.empty())
   {
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     ImGui::PushTextWrapPos(width - padding);
     ImGui::TextUnformatted(page.description.c_str());
     ImGui::PopTextWrapPos();
@@ -196,7 +177,7 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
       if (!item.detail.empty())
       {
         const auto label = ImGui::CalcTextSize(item.label.c_str(), nullptr, false, wrap);
-        ImGui::PushFont(font, 14 * scale / font_scale);
+        ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
         rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                       ImVec2(min.x + 44 * scale, min.y + label.y + 16 * scale),
                       ImGui::GetColorU32(palette.secondary), item.detail.c_str(), nullptr, wrap);
@@ -216,13 +197,11 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
   auto* foreground = ImGui::GetForegroundDrawList();
   foreground->AddRectFilled(ImVec2(0, display.y - footer), display,
                             ImGui::GetColorU32(palette.header));
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   Style::DrawFooterText(foreground, ImVec2(15 * scale, display.y - footer), display, prompts,
                         ImGui::GetColorU32(palette.header_text), 15 * scale);
   ImGui::PopFont();
   ImGui::PopFont();
-  ImGui::PopStyleVar(6);
-  ImGui::PopStyleColor(11);
   return result;
 }
 }  // namespace VideoCommon::BigPicture

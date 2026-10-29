@@ -28,8 +28,8 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
                                 display.y * (1 - options.safe_area * 2) / 620}));
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
-  const float header = 44 * scale;
-  const float footer = 34 * scale;
+  const float header = Style::BAR_HEIGHT * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
   const float margin = std::max(28 * scale, display.y * options.safe_area);
   const ImVec2 size(std::min(1000 * scale, display.x - margin * 2),
                     std::max(100 * scale, display.y - footer - margin * 2));
@@ -37,48 +37,28 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
   auto& memory = m_memory[page.id];
   const bool revision_changed = memory.revision != page.focus_revision;
   const auto valid = [&](const std::string& id) {
-    return (id == "back" && page.context.enabled) ||
-           std::ranges::any_of(page.items,
-                               [&](const auto& item) { return item.enabled && item.id == id; }) ||
-           std::ranges::any_of(page.toolbar,
-                               [&](const auto& item) { return item.enabled && item.id == id; });
+    return (id == "back" && page.context.enabled) || HasEnabledItem(page.items, id) ||
+           HasEnabledItem(page.toolbar, id);
   };
-  const bool entering = m_current_page != page.id || revision_changed || m_layout_width != size.x ||
-                        m_layout_height != size.y || m_layout_scale != scale ||
-                        GImGui->NavWindow == nullptr;
+  const bool entering =
+      TrackLayout(page.id, size, scale).Any() || revision_changed || GImGui->NavWindow == nullptr;
   if (revision_changed || !valid(memory.item))
   {
     memory.item = valid(page.default_focus) ? page.default_focus : "back";
     memory.scroll = 0;
   }
   const auto focus_id = memory.item;
-  m_current_page = page.id;
   m_focus_revision = page.focus_revision;
   memory.revision = page.focus_revision;
-  m_layout_width = size.x;
-  m_layout_height = size.y;
-  m_layout_scale = scale;
 
   auto panel = palette.background;
   panel.w = page.background ? 0.96f : 1.0f;
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, panel);
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.secondary);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8 * scale);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12 * scale);
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  // Picker rows use ImGui's Selectable fill; the picker uses no ImGui buttons.
+  const Style::ScopedMenuStyle style(palette, {.background = panel,
+                                               .scrollbar_size = 12 * scale,
+                                               .header = palette.hover,
+                                               .window_rounding = Style::DIALOG_ROUNDING * scale});
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
 
   // Draw a separate non-interactive backdrop so modal navigation cannot reach the tiles.
   auto* background = ImGui::GetBackgroundDrawList();
@@ -95,7 +75,8 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
                    ImGuiWindowFlags_NoScrollWithMouse);
   auto* draw = ImGui::GetWindowDrawList();
   draw->AddRectFilled(position, ImVec2(position.x + size.x, position.y + header),
-                      ImGui::GetColorU32(palette.header), 8 * scale, ImDrawFlags_RoundCornersTop);
+                      ImGui::GetColorU32(palette.header), Style::DIALOG_ROUNDING * scale,
+                      ImDrawFlags_RoundCornersTop);
   DrawMenuIcon(draw, MenuIcon::Folder, ImVec2(position.x + 18 * scale, position.y + 12 * scale),
                22 * scale, ImGui::GetColorU32(palette.header_text));
   draw->PushClipRect(position, ImVec2(position.x + size.x - 48 * scale, position.y + header), true);
@@ -174,7 +155,7 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
   }
   if (!page.description.empty())
   {
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     ImGui::TextWrapped("%s", page.description.c_str());
     ImGui::PopFont();
   }
@@ -213,13 +194,11 @@ NavigationToolkit::DrawFilePicker(const MenuPage& page, ::BigPicture::Navigation
 
   foreground->AddRectFilled(ImVec2(0, display.y - footer), display,
                             ImGui::GetColorU32(palette.header));
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   Style::DrawFooterText(foreground, ImVec2(15 * scale, display.y - footer), display, prompts,
                         ImGui::GetColorU32(palette.header_text), 15 * scale);
   ImGui::PopFont();
   ImGui::PopFont();
-  ImGui::PopStyleVar(6);
-  ImGui::PopStyleColor(11);
   return result;
 }
 }  // namespace VideoCommon::BigPicture

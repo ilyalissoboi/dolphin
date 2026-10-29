@@ -59,18 +59,17 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
   const float padding = 15 * scale;
-  const float header = 44 * scale;
+  const float header = Style::BAR_HEIGHT * scale;
   const bool grid = page.columns > 1;
   const int columns =
       grid ? std::clamp(static_cast<int>(display.x * (1 - options.safe_area * 2) / (256 * scale)),
                         1, 12) :
              1;
   auto& memory = m_memory[page.id];
-  const bool shape_changed = m_layout_width != display.x || m_layout_height != display.y ||
-                             m_layout_scale != scale || m_library_columns != columns ||
-                             m_library_grid != grid;
-  const bool entering = m_current_page != page.id || shape_changed ||
-                        m_focus_revision != page.focus_revision || GImGui->NavWindow == nullptr;
+  const auto layout = TrackLayout(page.id, display, scale);
+  const bool shape_changed = layout.shape || m_library_columns != columns || m_library_grid != grid;
+  const bool entering = layout.page || shape_changed || m_focus_revision != page.focus_revision ||
+                        GImGui->NavWindow == nullptr;
   const auto previous_focus = memory.item;
   const auto game = [&](const std::string& id) {
     return std::ranges::find_if(page.items,
@@ -91,35 +90,16 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   }
   const bool restore_focus = entering || previous_focus != memory.item;
   const auto focus_id = memory.item;
-  m_current_page = page.id;
-  m_layout_width = display.x;
-  m_layout_height = display.y;
-  m_layout_scale = scale;
   m_library_columns = columns;
   m_library_grid = grid;
   m_focus_revision = page.focus_revision;
 
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.focus);
-  ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, palette.secondary);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(20 * scale, 30 * scale));
-  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6 * scale);
-  ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12 * scale);
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  const Style::ScopedMenuStyle style(palette, {.background = palette.background,
+                                               .item_spacing = ImVec2(20 * scale, 30 * scale),
+                                               .scrollbar_size = 12 * scale,
+                                               .nav_cursor = palette.focus,
+                                               .frame_rounding = Style::ROUNDING * scale});
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
   if (entering)
@@ -159,7 +139,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   }
   draw->AddText(ImVec2(63 * scale, (header - ImGui::GetTextLineHeight()) * 0.5f),
                 ImGui::GetColorU32(palette.header_text), page.title.c_str());
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   const float footer =
       std::max(34 * scale, ImGui::CalcTextSize(prompts.c_str(), nullptr, false,
                                                std::max(scale, display.x - padding * 2))
@@ -197,7 +177,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   ImGui::SetCursorScreenPos(ImVec2(0, top));
   ImGui::BeginChild(page.id.c_str(), ImVec2(content_width, height), ImGuiChildFlags_NavFlattened,
                     ImGuiWindowFlags_AlwaysVerticalScrollbar);
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   float status_height = 0;
   if (!page.description.empty())
   {
@@ -322,7 +302,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
             ImVec2(details_width - padding * 2, cover_height), scale, palette, image);
       ImGui::Dummy(ImVec2(0, cover_height + 16 * scale));
       ImGui::TextWrapped("%s", selected->label.c_str());
-      ImGui::PushFont(font, 14 * scale / font_scale);
+      ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
       ImGui::TextWrapped(
           "%s",
           (selected->preview_detail.empty() ? selected->detail : selected->preview_detail).c_str());
@@ -330,7 +310,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
     }
     ImGui::EndChild();
   }
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, ImGui::GetColorU32(palette.header));
   Style::DrawFooterText(draw, ImVec2(0, display.y - footer), display, prompts,
                         ImGui::GetColorU32(palette.header_text), padding,
@@ -357,8 +337,6 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   result.focused = memory.item;
   ImGui::End();
   ImGui::PopFont();
-  ImGui::PopStyleVar(6);
-  ImGui::PopStyleColor(14);
   return result;
 }
 }  // namespace VideoCommon::BigPicture
