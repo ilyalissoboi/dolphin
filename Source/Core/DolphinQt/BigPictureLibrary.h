@@ -59,6 +59,7 @@ private:
   void QueuePublish();
   void Browse(const std::string& path);
   void RequestCover(const std::string& path, std::uint64_t revision);
+  void ForgetCover(const std::string& path);
   void OpenDiscLibrary();
   std::string DiscDirectory() const;
   std::string m_disc_path;
@@ -68,6 +69,9 @@ private:
   std::vector<BigPicture::LibraryGame> m_games;
   std::optional<std::vector<BigPicture::LibraryGame>> m_pending_games;
   bool m_cover_invalidation_pending = false;
+  // Cached paths absent from a received catalog, including one deferred by a scan. Their
+  // artwork may differ when they return, so their cover state is dropped when games apply.
+  std::set<std::string> m_departed_covers;
   BigPicture::LibrarySnapshot m_state;
   std::shared_ptr<const BigPicture::LibrarySnapshot> m_snapshot;
   Callbacks m_callbacks;

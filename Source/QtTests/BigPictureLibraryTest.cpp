@@ -497,6 +497,53 @@ TEST(BigPictureLibraryTest, PauseMetadataRefreshReusesDecodedCoversAndTheGpuCach
   EXPECT_EQ(retained->covers.at(game.path), cover);
 }
 
+TEST(BigPictureLibraryTest, PathsThatLeaveTheCatalogReloadTheirCoversWhenTheyReturn)
+{
+  auto a_cover = SolidPng(40, 60, Qt::red);
+  std::vector<unsigned char> b_cover;
+  ASSERT_FALSE(a_cover.empty());
+  int reads = 0;
+  BigPictureLibrary library(nullptr, {{}, {}, {}, [&](const std::string& path) {
+                                        ++reads;
+                                        return path == "a" ? a_cover : b_cover;
+                                      }});
+  const auto a = Entry("a", "A");
+  const auto b = Entry("b", "B");
+  library.SetGames({a, b});
+  const auto revision = library.GetSnapshot()->catalog_revision;
+  library.Execute(O::Cover, a.path, revision);
+  library.Execute(O::Cover, b.path, revision);
+  ASSERT_TRUE(Wait([&] { return library.GetSnapshot()->covers.contains(a.path); }));
+  EXPECT_TRUE(library.GetSnapshot()->missing_covers.contains(b.path));
+  EXPECT_EQ(library.GetSnapshot()->covers.at(a.path)->rgba[0], 255);
+
+  // Metadata-only refreshes keep the catalog revision, but departed paths lose cached state.
+  library.SetGames({}, false);
+  EXPECT_EQ(library.GetSnapshot()->catalog_revision, revision);
+  EXPECT_TRUE(library.GetSnapshot()->covers.empty());
+  EXPECT_TRUE(library.GetSnapshot()->missing_covers.empty());
+
+  a_cover = SolidPng(40, 60, Qt::blue);
+  b_cover = SolidPng(40, 60, Qt::green);
+  library.SetGames({a, b}, false);
+  library.Execute(O::Cover, a.path, revision);
+  library.Execute(O::Cover, b.path, revision);
+  ASSERT_TRUE(Wait([&] {
+    const auto snapshot = library.GetSnapshot();
+    return snapshot->covers.contains(a.path) && snapshot->covers.contains(b.path);
+  }));
+  EXPECT_EQ(reads, 4);
+  EXPECT_EQ(library.GetSnapshot()->covers.at(a.path)->rgba[2], 255);
+
+  // A departure seen only by a catalog that a scan deferred still drops the cached cover.
+  library.SetScanning(true);
+  library.SetGames({b}, false);
+  library.SetGames({a, b}, false);
+  library.SetScanning(false);
+  EXPECT_FALSE(library.GetSnapshot()->covers.contains(a.path));
+  EXPECT_TRUE(library.GetSnapshot()->covers.contains(b.path));
+}
+
 TEST(BigPictureLibraryTest, MetadataRefreshKeepsInFlightDecodeAndScanRetainsPendingInvalidation)
 {
   const auto png = SolidPng(40, 60, Qt::blue);
