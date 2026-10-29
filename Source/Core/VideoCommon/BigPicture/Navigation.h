@@ -110,6 +110,9 @@ struct MenuLayout
 MenuLayout ComputeMenuLayout(ImVec2 viewport, ::BigPicture::NavigationOptions options,
                              bool dialog = false);
 
+// Whether a focusable entry with this ID is currently enabled.
+bool HasEnabledItem(const std::vector<MenuItem>& items, std::string_view id);
+
 // Graphics-owner only. Stable page/item IDs retain focus and scroll across nested screens.
 // This layer returns item IDs; it never calls a frontend or emulator operation.
 class NavigationToolkit
@@ -124,6 +127,15 @@ public:
   void RestoreMemory(const std::string& page, FocusMemory memory);
 
 private:
+  struct LayoutChange
+  {
+    bool page = false;
+    bool shape = false;
+    bool Any() const { return page || shape; }
+  };
+  // Records the drawn page and its size and scale, reporting what changed since the previous
+  // frame. Views decide what else (focus revisions, a lost ImGui nav window) re-applies focus.
+  LayoutChange TrackLayout(const std::string& page, ImVec2 size, float scale);
   MenuResult DrawAchievements(const MenuPage& page, ::BigPicture::NavigationOptions options,
                               const std::string& prompts, ImFont* font,
                               const std::function<ImTextureID(const std::string&)>& image);

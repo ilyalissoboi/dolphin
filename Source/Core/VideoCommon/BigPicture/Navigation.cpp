@@ -68,6 +68,25 @@ MenuLayout ComputeMenuLayout(ImVec2 viewport, ::BigPicture::NavigationOptions op
   return {{(viewport.x - size.x) * 0.5f, (viewport.y - size.y) * 0.5f}, size, scale};
 }
 
+bool HasEnabledItem(const std::vector<MenuItem>& items, std::string_view id)
+{
+  return std::ranges::any_of(items,
+                             [&](const auto& item) { return item.enabled && item.id == id; });
+}
+
+NavigationToolkit::LayoutChange NavigationToolkit::TrackLayout(const std::string& page, ImVec2 size,
+                                                               float scale)
+{
+  const LayoutChange change{m_current_page != page, m_layout_width != size.x ||
+                                                        m_layout_height != size.y ||
+                                                        m_layout_scale != scale};
+  m_current_page = page;
+  m_layout_width = size.x;
+  m_layout_height = size.y;
+  m_layout_scale = scale;
+  return change;
+}
+
 void NavigationToolkit::Reset()
 {
   m_current_page.clear();
@@ -108,10 +127,7 @@ MenuResult NavigationToolkit::DrawLanding(
   auto& memory = m_memory[page.id];
   const auto previous_focus = memory.item;
   const bool valid_focus =
-      std::ranges::any_of(
-          page.items, [&](const auto& item) { return item.enabled && item.id == memory.item; }) ||
-      std::ranges::any_of(page.toolbar,
-                          [&](const auto& item) { return item.enabled && item.id == memory.item; });
+      HasEnabledItem(page.items, memory.item) || HasEnabledItem(page.toolbar, memory.item);
   if (!valid_focus && !passive)
   {
     auto first = std::ranges::find_if(page.items, [&](const auto& item) {
@@ -128,21 +144,12 @@ MenuResult NavigationToolkit::DrawLanding(
     m_current_page = page.id;
   if (memory.item.empty())
     memory.item = page.default_focus;
-  const float header = (launch ? 44 : 48) * scale;
-  const float footer = 34 * scale;
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
-  ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-  ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, palette.focus);
-  ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
-  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(30 * scale, 0));
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  const float header = (launch ? Style::BAR_HEIGHT : Style::HEADER_HEIGHT) * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
+  const Style::ScopedMenuStyle style(palette, {.background = palette.background,
+                                               .item_spacing = ImVec2(30 * scale, 0),
+                                               .nav_cursor = palette.focus});
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
   if (entering)
@@ -254,7 +261,7 @@ MenuResult NavigationToolkit::DrawLanding(
     draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                   ImVec2(min.x + (250 * scale - title_size.x) * 0.5f, title_y), color,
                   item.label.c_str(), nullptr, wrap);
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     const auto detail_size = ImGui::CalcTextSize(item.detail.c_str(), nullptr, false, wrap);
     draw->AddText(
         ImGui::GetFont(), ImGui::GetFontSize(),
@@ -265,7 +272,7 @@ MenuResult NavigationToolkit::DrawLanding(
     ImGui::EndDisabled();
     ImGui::PopID();
   }
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   Style::DrawFooterText(draw, ImVec2(15 * scale, display.y - footer), display, prompts,
                         Color(palette.header_text), 15 * scale);
   ImGui::PopFont();
@@ -280,8 +287,6 @@ MenuResult NavigationToolkit::DrawLanding(
   result.focused = memory.item;
   ImGui::End();
   ImGui::PopFont();
-  ImGui::PopStyleVar(3);
-  ImGui::PopStyleColor(9);
   return result;
 }
 MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::NavigationOptions options,
@@ -327,19 +332,14 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   auto& memory = m_memory[page.id];
   const auto previous_focus = memory.item;
   const bool revision_changed = m_focus_revision != page.focus_revision;
-  const bool entering = m_current_page != page.id || m_focus_revision != page.focus_revision ||
-                        m_layout_width != layout.size.x || m_layout_height != layout.size.y ||
-                        m_layout_scale != scale || m_header_height != header_height;
-  m_current_page = page.id;
+  const bool entering = TrackLayout(page.id, layout.size, scale).Any() || revision_changed ||
+                        m_header_height != header_height;
   m_focus_revision = page.focus_revision;
+  m_header_height = header_height;
   // Destructive dialogs always start at their safe default, including another request using
   // the same page. Reuse one memory entry rather than accumulating entries per command ID.
   if (entering && (page.dialog || (page.reset_on_revision && revision_changed)))
     memory = {};
-  m_layout_width = layout.size.x;
-  m_layout_height = layout.size.y;
-  m_layout_scale = scale;
-  m_header_height = header_height;
   auto focus = std::ranges::find_if(page.items, [&](const MenuItem& item) {
     return item.enabled && item.id == (memory.item.empty() ? page.default_focus : memory.item);
   });

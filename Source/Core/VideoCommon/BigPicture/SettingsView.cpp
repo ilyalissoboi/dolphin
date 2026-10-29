@@ -22,8 +22,8 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   const float scale = std::max(0.01f, std::min(display.x / 1280, display.y / 720) * options.scale);
   const float font_scale = ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
   const auto& palette = Style::GetPalette(page.theme);
-  const float header = 44 * scale;
-  const float footer = 34 * scale;
+  const float header = Style::BAR_HEIGHT * scale;
+  const float footer = Style::FOOTER_HEIGHT * scale;
   const float margin = std::max(12 * scale, display.x * options.safe_area);
   const float top = std::max(header, display.y * options.safe_area);
   const float bottom =
@@ -50,19 +50,13 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   if (row(memory.selected) == page.items.end())
     memory.selected = memory.item;
   const auto focus_id = memory.item;
-  const bool entering = m_current_page != page.id || previous != memory.item ||
-                        m_layout_width != display.x || m_layout_height != display.y ||
-                        m_layout_scale != scale || GImGui->NavWindow == nullptr ||
-                        (m_settings_busy && !page.busy);
+  const bool entering = TrackLayout(page.id, display, scale).Any() || previous != memory.item ||
+                        GImGui->NavWindow == nullptr || (m_settings_busy && !page.busy);
   m_settings_busy = page.busy;
-  m_current_page = page.id;
-  m_layout_width = display.x;
-  m_layout_height = display.y;
-  m_layout_scale = scale;
 
   const Style::ScopedMenuStyle style(
       palette, {.background = palette.background, .scrollbar_size = 12 * scale});
-  ImGui::PushFont(font, 22 * scale / font_scale);
+  ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
   if (entering)
@@ -152,7 +146,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                                                  page.description.substr(context_end + 1);
   if (!explanation.empty())
   {
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     ImGui::PushTextWrapPos(display.x - margin - 16 * scale);
     ImGui::TextUnformatted(explanation.c_str());
     ImGui::PopTextWrapPos();
@@ -182,7 +176,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                                                    std::min(320 * scale, width * 0.32f);
     const float label_width = std::max(scale, width - 64 * scale - value_width);
     const auto title_size = ImGui::CalcTextSize(item.label.c_str(), nullptr, false, label_width);
-    ImGui::PushFont(font, 14 * scale / font_scale);
+    ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
     const float help_width = std::max(scale, width - 32 * scale - value_width);
     // Keep long desktop tooltips from filling the viewport. The options editor retains the
     // complete description, including requirements and the current override state.
@@ -279,7 +273,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                    ImGui::GetColorU32(palette.text));
       rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(label_x, min.y + 10 * scale),
                     ImGui::GetColorU32(palette.text), item.label.c_str(), nullptr, label_width);
-      ImGui::PushFont(font, 14 * scale / font_scale);
+      ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
       rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
                     ImVec2(min.x + 16 * scale, min.y + 16 * scale + title_size.y),
                     ImGui::GetColorU32(palette.secondary), summary.c_str(), nullptr, help_width);
@@ -370,7 +364,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   result.back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
                 ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
   result.focused = memory.item;
-  ImGui::PushFont(font, 14 * scale / font_scale);
+  ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
   const auto prompt =
       Style::DrawFooterText(draw, ImVec2(15 * scale, display.y - footer), display, prompts,
                             ImGui::GetColorU32(palette.header_text), 15 * scale);

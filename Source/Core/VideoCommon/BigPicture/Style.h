@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -18,7 +19,10 @@ namespace VideoCommon::BigPicture::Style
 constexpr float TITLE_SIZE = 22;
 constexpr float SUMMARY_SIZE = 14;
 constexpr float HEADER_HEIGHT = 48;
+// The Back/title strip of full-screen pages, dialogs and pickers.
+constexpr float BAR_HEIGHT = 44;
 constexpr float FOOTER_HEIGHT = 34;
+constexpr float DIALOG_ROUNDING = 8;
 constexpr float ROW_HEIGHT = 70;
 constexpr float SHORT_ROW_HEIGHT = 46;
 constexpr float PADDING = 15;
@@ -96,6 +100,13 @@ struct MenuStyleOptions
   ImVec2 item_spacing{0, 0};
   float scrollbar_size = 12;
   bool show_nav_cursor = true;
+  // Replaces the secondary-colour focus outline.
+  std::optional<ImVec4> nav_cursor;
+  // Selectable fill; transparent where the view draws its own hover and focus frames.
+  ImVec4 header{0, 0, 0, 0};
+  // Left at the global style when unset.
+  std::optional<float> window_rounding;
+  std::optional<float> frame_rounding;
 };
 
 // Keep paired ImGui stack operations together when views share the same controls.
@@ -107,11 +118,12 @@ public:
     ImGui::PushStyleColor(ImGuiCol_WindowBg, options.background);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Text, palette.text);
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_NavCursor,
-                          options.show_nav_cursor ? palette.secondary : ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Header, options.header);
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, options.header);
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, options.header);
+    ImGui::PushStyleColor(ImGuiCol_NavCursor, !options.show_nav_cursor ? ImVec4(0, 0, 0, 0) :
+                                              options.nav_cursor       ? *options.nav_cursor :
+                                                                         palette.secondary);
     ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
@@ -124,14 +136,27 @@ public:
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, options.item_spacing);
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, options.scrollbar_size);
+    if (options.window_rounding)
+    {
+      ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, *options.window_rounding);
+      ++m_vars;
+    }
+    if (options.frame_rounding)
+    {
+      ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, *options.frame_rounding);
+      ++m_vars;
+    }
   }
   ~ScopedMenuStyle()
   {
-    ImGui::PopStyleVar(5);
+    ImGui::PopStyleVar(m_vars);
     ImGui::PopStyleColor(14);
   }
   ScopedMenuStyle(const ScopedMenuStyle&) = delete;
   ScopedMenuStyle& operator=(const ScopedMenuStyle&) = delete;
+
+private:
+  int m_vars = 5;
 };
 
 // Uses the caller's current font and clip rectangle; each view retains its own footer geometry.
