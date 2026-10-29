@@ -160,6 +160,8 @@ std::shared_ptr<const Snapshot> Service::ReadSnapshot()
   if (!IsOwner())
     return nullptr;
   SynchronizeVersion();
+  if (m_snapshot && m_snapshot->revision == m_revision)
+    return m_snapshot;
   auto snapshot = std::make_shared<Snapshot>();
   snapshot->revision = m_revision;
   snapshot->target = m_context.target;
@@ -203,6 +205,7 @@ std::shared_ptr<const Snapshot> Service::ReadSnapshot()
     state.enabled = state.disabled_reason.empty();
     snapshot->settings.push_back(std::move(state));
   }
+  m_snapshot = snapshot;
   return snapshot;
 }
 

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "VideoCommon/BigPicture/InGameMenu.h"
 #include "VideoCommon/BigPicture/Navigation.h"
 #include "VideoCommon/OnScreenUIKeyMap.h"
 
@@ -100,6 +101,11 @@ private:
   u64 m_navigation_generation = 0;
   ::BigPicture::NavigationStatus m_navigation;
   BigPicture::NavigationToolkit m_navigation_toolkit;
+  // Built menus are pure functions of these immutable inputs; rebuild only when one changes.
+  std::shared_ptr<const ::BigPicture::Snapshot> m_menu_snapshot;
+  std::shared_ptr<const ::BigPicture::NavigationText> m_menu_text;
+  ::BigPicture::NavigationOptions m_menu_options;
+  BigPicture::InGameMenu m_menu;
   std::map<std::string, std::unique_ptr<AbstractTexture>> m_home_textures;
   std::shared_ptr<const ::BigPicture::LibraryImage> m_home_avatar;
   BigPicture::NavigationInput m_navigation_input;

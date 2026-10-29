@@ -55,8 +55,11 @@ private:
   };
   void RunJob(Job job);
   void Publish(bool filter = false);
+  // Decode results arrive in bursts; publish them together after the queued results.
+  void QueuePublish();
   void Browse(const std::string& path);
   void RequestCover(const std::string& path, std::uint64_t revision);
+  void ForgetCover(const std::string& path);
   void OpenDiscLibrary();
   std::string DiscDirectory() const;
   std::string m_disc_path;
@@ -66,6 +69,9 @@ private:
   std::vector<BigPicture::LibraryGame> m_games;
   std::optional<std::vector<BigPicture::LibraryGame>> m_pending_games;
   bool m_cover_invalidation_pending = false;
+  // Cached paths absent from a received catalog, including one deferred by a scan. Their
+  // artwork may differ when they return, so their cover state is dropped when games apply.
+  std::set<std::string> m_departed_covers;
   BigPicture::LibrarySnapshot m_state;
   std::shared_ptr<const BigPicture::LibrarySnapshot> m_snapshot;
   Callbacks m_callbacks;
@@ -73,6 +79,8 @@ private:
   std::set<std::pair<std::uint64_t, std::string>> m_pending_covers;
   std::map<std::string, std::uint64_t> m_cover_use;
   std::uint64_t m_cover_clock = 0;
+  std::size_t m_cover_bytes = 0;
+  bool m_publish_queued = false;
   bool m_directory_pending = false;
   std::optional<Job> m_next_directory;
   unsigned m_sort = 0;

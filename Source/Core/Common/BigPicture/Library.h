@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -14,6 +15,10 @@ namespace BigPicture
 {
 constexpr std::uint32_t MAX_COVER_WIDTH = 512;
 constexpr std::uint32_t MAX_COVER_HEIGHT = 768;
+// Decoded covers retained by a library snapshot: enough for several grid pages of scrolling,
+// with a memory bound for large custom artwork.
+constexpr std::size_t MAX_DECODED_COVERS = 64;
+constexpr std::size_t MAX_DECODED_COVER_BYTES = 64 * 1024 * 1024;
 
 enum class LibraryOperation
 {

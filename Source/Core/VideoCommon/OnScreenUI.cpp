@@ -749,6 +749,8 @@ void OnScreenUI::DrawNavigation()
   if (!snapshot || snapshot->mode == ::BigPicture::Mode::Desktop || !presentation.IsModal())
   {
     m_navigation_toolkit.InvalidateFocus();
+    m_menu_snapshot.reset();
+    m_menu = {};
     return;
   }
   if (m_navigation_generation != snapshot->generation)
@@ -758,11 +760,19 @@ void OnScreenUI::DrawNavigation()
     m_achievement_textures.clear();
     m_navigation_generation = snapshot->generation;
   }
-  const auto text = presentation.GetNavigationText();
+  const auto shared_text = presentation.GetNavigationText();
+  const auto& text = *shared_text;
   if (text.title.empty())
     return;
   auto options = m_navigation.options;
-  const auto menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
+  if (m_menu_snapshot != snapshot || m_menu_text != shared_text || m_menu_options != options)
+  {
+    m_menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
+    m_menu_snapshot = snapshot;
+    m_menu_text = shared_text;
+    m_menu_options = options;
+  }
+  const auto& menu = m_menu;
   if (m_achievement_snapshot != menu.page.achievements)
   {
     m_achievement_snapshot = menu.page.achievements;
@@ -1102,7 +1112,8 @@ ImTextureID OnScreenUI::GetNavigationTexture(const ::BigPicture::Snapshot& snaps
 ImTextureID OnScreenUI::GetLibraryCover(const ::BigPicture::LibrarySnapshot& library,
                                         const std::string& path)
 {
-  if (!m_cover_textures.contains(path) && m_cover_textures.size() >= 32)
+  if (!m_cover_textures.contains(path) &&
+      m_cover_textures.size() >= ::BigPicture::MAX_DECODED_COVERS)
   {
     auto oldest = std::ranges::min_element(m_cover_textures, {},
                                            [](const auto& item) { return item.second.last_frame; });

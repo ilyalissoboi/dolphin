@@ -142,7 +142,13 @@ void BigPictureSettings::SetEnvironment(UICommon::Settings::Environment environm
 }
 std::shared_ptr<const Snapshot> BigPictureSettings::ReadSnapshot()
 {
-  return ConfigWidget::TranslateSettingsSnapshot(*m_service.ReadSnapshot());
+  auto source = m_service.ReadSnapshot();
+  if (source != m_source_snapshot)
+  {
+    m_translated_snapshot = ConfigWidget::TranslateSettingsSnapshot(*source);
+    m_source_snapshot = std::move(source);
+  }
+  return m_translated_snapshot;
 }
 UICommon::Settings::Context BigPictureSettings::GameContext()
 {
