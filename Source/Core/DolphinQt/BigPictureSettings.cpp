@@ -77,6 +77,9 @@ void ForEachMappingGroup(ControllerEmu::ControlGroupContainer& container, const 
     if (group->type == GroupType::IMUAccelerometer || group->type == GroupType::IMUGyroscope ||
         group->type == GroupType::IMUCursor || group->type == GroupType::IRPassthrough)
       continue;
+    // Every group is visited, including the extension group's own settings (Attach MotionPlus);
+    // its extension selector is serialized separately and has its own row.
+    visit(prefix + group->name, section + BigPictureSettings::tr(group->ui_name.c_str()), *group);
     if (group->type == GroupType::Attachments)
     {
       auto& attachments = static_cast<ControllerEmu::Attachments&>(*group);
@@ -90,9 +93,7 @@ void ForEachMappingGroup(ControllerEmu::ControlGroupContainer& container, const 
                                 QStringLiteral(": "),
                             visit);
       }
-      continue;
     }
-    visit(prefix + group->name, section + BigPictureSettings::tr(group->ui_name.c_str()), *group);
   }
 }
 ControllerEmu::Attachments* FindAttachments(ControllerEmu::EmulatedController& controller)

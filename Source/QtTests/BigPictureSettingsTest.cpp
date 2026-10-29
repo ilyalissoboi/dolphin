@@ -64,6 +64,7 @@ public:
     buttons->AddSetting(&sideways, {"Sideways"}, false);
     auto* extension = new ControllerEmu::Attachments("Extension");
     groups.emplace_back(extension);
+    extension->AddSetting(&attach_motion, {"Attach MotionPlus"}, true);
     extension->AddAttachment(std::make_unique<TestAttachment>("None"));
     extension->AddAttachment(std::make_unique<TestAttachment>("Nunchuk"));
   }
@@ -71,6 +72,7 @@ public:
   InputConfig* GetConfig() const override { return m_config; }
   ControllerEmu::SettingValue<double> dead_zone;
   ControllerEmu::SettingValue<bool> sideways;
+  ControllerEmu::SettingValue<bool> attach_motion;
 
 private:
   InputConfig* m_config;
@@ -464,6 +466,11 @@ TEST_F(BigPictureSettingsTest, MappingTunesSettingsSwitchesExtensionsAndSavesPro
   ASSERT_EQ(Activate("reset"), Status::Success);
   EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 10);
   Back();
+
+  // The extension group's own settings are tunable alongside the extension choice.
+  ASSERT_TRUE(Row("set:Extension/Attach MotionPlus").toggle);
+  ASSERT_EQ(Activate("set:Extension/Attach MotionPlus"), Status::Success);
+  EXPECT_FALSE(controller->attach_motion.GetValue());
 
   // Choosing an extension shows its inputs in their own section.
   EXPECT_FALSE(HasRow("map:ext:Nunchuk/Buttons/C"));
