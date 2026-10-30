@@ -548,7 +548,10 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   // Move written state to final location.
   // TODO: This should also be atomic. This is possible on all systems, but needs a special
   // implementation of IOFile on Windows.
-  if (!f.Close())
+  // Closing flushes the last buffered data; a failure there (a full disk, say) can leave the
+  // file truncated even if the rename below succeeds, so it is not reported as saved.
+  const bool closed = f.Close();
+  if (!closed)
     Core::DisplayMessage("Failed to close state file", 2000);
 
   if (!File::Rename(temp_filename, filename))
@@ -557,7 +560,8 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   }
   else
   {
-    error = OperationResult::Error::None;
+    if (closed)
+      error = OperationResult::Error::None;
     if (save_args.preview)
       BigPicture::WriteStatePreview(filename + ".preview", timestamp, *save_args.preview);
     const std::filesystem::path temp_path(StringToPath(filename));
