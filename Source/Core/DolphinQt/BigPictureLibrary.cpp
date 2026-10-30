@@ -81,7 +81,7 @@ void BigPictureLibrary::Publish(bool filter)
   if (filter)
   {
     ++m_state.view_revision;
-    m_state.games.clear();
+    std::vector<BigPicture::LibraryGame> games;
     const auto query = Q(m_state.query).toCaseFolded();
     for (const auto& game : m_games)
     {
@@ -91,12 +91,12 @@ void BigPictureLibrary::Publish(bool filter)
       if (text_match && (m_state.platform.empty() || game.platform == m_state.platform) &&
           (m_state.region.empty() || game.region == m_state.region) &&
           (m_state.tag.empty() || std::ranges::find(game.tags, m_state.tag) != game.tags.end()))
-        m_state.games.push_back(game);
+        games.push_back(game);
     }
     QCollator collator;
     collator.setNumericMode(true);
     collator.setCaseSensitivity(Qt::CaseInsensitive);
-    std::ranges::sort(m_state.games, [&](const auto& a, const auto& b) {
+    std::ranges::sort(games, [&](const auto& a, const auto& b) {
       if (m_sort == 1 && a.played_ms != b.played_ms)
         return a.played_ms > b.played_ms;
       if (m_sort == 2 && a.size != b.size)
@@ -104,6 +104,7 @@ void BigPictureLibrary::Publish(bool filter)
       const int order = collator.compare(Q(a.title), Q(b.title));
       return order != 0 ? order < 0 : a.path < b.path;
     });
+    m_state.games = std::move(games);
     m_state.total_games = m_games.size();
     m_state.sort = S(m_sort == 1 ? tr("Time Played") : m_sort == 2 ? tr("File Size") : tr("Title"));
   }
