@@ -42,6 +42,8 @@ public:
   std::optional<::BigPicture::NavigationRequest> Activate(const ::BigPicture::Snapshot& snapshot,
                                                           const InGameMenu& visible,
                                                           const MenuResult& result);
+  // Input was reset (focus loss, remapping): a held press belongs to the old input.
+  void DiscardHeld() { m_held.reset(); }
   void Reset();
 
 private:

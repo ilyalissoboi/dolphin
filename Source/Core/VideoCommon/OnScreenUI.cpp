@@ -684,6 +684,7 @@ void OnScreenUI::ProcessInput()
     io.ClearEventsQueue();
     ImGui::SetWindowFocus(nullptr);
     m_navigation_toolkit.InvalidateFocus();
+    m_pending_menu.DiscardHeld();
   }
 
   m_dolphin_to_imgui_map.clear();
@@ -738,6 +739,7 @@ void OnScreenUI::ProcessInput()
       io.ClearInputMouse();
       io.ClearEventsQueue();
       ImGui::SetWindowFocus(nullptr);
+      m_pending_menu.DiscardHeld();
       break;
     }
   }

@@ -815,5 +815,9 @@ TEST_F(BigPictureInGameMenuTest, BriefPendingCommandsKeepTheIdleMenuAndHoldPress
   EXPECT_FALSE(hold.Activate(pending_snapshot, menu, {item}));
   EXPECT_FALSE(hold.Activate(snapshot, menu, {"missing"}));
   EXPECT_FALSE(hold.Activate(snapshot, menu, {}));
+  // An input reset (e.g. losing focus) discards a held press.
+  EXPECT_FALSE(hold.Activate(pending_snapshot, menu, {item}));
+  hold.DiscardHeld();
+  EXPECT_FALSE(hold.Activate(snapshot, menu, {}));
 }
 }  // namespace
