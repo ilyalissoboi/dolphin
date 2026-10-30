@@ -3,6 +3,8 @@
 
 #include "VideoCommon/OnScreenUI.h"
 
+#include <algorithm>
+#include <cfloat>
 #include <charconv>
 #include <string_view>
 
@@ -617,9 +619,9 @@ void OnScreenUI::ProcessInput()
   const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
   const bool modal = snapshot && snapshot->mode != ::BigPicture::Mode::Desktop &&
                      ::BigPicture::GetPresentationState().IsModal();
-  const bool home =
-      modal && !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::Home;
-  io.ConfigNavCursorVisibleAlways = modal && !home;
+  // ImGui hides the keyboard focus highlight after mouse input; the navigation toolkit shows
+  // it again for keyboard and gamepad input.
+  io.ConfigNavCursorVisibleAlways = false;
   io.ConfigFlags &= ~(ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
   io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
   if (modal)
@@ -684,6 +686,7 @@ void OnScreenUI::ProcessInput()
     io.ClearEventsQueue();
     ImGui::SetWindowFocus(nullptr);
     m_navigation_toolkit.InvalidateFocus();
+    m_pending_menu.DiscardHeld();
   }
 
   m_dolphin_to_imgui_map.clear();
@@ -723,7 +726,13 @@ void OnScreenUI::ProcessInput()
       }
       break;
     case ::BigPicture::InputEvent::Type::MousePosition:
-      io.AddMousePosEvent(event.x, event.y);
+      io.AddMousePosEvent(event.x * io.DisplaySize.x, event.y * io.DisplaySize.y);
+      break;
+    case ::BigPicture::InputEvent::Type::MouseWheel:
+      io.AddMouseWheelEvent(event.x, event.y);
+      break;
+    case ::BigPicture::InputEvent::Type::MouseLeave:
+      io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
       break;
     case ::BigPicture::InputEvent::Type::MouseButtons:
       for (size_t i = 0; i < std::size(io.MouseDown); ++i)
@@ -738,6 +747,7 @@ void OnScreenUI::ProcessInput()
       io.ClearInputMouse();
       io.ClearEventsQueue();
       ImGui::SetWindowFocus(nullptr);
+      m_pending_menu.DiscardHeld();
       break;
     }
   }
@@ -752,6 +762,7 @@ void OnScreenUI::DrawNavigation()
     m_navigation_toolkit.InvalidateFocus();
     m_menu_snapshot.reset();
     m_menu = {};
+    m_pending_menu.Reset();
     return;
   }
   if (m_navigation_generation != snapshot->generation)
@@ -766,14 +777,16 @@ void OnScreenUI::DrawNavigation()
   if (text.title.empty())
     return;
   auto options = m_navigation.options;
+  const auto now = BigPicture::PendingMenuHold::Clock::now();
   if (m_menu_snapshot != snapshot || m_menu_text != shared_text || m_menu_options != options)
   {
+    m_pending_menu.Replace(m_menu_snapshot.get(), m_menu, *snapshot, now);
     m_menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
     m_menu_snapshot = snapshot;
     m_menu_text = shared_text;
     m_menu_options = options;
   }
-  const auto& menu = m_menu;
+  const auto& menu = m_pending_menu.Visible(*snapshot, m_menu, now);
   if (m_achievement_snapshot != menu.page.achievements)
   {
     m_achievement_snapshot = menu.page.achievements;
@@ -824,7 +837,8 @@ void OnScreenUI::DrawNavigation()
     const auto memory = m_navigation_toolkit.GetMemory(menu.page.id);
     presentation.SetSettingsFocus(menu.page.id, {memory.item, memory.selected, memory.scroll});
   }
-  if (snapshot->host.library && menu.page.id == "library" && result.focused.starts_with("game:") &&
+  if (!snapshot->pending && snapshot->host.library && menu.page.id == "library" &&
+      result.focused.starts_with("game:") &&
       result.focused.substr(5) != snapshot->host.library->selected_path)
   {
     ::BigPicture::NavigationRequest request{snapshot->generation, ::BigPicture::Action::Library};
@@ -903,7 +917,7 @@ void OnScreenUI::DrawNavigation()
         m_navigation_input.IsKeyboard() && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
   }
   if (!typed_activation)
-    if (const auto request = menu.Activate(result))
+    if (const auto request = m_pending_menu.Activate(*snapshot, menu, result))
       presentation.RequestNavigation(*request, m_input_epoch);
 }
 
@@ -1167,13 +1181,14 @@ void OnScreenUI::SetMousePos(float x, float y)
 {
   auto& state = ::BigPicture::GetPresentationState();
   const auto snapshot = state.GetSnapshot();
+  // Positions are fractions of the surface; this API takes backbuffer pixels.
   state.Enqueue({::BigPicture::InputEvent::Type::MousePosition,
                  snapshot ? snapshot->generation : 0,
                  0,
                  false,
                  {},
-                 x,
-                 y});
+                 x / static_cast<float>(std::max(1u, m_backbuffer_width)),
+                 y / static_cast<float>(std::max(1u, m_backbuffer_height))});
 }
 
 void OnScreenUI::SetMousePress(u32 button_mask)

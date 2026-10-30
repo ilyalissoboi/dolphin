@@ -33,8 +33,13 @@ struct InputEvent
     Key,
     Text,
     Navigation,
+    // x and y are fractions of the render surface, so the pointer lands on what is drawn there
+    // whatever the backbuffer's size and the window's scaling.
     MousePosition,
     MouseButtons,
+    // x and y are wheel steps; positive y scrolls up.
+    MouseWheel,
+    MouseLeave,
     Focus,
     Reset
   };

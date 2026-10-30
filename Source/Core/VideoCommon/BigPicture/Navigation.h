@@ -133,6 +133,10 @@ bool HasEnabledItem(const std::vector<MenuItem>& items, std::string_view id);
 
 // Graphics-owner only. Stable page/item IDs retain focus and scroll across nested screens.
 // This layer returns item IDs; it never calls a frontend or emulator operation.
+// Lines of a setting value at most `width` wide in the current font: broken after path and word
+// separators, at most two, with the start of a value too long for them replaced by "...".
+std::vector<std::string> WrapSettingValue(std::string_view value, float width);
+
 class NavigationToolkit
 {
 public:
@@ -182,6 +186,10 @@ private:
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
+  // The last input came from the mouse rather than a keyboard or gamepad.
+  bool m_pointer = false;
+  // The pointer position on the previous frame; unset before the first frame.
+  std::optional<std::optional<ImVec2>> m_last_pointer;
   float m_restore_scroll = 0;
   float m_layout_width = 0;
   float m_layout_height = 0;

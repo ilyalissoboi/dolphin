@@ -106,6 +106,7 @@ private:
   std::shared_ptr<const ::BigPicture::NavigationText> m_menu_text;
   ::BigPicture::NavigationOptions m_menu_options;
   BigPicture::InGameMenu m_menu;
+  BigPicture::PendingMenuHold m_pending_menu;
   std::map<std::string, std::unique_ptr<AbstractTexture>> m_home_textures;
   std::shared_ptr<const ::BigPicture::LibraryImage> m_home_avatar;
   BigPicture::NavigationInput m_navigation_input;

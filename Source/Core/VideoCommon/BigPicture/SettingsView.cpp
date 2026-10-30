@@ -5,6 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <imgui_internal.h>
 
@@ -12,6 +16,73 @@
 
 namespace VideoCommon::BigPicture
 {
+// ImGui wraps only at spaces and splits a long word anywhere, but values are often paths.
+// Break after path and word separators instead and keep at most two lines; a value that still
+// does not fit loses its start, where long paths differ least.
+std::vector<std::string> WrapSettingValue(std::string_view value, float width)
+{
+  struct Glyph
+  {
+    std::size_t begin;
+    std::size_t end;
+    float width;
+  };
+  std::vector<Glyph> glyphs;
+  for (std::size_t i = 0; i < value.size();)
+  {
+    std::size_t end = i + 1;
+    while (end < value.size() && (static_cast<unsigned char>(value[end]) & 0xc0) == 0x80)
+      ++end;
+    glyphs.push_back({i, end, ImGui::CalcTextSize(value.data() + i, value.data() + end).x});
+    i = end;
+  }
+  const auto separator = [&](std::size_t glyph) {
+    return std::string_view(" /\\-_.,").find(value[glyphs[glyph].begin]) != std::string_view::npos;
+  };
+  // Glyph ranges of each line, starting at `first`, with the first line indented by `indent`.
+  const auto wrap = [&](std::size_t first, float indent) {
+    std::vector<std::pair<std::size_t, std::size_t>> lines;
+    std::size_t start = first;
+    std::size_t after_separator = 0;
+    float line = indent;
+    for (std::size_t i = first; i < glyphs.size(); ++i)
+    {
+      if (i > start && line + glyphs[i].width > width)
+      {
+        const std::size_t end = after_separator > start ? after_separator : i;
+        lines.emplace_back(start, end);
+        start = end;
+        line = 0;
+        after_separator = 0;
+        for (std::size_t j = start; j < i; ++j)
+        {
+          line += glyphs[j].width;
+          if (separator(j))
+            after_separator = j + 1;
+        }
+      }
+      line += glyphs[i].width;
+      if (separator(i))
+        after_separator = i + 1;
+    }
+    if (start < glyphs.size())
+      lines.emplace_back(start, glyphs.size());
+    return lines;
+  };
+  std::size_t first = 0;
+  auto lines = wrap(0, 0);
+  const float ellipsis = ImGui::CalcTextSize("...").x;
+  while (lines.size() > 2 && first + 1 < glyphs.size())
+    lines = wrap(++first, ellipsis);
+  std::vector<std::string> text;
+  for (const auto& [begin, end] : lines)
+  {
+    text.emplace_back(text.empty() && first != 0 ? "..." : "");
+    text.back() += value.substr(glyphs[begin].begin, glyphs[end - 1].end - glyphs[begin].begin);
+  }
+  return text;
+}
+
 MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                                            ::BigPicture::NavigationOptions options,
                                            const std::string& prompts, ImFont* font)
@@ -39,6 +110,14 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       return item.id == id && (item.enabled || page.busy);
     });
   };
+  // Clicking another category focuses its tab before this page closes. Coming back to the page
+  // (e.g. with the keyboard), focus returns to its rows, not to that tab.
+  if (m_current_page != page.id && std::ranges::any_of(page.toolbar, [&](const auto& item) {
+        return item.id == memory.item && item.id != "back" && !item.active;
+      }))
+  {
+    memory.item = row(memory.selected) != page.items.end() ? memory.selected : std::string{};
+  }
   const auto previous = memory.item;
   if (row(memory.item) == page.items.end() && !header_item(memory.item))
   {
@@ -68,6 +147,12 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   auto* draw = ImGui::GetWindowDrawList();
   draw->AddRectFilled(ImVec2(0, 0), ImVec2(display.x, header), ImGui::GetColorU32(palette.header));
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, ImGui::GetColorU32(palette.header));
+  // The header bar marks one control with an underline: the one under the pointer or keyboard
+  // focus, otherwise the open category. Buttons draw no hover square of their own.
+  std::vector<std::pair<float, float>> underlined;
+  std::optional<std::pair<float, float>> hovered_button;
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.header);
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.header);
   const auto button = [&](const MenuItem& item, float x, float width) {
     ImGui::SetCursorPos(ImVec2(x, 0));
     ImGui::PushID(item.id.c_str());
@@ -75,20 +160,24 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       ImGui::SetKeyboardFocusHere();
     ImGui::BeginDisabled(!item.enabled);
     const bool pressed = ImGui::Button("##category", ImVec2(width, header));
+    // Refocusing the window on a new page briefly restores ImGui's last focused header button,
+    // such as a category clicked earlier, until this page's own focus applies. Keyboard focus
+    // marks only the control that the page is restoring.
+    const bool hovered = ImGui::IsItemHovered() && (m_pointer || !entering || focus_id == item.id);
     const float icon_size = std::min(24 * scale, width - 8 * scale);
     auto color = palette.header_text;
-    if (!item.active && item.id != "back")
+    if (!item.active && !hovered && item.id != "back")
       color.w *= 0.55f;
     DrawMenuIcon(draw, item.icon,
                  ImVec2(x + (width - icon_size) * 0.5f, (header - icon_size) * 0.5f), icon_size,
                  ImGui::GetColorU32(color));
+    if (hovered)
+      hovered_button = std::pair{x, width};
     if (item.active)
-      draw->AddRectFilled(ImVec2(x + 10 * scale, header - 2 * scale),
-                          ImVec2(x + width - 10 * scale, header),
-                          ImGui::GetColorU32(palette.header_text));
+      underlined.emplace_back(x, width);
     if (ImGui::IsItemFocused() && !entering)
       memory.item = item.id;
-    if (ImGui::IsItemHovered() || ImGui::IsItemFocused())
+    if (ImGui::IsItemHovered())
       ImGui::SetTooltip("%s%s%s", item.label.c_str(), item.detail.empty() ? "" : "\n",
                         item.detail.c_str());
     ImGui::EndDisabled();
@@ -130,6 +219,15 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       result.activated = item->id;
     x += tab_width;
   }
+  ImGui::PopStyleColor(2);
+  if (hovered_button)
+    underlined = {*hovered_button};
+  for (const auto& [left, width] : underlined)
+  {
+    draw->AddRectFilled(ImVec2(left + 10 * scale, header - 2 * scale),
+                        ImVec2(left + width - 10 * scale, header),
+                        ImGui::GetColorU32(palette.header_text));
+  }
   ImGui::SetCursorPos(ImVec2(0, top));
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 16 * scale));
   ImGui::BeginChild("##settings-rows", ImVec2(display.x, std::max(scale, bottom - top)),
@@ -139,6 +237,8 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   if (entering)
     ImGui::SetScrollY(memory.scroll * scale);
   ImGui::SetCursorPosX(margin + 16 * scale);
+  // Revealing the first row also reveals the explanation above it.
+  const float content_top = ImGui::GetCursorScreenPos().y;
   const auto context_end = page.description.find('\n');
   const auto explanation = !page.category_page ? page.description :
                            context_end == std::string::npos ?
@@ -156,7 +256,11 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   std::string section;
   for (const auto& item : page.items)
   {
-    if (item.section != section && !item.section.empty())
+    // Revealing a row that starts a section also reveals the section's heading.
+    const bool first = &item == page.items.data();
+    const bool heading = item.section != section && !item.section.empty();
+    const float heading_top = first ? content_top : ImGui::GetCursorScreenPos().y;
+    if (heading)
     {
       section = item.section;
       ImGui::SetCursorPosX(margin + 16 * scale);
@@ -219,8 +323,11 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
         ++start;
       visible_value = "..." + visible_value.substr(start);
     }
-    const auto value_size = ImGui::CalcTextSize(visible_value.c_str(), nullptr, false,
-                                                std::max(scale, value_width - 16 * scale));
+    const auto value_lines =
+        WrapSettingValue(visible_value, std::max(scale, value_width - 16 * scale));
+    ImVec2 value_size(0, ImGui::GetFontSize() * value_lines.size());
+    for (const auto& value_line : value_lines)
+      value_size.x = std::max(value_size.x, ImGui::CalcTextSize(value_line.c_str()).x);
     // A slider adds its track and range labels below the label and summary.
     const float slider_height = item.slider ? 46 * scale : 0;
     const float height =
@@ -280,7 +387,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       memory.selected = item.id;
       if (entering || GImGui->NavJustMovedToId == ImGui::GetItemID())
       {
-        ImRect reveal(min, max);
+        ImRect reveal(ImVec2(min.x, first || heading ? heading_top : min.y), max);
         reveal.Expand(ImVec2(0, 16 * scale));
         ImGui::ScrollToRectEx(ImGui::GetCurrentWindow(), reveal,
                               ImGuiScrollFlags_KeepVisibleEdgeY | ImGuiScrollFlags_NoScrollParent);
@@ -289,8 +396,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
     if (ImGui::IsItemVisible())
     {
       auto* rows = ImGui::GetWindowDrawList();
-      const bool focused = ImGui::IsItemFocused() && ImGui::GetIO().NavVisible;
-      if (ImGui::IsItemHovered() || focused)
+      if (ImGui::IsItemHovered())
       {
         auto hover = palette.hover;
         hover.w *= 0.7f;
@@ -326,11 +432,14 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       }
       else if (!item.value.empty())
       {
-        rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
-                      ImVec2(max.x - 16 * scale - value_size.x,
-                             min.y + (height - slider_height - value_size.y) * 0.5f),
-                      ImGui::GetColorU32(value_color), visible_value.c_str(), nullptr,
-                      std::max(scale, value_width - 16 * scale));
+        // Each line is right-aligned.
+        float y = min.y + (height - slider_height - value_size.y) * 0.5f;
+        for (const auto& value_line : value_lines)
+        {
+          rows->AddText(ImVec2(max.x - 16 * scale - ImGui::CalcTextSize(value_line.c_str()).x, y),
+                        ImGui::GetColorU32(value_color), value_line.c_str());
+          y += ImGui::GetFontSize();
+        }
       }
       else if (item.active)
         DrawMenuIcon(rows, MenuIcon::Check,

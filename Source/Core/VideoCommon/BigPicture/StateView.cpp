@@ -121,7 +121,7 @@ NavigationToolkit::DrawStates(const MenuPage& page, ::BigPicture::NavigationOpti
     if (ImGui::IsItemVisible())
     {
       auto* cards = ImGui::GetWindowDrawList();
-      if (ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible))
+      if (ImGui::IsItemHovered())
       {
         cards->AddRectFilled(min, max, ImGui::GetColorU32(palette.hover), 6 * scale);
         cards->AddRect(min, max, ImGui::GetColorU32(palette.secondary), 6 * scale, 0, scale);

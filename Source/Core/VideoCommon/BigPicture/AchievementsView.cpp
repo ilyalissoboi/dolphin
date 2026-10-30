@@ -77,9 +77,8 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
   backdrop.w = page.overlay ? 0.88f : 1;
   ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), display,
                                                 ImGui::GetColorU32(backdrop));
-  const Style::ScopedMenuStyle style(palette, {.item_spacing = ImVec2(0, 6 * scale),
-                                               .scrollbar_size = 10 * scale,
-                                               .show_nav_cursor = false});
+  const Style::ScopedMenuStyle style(
+      palette, {.item_spacing = ImVec2(0, 6 * scale), .scrollbar_size = 10 * scale});
   ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   const auto color = [&](const auto& value) { return ImGui::GetColorU32(value); };
   const auto badge = [&](ImDrawList* draw, const std::string& key, ImVec2 pos, float size) {
@@ -90,7 +89,7 @@ NavigationToolkit::DrawAchievements(const MenuPage& page, ::BigPicture::Navigati
       DrawMenuIcon(draw, MenuIcon::Achievements, pos, size, color(palette.secondary));
   };
   const auto highlight = [&](ImDrawList* draw, ImVec2 min, ImVec2 max) {
-    if (ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible))
+    if (ImGui::IsItemHovered())
     {
       draw->AddRectFilled(min, max, color(palette.hover), 6 * scale);
       draw->AddRect(min, max, color(palette.secondary), 6 * scale, 0, scale);

@@ -819,4 +819,53 @@ TEST_F(BigPictureInGameMenuTest, LaunchPickerRetainsParentTilesAndDirectoryReque
   EXPECT_FALSE(menu.page.context.enabled);
   EXPECT_TRUE(std::ranges::none_of(menu.page.items, &VideoCommon::BigPicture::MenuItem::enabled));
 }
+
+TEST_F(BigPictureInGameMenuTest, BriefPendingCommandsKeepTheIdleMenuAndHoldPresses)
+{
+  using Hold = VideoCommon::BigPicture::PendingMenuHold;
+  Hold hold;
+  const auto start = Hold::Clock::now();
+  auto idle_snapshot = snapshot;
+  auto menu = Build();
+  ASSERT_FALSE(menu.requests.empty());
+  const auto id = menu.page.id;
+  const auto item = menu.requests.begin()->first;
+
+  // A pending snapshot disables the menu, but the idle one stays on screen during the grace.
+  snapshot.pending = Command{snapshot.generation, 1, Action::Screenshot};
+  hold.Replace(&idle_snapshot, menu, snapshot, start);
+  menu = Build();
+  EXPECT_TRUE(menu.requests.empty());
+  const auto* visible = &hold.Visible(snapshot, menu, start + std::chrono::milliseconds(100));
+  EXPECT_NE(visible, &menu);
+  EXPECT_FALSE(visible->requests.empty());
+  EXPECT_EQ(&hold.Visible(snapshot, menu, start + Hold::GRACE), &menu);
+
+  // A press made meanwhile runs nothing, then applies to the idle page that follows.
+  EXPECT_FALSE(hold.Activate(snapshot, *visible, {item}));
+  auto pending_snapshot = snapshot;
+  snapshot.pending.reset();
+  hold.Replace(&pending_snapshot, menu, snapshot, start + std::chrono::milliseconds(120));
+  menu = Build();
+  EXPECT_EQ(&hold.Visible(snapshot, menu, start), &menu);
+  ASSERT_EQ(menu.page.id, id);
+  const auto request = hold.Activate(snapshot, menu, {});
+  ASSERT_TRUE(request);
+  EXPECT_EQ(request->action, menu.requests.at(item).action);
+  // It applies once.
+  EXPECT_FALSE(hold.Activate(snapshot, menu, {}));
+
+  // A held press is dropped when a different page follows, and a new press replaces it.
+  EXPECT_FALSE(hold.Activate(pending_snapshot, menu, {item}));
+  auto other = menu;
+  other.page.id = "elsewhere";
+  EXPECT_FALSE(hold.Activate(snapshot, other, {}));
+  EXPECT_FALSE(hold.Activate(pending_snapshot, menu, {item}));
+  EXPECT_FALSE(hold.Activate(snapshot, menu, {"missing"}));
+  EXPECT_FALSE(hold.Activate(snapshot, menu, {}));
+  // An input reset (e.g. losing focus) discards a held press.
+  EXPECT_FALSE(hold.Activate(pending_snapshot, menu, {item}));
+  hold.DiscardHeld();
+  EXPECT_FALSE(hold.Activate(snapshot, menu, {}));
+}
 }  // namespace

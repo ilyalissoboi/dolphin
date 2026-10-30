@@ -29,6 +29,56 @@ std::optional<::BigPicture::NavigationRequest> InGameMenu::Activate(const MenuRe
   return request;
 }
 
+void PendingMenuHold::Replace(const ::BigPicture::Snapshot* previous, InGameMenu& menu,
+                              const ::BigPicture::Snapshot& next, Clock::time_point now)
+{
+  if (!next.pending || (m_idle && m_generation != next.generation))
+    m_idle.reset();
+  if (next.pending && previous && !previous->pending && previous->generation == next.generation)
+  {
+    m_idle = std::move(menu);
+    m_generation = next.generation;
+    m_since = now;
+  }
+}
+
+const InGameMenu& PendingMenuHold::Visible(const ::BigPicture::Snapshot& snapshot,
+                                           const InGameMenu& menu, Clock::time_point now) const
+{
+  return snapshot.pending && m_idle && m_generation == snapshot.generation &&
+                 now - m_since < GRACE ?
+             *m_idle :
+             menu;
+}
+
+std::optional<::BigPicture::NavigationRequest>
+PendingMenuHold::Activate(const ::BigPicture::Snapshot& snapshot, const InGameMenu& visible,
+                          const MenuResult& result)
+{
+  const bool acted = result.activated || result.back;
+  if (snapshot.pending)
+  {
+    if (acted)
+      m_held = Held{snapshot.generation, visible.page.id, result};
+    return std::nullopt;
+  }
+  if (acted)
+  {
+    m_held.reset();
+    return visible.Activate(result);
+  }
+  const auto held = std::exchange(m_held, std::nullopt);
+  if (!held || held->generation != snapshot.generation || held->page != visible.page.id)
+    return std::nullopt;
+  return visible.Activate(held->result);
+}
+
+void PendingMenuHold::Reset()
+{
+  m_idle.reset();
+  m_held.reset();
+}
+
 InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
                            const ::BigPicture::NavigationText& text,
                            ::BigPicture::NavigationOptions options)

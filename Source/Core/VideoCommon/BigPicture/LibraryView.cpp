@@ -97,7 +97,6 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
   const Style::ScopedMenuStyle style(palette, {.background = palette.background,
                                                .item_spacing = ImVec2(20 * scale, 30 * scale),
                                                .scrollbar_size = 12 * scale,
-                                               .nav_cursor = palette.focus,
                                                .frame_rounding = Style::ROUNDING * scale});
   ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -250,8 +249,7 @@ NavigationToolkit::DrawLibrary(const MenuPage& page, ::BigPicture::NavigationOpt
       const auto min = ImGui::GetItemRectMin();
       const auto max = ImGui::GetItemRectMax();
       auto* cards = ImGui::GetWindowDrawList();
-      const bool highlight =
-          ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible);
+      const bool highlight = ImGui::IsItemHovered();
       if (highlight)
       {
         auto hover = palette.hover;

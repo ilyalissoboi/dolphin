@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
 #include <cmath>
 
 #include <gtest/gtest.h>
@@ -28,7 +29,7 @@ protected:
     io.DisplaySize = ImVec2(1280, 720);
     io.DeltaTime = 1.0f / 60.0f;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-    io.ConfigNavCursorVisibleAlways = true;
+    io.ConfigNavCursorVisibleAlways = false;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad | ImGuiBackendFlags_RendererHasTextures;
     io.KeyRepeatDelay = 0.3f;
     io.KeyRepeatRate = 0.1f;
@@ -487,6 +488,8 @@ TEST_F(BigPictureNavigationUITest, SettingsTabsStayFixedWhenRowsHaveNoOptions)
   page.toolbar = {{"back", "Back"}};
   for (int i = 0; i < 17; ++i)
     page.toolbar.push_back({"tab-" + std::to_string(i), "Category"});
+  // Focus restored to the open category's tab.
+  page.toolbar[4].active = true;
   toolkit.RestoreMemory(page.id, {"tab-3", 0, 0, "one"});
   Settle(page);
   ASSERT_EQ(toolkit.GetMemory(page.id).item, "tab-3");
@@ -503,6 +506,342 @@ TEST_F(BigPictureNavigationUITest, SettingsTabsStayFixedWhenRowsHaveNoOptions)
   EXPECT_FLOAT_EQ(before.Max.x, after.Max.x);
   EXPECT_FLOAT_EQ(before.Min.y, after.Min.y);
   EXPECT_FLOAT_EQ(before.Max.y, after.Max.y);
+}
+
+TEST_F(BigPictureNavigationUITest, ReturningToTheTopOfSettingsRevealsTheFirstSectionHeading)
+{
+  MenuPage page{"settings-sections", "Audio Settings", {}, {}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}};
+  for (int i = 0; i < 16; ++i)
+  {
+    MenuItem item{"row-" + std::to_string(i), "Row " + std::to_string(i)};
+    item.detail = "Help text.";
+    item.section = i < 8 ? "Audio Output" : "Advanced";
+    page.items.push_back(item);
+  }
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-0");
+  for (int i = 0; i < 15; ++i)
+    Press(page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-15");
+  ASSERT_GT(toolkit.GetMemory(page.id).scroll, 0);
+  // Moving up to the first row of a section reveals its heading above the row.
+  for (int i = 0; i < 7; ++i)
+    Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-8");
+  Settle(page);
+  const auto* rows = GImGui->NavWindow;
+  ASSERT_NE(rows, nullptr);
+  const float row_top = rows->Pos.y + rows->NavRectRel[ImGuiNavLayer_Main].Min.y;
+  // The heading (34 px plus a 10 px gap at scale 1) sits above the row and stays visible.
+  EXPECT_GE(row_top - 44, rows->InnerRect.Min.y);
+  for (int i = 0; i < 8; ++i)
+    Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-0");
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).scroll, 0);
+}
+
+TEST_F(BigPictureNavigationUITest, PressHeldAcrossABriefPendingCommandStillActivates)
+{
+  ::BigPicture::Snapshot idle;
+  idle.mode = ::BigPicture::Mode::Library;
+  auto pending = idle;
+  pending.pending = ::BigPicture::Command{idle.generation, 1, ::BigPicture::Action::Library};
+  InGameMenu menu;
+  menu.page = {"list", "Title", {}, {{"one", "One"}, {"two", "Two"}}};
+  menu.requests.emplace(
+      "two", ::BigPicture::NavigationRequest{idle.generation, ::BigPicture::Action::Boot});
+  const auto idle_menu = menu;
+  Settle(menu.page);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  Press(menu.page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(menu.page.id).item, "two");
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
+  Frame(menu.page);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  Frame(menu.page);
+
+  // The host publishes a pending snapshot that disables every item while the button is held.
+  PendingMenuHold hold;
+  const auto now = PendingMenuHold::Clock::now();
+  hold.Replace(&idle, menu, pending, now);
+  InGameMenu disabled;
+  disabled.page = {"list", "Title", {}, {{"one", "One", {}, false}, {"two", "Two", {}, false}}};
+  const auto& visible = hold.Visible(pending, disabled, now);
+  EXPECT_FALSE(hold.Activate(pending, visible, Frame(visible.page)));
+  // The host finishes before the release.
+  hold.Replace(&pending, disabled, idle, now);
+  menu = idle_menu;
+  Frame(menu.page);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  std::optional<::BigPicture::NavigationRequest> request;
+  for (int i = 0; i < 2 && !request; ++i)
+    request = hold.Activate(idle, menu, Frame(menu.page));
+  ASSERT_TRUE(request);
+  EXPECT_EQ(request->action, ::BigPicture::Action::Boot);
+  io.AddMousePosEvent(-100, -100);
+}
+
+TEST_F(BigPictureNavigationUITest, PointerAndKeyboardShareOneHighlightAndClicksHitThePointer)
+{
+  MenuPage page{"settings-one-highlight", "Audio", {}, {{"one", "One"}, {"two", "Two"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}, {"tab-0", "General"}, {"tab-1", "Audio"}, {"tab-2", "Wii"}};
+  Settle(page);
+  const auto nav_rect = [] {
+    return ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                     GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  };
+  Press(page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "two");
+  const auto two = nav_rect();
+  Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "one");
+  // After keyboard or gamepad input, the focused row is the highlighted one.
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+
+  // Pointing at another row moves the single highlight to it; the focused row loses it.
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(two.GetCenter().x, two.GetCenter().y);
+  Frame(page);
+  Frame(page);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  EXPECT_NE(GImGui->HoveredId, 0u);
+  EXPECT_NE(GImGui->HoveredId, GImGui->NavId);
+
+  // A key press hands the highlight back to keyboard focus.
+  Press(page, ImGuiKey_LeftShift);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+
+  // A click whose position arrives with the button activates the row under the pointer, not the
+  // row that still has keyboard focus.
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "one");
+  std::string activated;
+  const auto take = [&](const MenuResult& result) {
+    if (result.activated && activated.empty())
+      activated = *result.activated;
+  };
+  io.AddMousePosEvent(two.GetCenter().x, two.GetCenter().y + 1);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  take(Frame(page));
+  take(Frame(page));
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  take(Frame(page));
+  take(Frame(page));
+  EXPECT_EQ(activated, "two");
+
+  // The same holds in the category bar: with keyboard focus on one tab, hovering another is the
+  // only tab highlight.
+  MenuPage tabs = page;
+  tabs.id = "settings-one-highlight-tabs";
+  tabs.toolbar[2].active = true;
+  toolkit.RestoreMemory(tabs.id, {"tab-1", 0, 0, "one"});
+  Settle(tabs);
+  Press(tabs, ImGuiKey_LeftShift);
+  ASSERT_EQ(toolkit.GetMemory(tabs.id).item, "tab-1");
+  EXPECT_TRUE(GImGui->NavHighlightItemUnderNav);
+  const auto focused_tab = nav_rect();
+  const auto focused_id = GImGui->NavId;
+  io.AddMousePosEvent(focused_tab.GetCenter().x + focused_tab.GetWidth(),
+                      focused_tab.GetCenter().y);
+  Frame(tabs);
+  Frame(tabs);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  EXPECT_NE(GImGui->HoveredId, 0u);
+  EXPECT_NE(GImGui->HoveredId, focused_id);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  Frame(tabs);
+}
+
+TEST_F(BigPictureNavigationUITest, SettingsTabsMarkOneTabWithAnUnderlineAndNoHoverSquare)
+{
+  MenuPage page{"settings-underline", "Audio", {}, {{"one", "One"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}, {"tab-0", "General"}, {"tab-1", "Audio"}, {"tab-2", "Wii"}};
+  page.toolbar[1].active = true;
+  const auto& palette = Style::GetPalette(page.theme);
+  const float header = Style::BAR_HEIGHT;
+  // Left edges of underlines, and whether any hover-coloured fill is drawn, in the header bar.
+  const auto header_marks = [&] {
+    const auto* window = ImGui::FindWindowByName("###BigPictureSettings");
+    std::set<float> underlines;
+    bool square = false;
+    const auto underline = ImGui::GetColorU32(palette.header_text);
+    const auto hover = ImGui::GetColorU32(palette.hover);
+    for (const auto& vertex : window->DrawList->VtxBuffer)
+    {
+      if (vertex.pos.y == header - 2 && vertex.col == underline)
+        underlines.insert(vertex.pos.x);
+      square |= vertex.pos.y < header && vertex.col == hover;
+    }
+    EXPECT_FALSE(square);
+    // One underline: a quad with two vertices on its top edge. Returns its left edge.
+    EXPECT_EQ(underlines.size(), 2u);
+    return underlines.empty() ? 0.0f : *underlines.begin();
+  };
+  Settle(page);
+  // Keyboard focus is on a row: the open category carries the only underline.
+  const float open = header_marks();
+
+  // Keyboard focus on a tab moves the underline to it.
+  Press(page, ImGuiKey_UpArrow);
+  const auto focused = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                                 GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_NEAR(header_marks(), focused.Min.x + 10, 1);
+
+  // So does pointing at a tab; no hover square is drawn.
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(1280 - 30, header / 2);
+  Frame(page);
+  Frame(page);
+  ASSERT_NE(GImGui->HoveredId, 0u);
+  const float pointed = header_marks();
+  EXPECT_NE(pointed, open);
+  EXPECT_GT(pointed, 1280 - 70);
+  io.AddMousePosEvent(focused.GetCenter().x, focused.GetCenter().y);
+  Frame(page);
+  Frame(page);
+  EXPECT_NEAR(header_marks(), focused.Min.x + 10, 1);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  Frame(page);
+}
+
+TEST_F(BigPictureNavigationUITest, ACategoryClickedEarlierIsNotRestoredAsThePageFocus)
+{
+  const auto category = [](const std::string& id, int active) {
+    MenuPage page{id, id, {}, {{id + "-row", "Row"}}};
+    page.presentation = MenuPresentation::Settings;
+    page.toolbar = {{"back", "Back"}, {"tab-0", "Interface"}, {"tab-1", "Audio"}};
+    page.toolbar[active + 1].active = true;
+    return page;
+  };
+  auto interface = category("interface", 0);
+  auto audio = category("audio", 1);
+  Settle(interface);
+
+  // Click the Audio tab: the click focuses that tab on the Interface page before it closes.
+  Press(interface, ImGuiKey_UpArrow);
+  const auto tab = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                             GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  auto& io = ImGui::GetIO();
+  const ImVec2 audio_tab(1280 - 8 - 56 * 0.5f, tab.GetCenter().y);
+  io.AddMousePosEvent(audio_tab.x, audio_tab.y);
+  Frame(interface);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  Frame(interface);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  std::string activated;
+  for (int i = 0; i < 2 && activated.empty(); ++i)
+    activated = Frame(interface).activated.value_or("");
+  ASSERT_EQ(activated, "tab-1");
+  ASSERT_EQ(toolkit.GetMemory(interface.id).item, "tab-1");
+  Settle(audio);
+
+  // Changing category with the keyboard returns to the Interface page's rows, so the only tab
+  // marked is the open category, from the page's first frame on. (Refocusing the window briefly
+  // restores ImGui's last focused header button, the Audio tab clicked earlier.)
+  const auto underlines = [] {
+    const auto* window = ImGui::FindWindowByName("###BigPictureSettings");
+    const auto color = ImGui::GetColorU32(Style::GetPalette("").header_text);
+    std::set<float> left;
+    for (const auto& vertex : window->DrawList->VtxBuffer)
+    {
+      if (vertex.pos.y == Style::BAR_HEIGHT - 2 && vertex.col == color)
+        left.insert(vertex.pos.x);
+    }
+    return left;
+  };
+  // Two tabs 56 px wide end 8 px from the right edge; each underline is inset by 10 px.
+  const float interface_tab = 1280 - 8 - 2 * 56 + 10;
+  EXPECT_EQ(Press(audio, ImGuiKey_LeftArrow).activated, "tab-0");
+  for (int i = 0; i < 4; ++i)
+  {
+    Frame(interface);
+    EXPECT_EQ(underlines(), (std::set<float>{interface_tab, interface_tab + 56 - 20})) << i;
+  }
+  EXPECT_EQ(toolkit.GetMemory(interface.id).item, "interface-row");
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+}
+
+TEST_F(BigPictureNavigationUITest, SettingValuesWrapAfterSeparatorsAndKeepTheirEnd)
+{
+  ImGui::NewFrame();
+  const auto width = [](const std::string& text) { return ImGui::CalcTextSize(text.c_str()).x; };
+  const auto joined = [](const std::vector<std::string>& lines) {
+    std::string text;
+    for (const auto& line : lines)
+      text += line;
+    return text;
+  };
+  const std::string preset = "lola-retro/flat/consumer-tv-composite";
+  const float narrow = width("consumer-tv-composite") + 1;
+  auto lines = WrapSettingValue(preset, narrow);
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_EQ(joined(lines), preset);
+  EXPECT_TRUE(lines[0].ends_with('/') || lines[0].ends_with('-')) << lines[0];
+  for (const auto& line : lines)
+    EXPECT_LE(width(line), narrow) << line;
+
+  // A value that fits stays on one line.
+  EXPECT_EQ(WrapSettingValue(preset, width(preset) + 1), std::vector{preset});
+
+  // Too long for two lines: the start is dropped and the end kept.
+  const std::string path = "C:/Users/someone/Documents/Dolphin Emulator/Shaders/presets/"
+                           "crt/guest-advanced/crt-guest-advanced-ntsc.slangp";
+  const float small = width("crt-guest-advanced-ntsc.slangp") + 4;
+  lines = WrapSettingValue(path, small);
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_TRUE(lines[0].starts_with("...")) << lines[0];
+  EXPECT_TRUE(lines[1].ends_with("crt-guest-advanced-ntsc.slangp")) << lines[1];
+  for (const auto& line : lines)
+    EXPECT_LE(width(line), small) << line;
+
+  // A long word without separators still breaks where it must.
+  lines = WrapSettingValue(std::string(40, 'w'), width(std::string(25, 'w')));
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_EQ(joined(lines), std::string(40, 'w'));
+  ImGui::EndFrame();
+}
+
+TEST_F(BigPictureNavigationUITest, OpeningAPageShowsFocusOnlyAfterKeyboardOrGamepadInput)
+{
+  MenuPage first{"first", "First", {}, {{"one", "One"}, {"two", "Two"}}};
+  Settle(first);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(5, 5);
+  Frame(first);
+  io.AddMousePosEvent(9, 9);
+  Frame(first);
+  MenuPage second{"second", "Second", {}, {{"three", "Three"}}};
+  Settle(second);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  Press(second, ImGuiKey_GamepadDpadDown);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+}
+
+TEST_F(BigPictureNavigationUITest, MouseWheelScrollsSettingsRows)
+{
+  MenuPage page{"settings-wheel", "Audio", {}, {}};
+  page.presentation = MenuPresentation::Settings;
+  for (int i = 0; i < 30; ++i)
+    page.items.push_back({"row-" + std::to_string(i), "Row " + std::to_string(i)});
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).scroll, 0);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(640, 360);
+  Frame(page);
+  io.AddMouseWheelEvent(0, -3);
+  Frame(page);
+  Frame(page);
+  EXPECT_GT(toolkit.GetMemory(page.id).scroll, 0);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
 }
 
 TEST_F(BigPictureNavigationUITest, LongSettingsHelpLeavesRoomForOtherRows)

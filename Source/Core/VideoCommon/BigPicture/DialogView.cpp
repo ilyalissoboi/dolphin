@@ -83,7 +83,6 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
   // Rows draw their own focus frame; the dialog uses no ImGui buttons.
   const Style::ScopedMenuStyle style(palette, {.background = palette.background,
                                                .scrollbar_size = 12 * scale,
-                                               .show_nav_cursor = false,
                                                .window_rounding = Style::DIALOG_ROUNDING * scale});
   ImGui::SetNextWindowPos(position);
   ImGui::SetNextWindowSize(size);
@@ -161,7 +160,7 @@ NavigationToolkit::DrawDialog(const MenuPage& page, ::BigPicture::NavigationOpti
     if (ImGui::IsItemVisible())
     {
       auto* rows = ImGui::GetWindowDrawList();
-      if (ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible))
+      if (ImGui::IsItemHovered())
       {
         auto hover = palette.hover;
         hover.w *= 0.7f;
