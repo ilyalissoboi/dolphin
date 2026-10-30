@@ -23,8 +23,6 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
   menu.page.overlay = snapshot.mode == Mode::InGame;
   menu.page.category_page = view.category_page;
   menu.page.busy = snapshot.pending.has_value() || view.capturing;
-  menu.page.decrease = view.decrease;
-  menu.page.increase = view.increase;
   if (view.text_input)
   {
     menu.page.presentation = MenuPresentation::List;
@@ -135,7 +133,49 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
                row.id.find("folder") != std::string::npos)
         item.icon = MenuIcon::Folder;
     }
+    if (row.slider)
+    {
+      const auto& slider = *row.slider;
+      item.slider = MenuSlider{slider.minimum, slider.maximum,       slider.step,
+                               slider.value,   slider.minimum_label, slider.maximum_label};
+      // Left/Right and the larger steps act on the page's slider.
+      menu.page.decrease = row.id + ":decrease";
+      menu.page.increase = row.id + ":increase";
+      menu.page.decrease_large = row.id + ":decrease-large";
+      menu.page.increase_large = row.id + ":increase-large";
+    }
     if (!row.enabled || snapshot.pending)
+      return;
+    const auto request_for = [&](const std::optional<SettingsRequest>& navigation,
+                                 const std::optional<Common::Settings::Request>& edit) {
+      NavigationRequest request{snapshot.generation, Action::SettingsMenu};
+      request.settings_menu = navigation;
+      if (edit)
+      {
+        request.action = Action::EditSetting;
+        request.setting = edit;
+        request.settings_menu.reset();
+      }
+      return request;
+    };
+    if (row.slider)
+    {
+      const auto& slider = *row.slider;
+      const std::pair<const char*, const std::optional<SettingsAction>*> steps[] = {
+          {":decrease", &slider.decrease},
+          {":increase", &slider.increase},
+          {":decrease-large", &slider.decrease_large},
+          {":increase-large", &slider.increase_large}};
+      for (const auto& [suffix, action] : steps)
+      {
+        if (*action)
+          menu.requests.emplace(row.id + suffix,
+                                request_for((*action)->navigation, (*action)->edit));
+      }
+      if (slider.set.navigation || slider.set.edit)
+        menu.requests.emplace(row.id + ":set", request_for(slider.set.navigation, slider.set.edit));
+    }
+    if (!row.navigation && !row.edit)
       return;
     if (item.has_options)
     {
@@ -143,15 +183,7 @@ InGameMenu BuildSettingsMenu(const ::BigPicture::Snapshot& snapshot,
       options_request.settings_menu = row.options ? row.options : row.navigation;
       menu.requests.emplace("edit:" + row.id, std::move(options_request));
     }
-    NavigationRequest request{snapshot.generation, Action::SettingsMenu};
-    request.settings_menu = row.navigation;
-    if (row.edit)
-    {
-      request.action = Action::EditSetting;
-      request.setting = row.edit;
-      request.settings_menu.reset();
-    }
-    menu.requests.emplace(row.id, std::move(request));
+    menu.requests.emplace(row.id, request_for(row.navigation, row.edit));
   };
   for (const auto& row : view.toolbar)
     add(row, true);

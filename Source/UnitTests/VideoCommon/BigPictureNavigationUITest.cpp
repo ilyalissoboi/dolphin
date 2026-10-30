@@ -1231,6 +1231,50 @@ TEST_F(BigPictureNavigationUITest, SettingsSwitchesCategoriesAndKeepsRowOptionsA
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadRight).activated, "adjust-1");
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadLeft).activated, "adjust--1");
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadR1).activated, "Display");
+  // Without large steps, Page Up/Down do nothing on a stepper.
+  EXPECT_FALSE(Press(stepper, ImGuiKey_PageUp).activated);
+
+  // A slider page also takes large steps from Page Up/Down.
+  MenuPage slider = stepper;
+  slider.id = "volume-slider";
+  MenuItem value{"value", "Volume"};
+  value.value = "37%";
+  value.slider = MenuSlider{0, 100, 1, 37, "0%", "100%"};
+  slider.items = {value};
+  slider.default_focus = "value";
+  slider.decrease = "value:decrease";
+  slider.increase = "value:increase";
+  slider.decrease_large = "value:decrease-large";
+  slider.increase_large = "value:increase-large";
+  Settle(slider);
+  EXPECT_EQ(Press(slider, ImGuiKey_RightArrow).activated, "value:increase");
+  EXPECT_EQ(Press(slider, ImGuiKey_PageUp).activated, "value:increase-large");
+  EXPECT_EQ(Press(slider, ImGuiKey_PageDown).activated, "value:decrease-large");
+
+  // Dragging sets the value under the pointer once per value, and retries a value the host
+  // has not applied once the published value changes (e.g. after a stale rejection).
+  const auto track = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                               GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  io.AddMousePosEvent(track.Min.x + 48, track.GetCenter().y);
+  Frame(slider);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  const auto first = Frame(slider);
+  EXPECT_EQ(first.activated, "value:set");
+  EXPECT_EQ(first.value, 0);
+  EXPECT_FALSE(Frame(slider).activated);
+  io.AddMousePosEvent(track.Max.x, track.GetCenter().y);
+  const auto second = Frame(slider);
+  EXPECT_EQ(second.activated, "value:set");
+  EXPECT_EQ(second.value, 100);
+  EXPECT_FALSE(Frame(slider).activated);
+  slider.items.front().slider->value = 0;
+  const auto retry = Frame(slider);
+  EXPECT_EQ(retry.activated, "value:set");
+  EXPECT_EQ(retry.value, 100);
+  EXPECT_FALSE(Frame(slider).activated);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  Frame(slider);
+  io.AddMousePosEvent(-100, -100);
 }
 
 TEST_F(BigPictureNavigationUITest, SettingsContentKeepsSpaceBelowHeaderAndAboveFooter)

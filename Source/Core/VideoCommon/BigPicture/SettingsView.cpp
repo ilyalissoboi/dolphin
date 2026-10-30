@@ -221,10 +221,13 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
     }
     const auto value_size = ImGui::CalcTextSize(visible_value.c_str(), nullptr, false,
                                                 std::max(scale, value_width - 16 * scale));
+    // A slider adds its track and range labels below the label and summary.
+    const float slider_height = item.slider ? 46 * scale : 0;
     const float height =
         std::max({item.detail.empty() ? 48 * scale : 72 * scale,
                   title_size.y + (item.detail.empty() ? 0 : help_size.y + 6 * scale) + 22 * scale,
-                  item.toggle || item.value.empty() ? 0 : value_size.y + 22 * scale});
+                  item.toggle || item.value.empty() ? 0 : value_size.y + 22 * scale}) +
+        slider_height;
     ImGui::SetCursorPosX(margin);
     ImGui::PushID(item.id.c_str());
     if (entering && focus_id == item.id)
@@ -238,6 +241,32 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
     const auto max = ImGui::GetItemRectMax();
     if (pressed)
       result.activated = item.id;
+    // The slider track spans the row below its label: [track_left, track_right] at track_y.
+    const float track_left = min.x + 48 * scale;
+    const float track_right = std::max(track_left + scale, max.x - 24 * scale);
+    const float track_y = max.y - 30 * scale;
+    if (item.slider && item.enabled && !page.busy && ImGui::IsItemActive() &&
+        ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+      // Pressing or dragging on the row sets the value under the pointer, in whole steps.
+      const auto& slider = *item.slider;
+      const double span = slider.maximum - slider.minimum;
+      if (span > 0 && slider.step > 0)
+      {
+        const double fraction = std::clamp(
+            (ImGui::GetIO().MousePos.x - track_left) / (track_right - track_left), 0.0f, 1.0f);
+        const double value =
+            std::clamp(slider.minimum + std::round(fraction * span / slider.step) * slider.step,
+                       slider.minimum, slider.maximum);
+        const auto sent = std::tuple{item.id, value, slider.value};
+        if (std::abs(value - slider.value) >= slider.step * 0.5 && m_slider_sent != sent)
+        {
+          result.activated = item.id + ":set";
+          result.value = value;
+          m_slider_sent = sent;
+        }
+      }
+    }
     const bool options_clicked = item.has_options && ImGui::IsItemClicked(ImGuiMouseButton_Right);
     if (options_clicked)
     {
@@ -297,20 +326,51 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       }
       else if (!item.value.empty())
       {
-        rows->AddText(
-            ImGui::GetFont(), ImGui::GetFontSize(),
-            ImVec2(max.x - 16 * scale - value_size.x, min.y + (height - value_size.y) * 0.5f),
-            ImGui::GetColorU32(value_color), visible_value.c_str(), nullptr,
-            std::max(scale, value_width - 16 * scale));
+        rows->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                      ImVec2(max.x - 16 * scale - value_size.x,
+                             min.y + (height - slider_height - value_size.y) * 0.5f),
+                      ImGui::GetColorU32(value_color), visible_value.c_str(), nullptr,
+                      std::max(scale, value_width - 16 * scale));
       }
       else if (item.active)
         DrawMenuIcon(rows, MenuIcon::Check,
                      ImVec2(max.x - 40 * scale, min.y + (height - 22 * scale) * 0.5f), 22 * scale,
                      ImGui::GetColorU32(palette.text));
     }
+    if (item.slider && ImGui::IsItemVisible())
+    {
+      const auto& slider = *item.slider;
+      auto* rows = ImGui::GetWindowDrawList();
+      const double span = slider.maximum - slider.minimum;
+      const float fraction =
+          span > 0 ?
+              static_cast<float>(std::clamp((slider.value - slider.minimum) / span, 0.0, 1.0)) :
+              0.0f;
+      const float knob_x = track_left + (track_right - track_left) * fraction;
+      const float thickness = 3 * scale;
+      auto fill = palette.focus;
+      if (!item.enabled)
+        fill.w *= 0.5f;
+      rows->AddRectFilled(ImVec2(track_left, track_y - thickness),
+                          ImVec2(track_right, track_y + thickness),
+                          ImGui::GetColorU32(palette.hover), thickness);
+      rows->AddRectFilled(ImVec2(track_left, track_y - thickness),
+                          ImVec2(knob_x, track_y + thickness), ImGui::GetColorU32(fill), thickness);
+      rows->AddCircleFilled(ImVec2(knob_x, track_y), 9 * scale, ImGui::GetColorU32(palette.text));
+      ImGui::PushFont(font, Style::SUMMARY_SIZE * scale / font_scale);
+      const float label_y = track_y + 10 * scale;
+      rows->AddText(ImVec2(track_left, label_y), ImGui::GetColorU32(palette.secondary),
+                    slider.minimum_label.c_str());
+      rows->AddText(
+          ImVec2(track_right - ImGui::CalcTextSize(slider.maximum_label.c_str()).x, label_y),
+          ImGui::GetColorU32(palette.secondary), slider.maximum_label.c_str());
+      ImGui::PopFont();
+    }
     ImGui::EndDisabled();
     ImGui::PopID();
   }
+  if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    m_slider_sent.reset();
   memory.scroll = ImGui::GetScrollY() / scale;
   ImGui::EndChild();
 
@@ -321,10 +381,28 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                                      ImGui::IsKeyPressed(ImGuiKey_GamepadDpadLeft));
   const bool step_up = stepper && (ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
                                    ImGui::IsKeyPressed(ImGuiKey_GamepadDpadRight));
+  // Holding a direction, or Page Up/Down, moves in large steps.
+  const auto held = [](ImGuiKey key, ImGuiKey pad) {
+    return std::max(ImGui::GetKeyData(key)->DownDuration, ImGui::GetKeyData(pad)->DownDuration);
+  };
+  const bool page_down =
+      stepper && !page.decrease_large.empty() && ImGui::IsKeyPressed(ImGuiKey_PageDown);
+  const bool page_up =
+      stepper && !page.increase_large.empty() && ImGui::IsKeyPressed(ImGuiKey_PageUp);
   if (step_down || step_up)
   {
     ImGui::NavMoveRequestCancel();
-    result.activated = step_down ? page.decrease : page.increase;
+    const auto& large = step_down ? page.decrease_large : page.increase_large;
+    const bool held_long =
+        (step_down ? held(ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft) :
+                     held(ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight)) > 0.6f;
+    result.activated =
+        held_long && !large.empty() ? large : (step_down ? page.decrease : page.increase);
+  }
+  else if (page_down || page_up)
+  {
+    ImGui::NavMoveRequestCancel();
+    result.activated = page_down ? page.decrease_large : page.increase_large;
   }
   int direction = 0;
   if ((!stepper && ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ||
