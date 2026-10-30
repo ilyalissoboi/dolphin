@@ -10,7 +10,7 @@
 #include <set>
 #include <string>
 #include <string_view>
-#include <utility>
+#include <tuple>
 #include <vector>
 
 #include <imgui.h>
@@ -191,8 +191,9 @@ private:
   int m_library_columns = 0;
   bool m_library_grid = false;
   bool m_settings_busy = false;
-  // The last value a pointer drag requested, so a held pointer does not resend it every frame.
-  std::optional<std::pair<std::string, double>> m_slider_sent;
+  // The last value a pointer drag requested and the slider value it was requested from, so a
+  // held pointer does not resend it every frame but retries once the published value changes.
+  std::optional<std::tuple<std::string, double, double>> m_slider_sent;
 };
 
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is

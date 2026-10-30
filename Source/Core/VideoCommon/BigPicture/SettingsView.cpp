@@ -258,7 +258,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
         const double value =
             std::clamp(slider.minimum + std::round(fraction * span / slider.step) * slider.step,
                        slider.minimum, slider.maximum);
-        const auto sent = std::pair{item.id, value};
+        const auto sent = std::tuple{item.id, value, slider.value};
         if (std::abs(value - slider.value) >= slider.step * 0.5 && m_slider_sent != sent)
         {
           result.activated = item.id + ":set";
