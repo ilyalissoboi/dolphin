@@ -1231,6 +1231,25 @@ TEST_F(BigPictureNavigationUITest, SettingsSwitchesCategoriesAndKeepsRowOptionsA
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadRight).activated, "adjust-1");
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadDpadLeft).activated, "adjust--1");
   EXPECT_EQ(Press(stepper, ImGuiKey_GamepadR1).activated, "Display");
+  // Without large steps, Page Up/Down do nothing on a stepper.
+  EXPECT_FALSE(Press(stepper, ImGuiKey_PageUp).activated);
+
+  // A slider page also takes large steps from Page Up/Down.
+  MenuPage slider = stepper;
+  slider.id = "volume-slider";
+  MenuItem value{"value", "Volume"};
+  value.value = "37%";
+  value.slider = MenuSlider{0, 100, 1, 37, "0%", "100%"};
+  slider.items = {value};
+  slider.default_focus = "value";
+  slider.decrease = "value:decrease";
+  slider.increase = "value:increase";
+  slider.decrease_large = "value:decrease-large";
+  slider.increase_large = "value:increase-large";
+  Settle(slider);
+  EXPECT_EQ(Press(slider, ImGuiKey_RightArrow).activated, "value:increase");
+  EXPECT_EQ(Press(slider, ImGuiKey_PageUp).activated, "value:increase-large");
+  EXPECT_EQ(Press(slider, ImGuiKey_PageDown).activated, "value:decrease-large");
 }
 
 TEST_F(BigPictureNavigationUITest, SettingsContentKeepsSpaceBelowHeaderAndAboveFooter)

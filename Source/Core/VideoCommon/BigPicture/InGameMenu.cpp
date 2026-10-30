@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <string_view>
+
+#include <fmt/format.h>
 #include <utility>
 
 namespace VideoCommon::BigPicture
@@ -14,7 +16,17 @@ namespace VideoCommon::BigPicture
 std::optional<::BigPicture::NavigationRequest> InGameMenu::Activate(const MenuResult& result) const
 {
   const auto it = requests.find(result.back ? "back" : result.activated.value_or(""));
-  return it == requests.end() ? std::nullopt : std::optional(it->second);
+  if (it == requests.end())
+    return std::nullopt;
+  auto request = it->second;
+  if (result.value && !result.back)
+  {
+    if (request.setting)
+      request.setting->display_value = *result.value;
+    else if (request.settings_menu)
+      request.settings_menu->value = fmt::format("{}", *result.value);
+  }
+  return request;
 }
 
 InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
