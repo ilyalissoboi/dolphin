@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
 #include <cmath>
 
 #include <gtest/gtest.h>
@@ -28,7 +29,7 @@ protected:
     io.DisplaySize = ImVec2(1280, 720);
     io.DeltaTime = 1.0f / 60.0f;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-    io.ConfigNavCursorVisibleAlways = true;
+    io.ConfigNavCursorVisibleAlways = false;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad | ImGuiBackendFlags_RendererHasTextures;
     io.KeyRepeatDelay = 0.3f;
     io.KeyRepeatRate = 0.1f;
@@ -582,6 +583,112 @@ TEST_F(BigPictureNavigationUITest, PressHeldAcrossABriefPendingCommandStillActiv
   ASSERT_TRUE(request);
   EXPECT_EQ(request->action, ::BigPicture::Action::Boot);
   io.AddMousePosEvent(-100, -100);
+}
+
+TEST_F(BigPictureNavigationUITest, PointerAndKeyboardShareOneHighlightAndClicksHitThePointer)
+{
+  MenuPage page{"settings-one-highlight", "Audio", {}, {{"one", "One"}, {"two", "Two"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}, {"tab-0", "General"}, {"tab-1", "Audio"}, {"tab-2", "Wii"}};
+  Settle(page);
+  const auto nav_rect = [] {
+    return ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                     GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  };
+  Press(page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "two");
+  const auto two = nav_rect();
+  Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "one");
+  // After keyboard or gamepad input, the focused row is the highlighted one.
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+
+  // Pointing at another row moves the single highlight to it; the focused row loses it.
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(two.GetCenter().x, two.GetCenter().y);
+  Frame(page);
+  Frame(page);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  EXPECT_NE(GImGui->HoveredId, 0u);
+  EXPECT_NE(GImGui->HoveredId, GImGui->NavId);
+
+  // A key press hands the highlight back to keyboard focus.
+  Press(page, ImGuiKey_LeftShift);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+
+  // A click whose position arrives with the button activates the row under the pointer, not the
+  // row that still has keyboard focus.
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "one");
+  std::string activated;
+  const auto take = [&](const MenuResult& result) {
+    if (result.activated && activated.empty())
+      activated = *result.activated;
+  };
+  io.AddMousePosEvent(two.GetCenter().x, two.GetCenter().y + 1);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  take(Frame(page));
+  take(Frame(page));
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  take(Frame(page));
+  take(Frame(page));
+  EXPECT_EQ(activated, "two");
+
+  // The same holds in the category bar: with keyboard focus on one tab, hovering another is the
+  // only tab highlight.
+  MenuPage tabs = page;
+  tabs.id = "settings-one-highlight-tabs";
+  toolkit.RestoreMemory(tabs.id, {"tab-1", 0, 0, "one"});
+  Settle(tabs);
+  Press(tabs, ImGuiKey_LeftShift);
+  ASSERT_EQ(toolkit.GetMemory(tabs.id).item, "tab-1");
+  EXPECT_TRUE(GImGui->NavHighlightItemUnderNav);
+  const auto focused_tab = nav_rect();
+  const auto focused_id = GImGui->NavId;
+  io.AddMousePosEvent(focused_tab.GetCenter().x + focused_tab.GetWidth(),
+                      focused_tab.GetCenter().y);
+  Frame(tabs);
+  Frame(tabs);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  EXPECT_NE(GImGui->HoveredId, 0u);
+  EXPECT_NE(GImGui->HoveredId, focused_id);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  Frame(tabs);
+}
+
+TEST_F(BigPictureNavigationUITest, OpeningAPageShowsFocusOnlyAfterKeyboardOrGamepadInput)
+{
+  MenuPage first{"first", "First", {}, {{"one", "One"}, {"two", "Two"}}};
+  Settle(first);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(5, 5);
+  Frame(first);
+  io.AddMousePosEvent(9, 9);
+  Frame(first);
+  MenuPage second{"second", "Second", {}, {{"three", "Three"}}};
+  Settle(second);
+  EXPECT_FALSE(GImGui->NavHighlightItemUnderNav);
+  Press(second, ImGuiKey_GamepadDpadDown);
+  EXPECT_TRUE(GImGui->NavCursorVisible && GImGui->NavHighlightItemUnderNav);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+}
+
+TEST_F(BigPictureNavigationUITest, MouseWheelScrollsSettingsRows)
+{
+  MenuPage page{"settings-wheel", "Audio", {}, {}};
+  page.presentation = MenuPresentation::Settings;
+  for (int i = 0; i < 30; ++i)
+    page.items.push_back({"row-" + std::to_string(i), "Row " + std::to_string(i)});
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).scroll, 0);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(640, 360);
+  Frame(page);
+  io.AddMouseWheelEvent(0, -3);
+  Frame(page);
+  Frame(page);
+  EXPECT_GT(toolkit.GetMemory(page.id).scroll, 0);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
 }
 
 TEST_F(BigPictureNavigationUITest, LongSettingsHelpLeavesRoomForOtherRows)

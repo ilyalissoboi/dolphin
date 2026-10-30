@@ -3,6 +3,8 @@
 
 #include "VideoCommon/OnScreenUI.h"
 
+#include <algorithm>
+#include <cfloat>
 #include <charconv>
 #include <string_view>
 
@@ -617,9 +619,9 @@ void OnScreenUI::ProcessInput()
   const auto snapshot = ::BigPicture::GetPresentationState().GetSnapshot();
   const bool modal = snapshot && snapshot->mode != ::BigPicture::Mode::Desktop &&
                      ::BigPicture::GetPresentationState().IsModal();
-  const bool home =
-      modal && !snapshot->screens.empty() && snapshot->screens.back() == ::BigPicture::Screen::Home;
-  io.ConfigNavCursorVisibleAlways = modal && !home;
+  // ImGui hides the keyboard focus highlight after mouse input; the navigation toolkit shows
+  // it again for keyboard and gamepad input.
+  io.ConfigNavCursorVisibleAlways = false;
   io.ConfigFlags &= ~(ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
   io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
   if (modal)
@@ -724,7 +726,13 @@ void OnScreenUI::ProcessInput()
       }
       break;
     case ::BigPicture::InputEvent::Type::MousePosition:
-      io.AddMousePosEvent(event.x, event.y);
+      io.AddMousePosEvent(event.x * io.DisplaySize.x, event.y * io.DisplaySize.y);
+      break;
+    case ::BigPicture::InputEvent::Type::MouseWheel:
+      io.AddMouseWheelEvent(event.x, event.y);
+      break;
+    case ::BigPicture::InputEvent::Type::MouseLeave:
+      io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
       break;
     case ::BigPicture::InputEvent::Type::MouseButtons:
       for (size_t i = 0; i < std::size(io.MouseDown); ++i)
@@ -1173,13 +1181,14 @@ void OnScreenUI::SetMousePos(float x, float y)
 {
   auto& state = ::BigPicture::GetPresentationState();
   const auto snapshot = state.GetSnapshot();
+  // Positions are fractions of the surface; this API takes backbuffer pixels.
   state.Enqueue({::BigPicture::InputEvent::Type::MousePosition,
                  snapshot ? snapshot->generation : 0,
                  0,
                  false,
                  {},
-                 x,
-                 y});
+                 x / static_cast<float>(std::max(1u, m_backbuffer_width)),
+                 y / static_cast<float>(std::max(1u, m_backbuffer_height))});
 }
 
 void OnScreenUI::SetMousePress(u32 button_mask)

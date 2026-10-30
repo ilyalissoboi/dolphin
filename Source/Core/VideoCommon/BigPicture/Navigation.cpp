@@ -146,9 +146,8 @@ MenuResult NavigationToolkit::DrawLanding(
     memory.item = page.default_focus;
   const float header = (launch ? Style::BAR_HEIGHT : Style::HEADER_HEIGHT) * scale;
   const float footer = Style::FOOTER_HEIGHT * scale;
-  const Style::ScopedMenuStyle style(palette, {.background = palette.background,
-                                               .item_spacing = ImVec2(30 * scale, 0),
-                                               .nav_cursor = palette.focus});
+  const Style::ScopedMenuStyle style(
+      palette, {.background = palette.background, .item_spacing = ImVec2(30 * scale, 0)});
   ImGui::PushFont(font, Style::TITLE_SIZE * scale / font_scale);
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(display);
@@ -234,8 +233,7 @@ MenuResult NavigationToolkit::DrawLanding(
     ImGui::PopStyleColor();
     const auto min = ImGui::GetItemRectMin();
     const auto max = ImGui::GetItemRectMax();
-    const bool highlight =
-        ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible);
+    const bool highlight = ImGui::IsItemHovered();
     if (!passive && (ImGui::IsItemFocused() || clicked))
       memory.item = item.id;
     if (clicked)
@@ -293,6 +291,32 @@ MenuResult NavigationToolkit::Draw(const MenuPage& page, ::BigPicture::Navigatio
                                    const std::string& prompts, ImFont* font,
                                    const std::function<ImTextureID(const std::string&)>& image)
 {
+  // Mouse movement, clicks and the wheel switch to pointer highlighting; any key or gamepad
+  // button switches back. ImGui reports the focused control as hovered only while
+  // NavHighlightItemUnderNav is set, so this keeps exactly one control highlighted: the focused
+  // one after keyboard or gamepad input (including focus restored when a page opens), and the
+  // one under the pointer after mouse input. ImGui itself ignores the first position after the
+  // pointer enters the window, which would leave the keyboard highlight in place.
+  const auto& io = ImGui::GetIO();
+  const auto pointer = ImGui::IsMousePosValid() ? std::optional(io.MousePos) : std::nullopt;
+  const bool pointer_moved = m_last_pointer && pointer &&
+                             (!*m_last_pointer || (*m_last_pointer)->x != pointer->x ||
+                              (*m_last_pointer)->y != pointer->y);
+  m_last_pointer = pointer;
+  if (pointer_moved || io.MouseWheel != 0 || io.MouseWheelH != 0 ||
+      std::ranges::any_of(io.MouseClicked, [](bool clicked) { return clicked; }))
+  {
+    m_pointer = true;
+  }
+  for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_MouseLeft && m_pointer; ++key)
+  {
+    if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(key), false))
+      m_pointer = false;
+  }
+  GImGui->NavHighlightItemUnderNav = !m_pointer;
+  if (!m_pointer)
+    GImGui->NavCursorVisible = true;
+
   MenuResult result;
   if ((page.presentation == MenuPresentation::Landing && page.id == "home") ||
       page.presentation == MenuPresentation::Launch)
@@ -401,7 +425,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
   ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
-  ImGui::PushStyleColor(ImGuiCol_NavCursor, pause ? palette.secondary : palette.focus);
+  ImGui::PushStyleColor(ImGuiCol_NavCursor, ImVec4(0, 0, 0, 0));
   ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.selected);
@@ -732,9 +756,7 @@ MenuResult NavigationToolkit::DrawList(const MenuPage& page,
       continue;
     }
     auto* draw = ImGui::GetWindowDrawList();
-    const bool selected = item.enabled && item.id == memory.item;
-    const bool hovered = ImGui::IsItemHovered();
-    const bool highlighted = hovered || (selected && ImGui::GetIO().NavVisible);
+    const bool highlighted = ImGui::IsItemHovered();
     if (highlighted || columns > 1)
       draw->AddRectFilled(min, max, Color(highlighted ? palette.hover : palette.header),
                           Style::ROUNDING * scale);

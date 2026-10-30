@@ -88,7 +88,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                           ImGui::GetColorU32(palette.header_text));
     if (ImGui::IsItemFocused() && !entering)
       memory.item = item.id;
-    if (ImGui::IsItemHovered() || ImGui::IsItemFocused())
+    if (ImGui::IsItemHovered())
       ImGui::SetTooltip("%s%s%s", item.label.c_str(), item.detail.empty() ? "" : "\n",
                         item.detail.c_str());
     ImGui::EndDisabled();
@@ -266,8 +266,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
     if (ImGui::IsItemVisible())
     {
       auto* rows = ImGui::GetWindowDrawList();
-      const bool focused = ImGui::IsItemFocused() && ImGui::GetIO().NavVisible;
-      if (ImGui::IsItemHovered() || focused)
+      if (ImGui::IsItemHovered())
       {
         auto hover = palette.hover;
         hover.w *= 0.7f;

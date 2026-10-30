@@ -164,6 +164,10 @@ private:
   std::string m_current_page;
   std::map<std::string, FocusMemory> m_memory;
   unsigned m_restore_frames = 0;
+  // The last input came from the mouse rather than a keyboard or gamepad.
+  bool m_pointer = false;
+  // The pointer position on the previous frame; unset before the first frame.
+  std::optional<std::optional<ImVec2>> m_last_pointer;
   float m_restore_scroll = 0;
   float m_layout_width = 0;
   float m_layout_height = 0;

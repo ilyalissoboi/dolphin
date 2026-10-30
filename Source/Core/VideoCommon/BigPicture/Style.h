@@ -99,9 +99,6 @@ struct MenuStyleOptions
   ImVec4 background{0, 0, 0, 0};
   ImVec2 item_spacing{0, 0};
   float scrollbar_size = 12;
-  bool show_nav_cursor = true;
-  // Replaces the secondary-colour focus outline.
-  std::optional<ImVec4> nav_cursor;
   // Selectable fill; transparent where the view draws its own hover and focus frames.
   ImVec4 header{0, 0, 0, 0};
   // Left at the global style when unset.
@@ -121,9 +118,10 @@ public:
     ImGui::PushStyleColor(ImGuiCol_Header, options.header);
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, options.header);
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, options.header);
-    ImGui::PushStyleColor(ImGuiCol_NavCursor, !options.show_nav_cursor ? ImVec4(0, 0, 0, 0) :
-                                              options.nav_cursor       ? *options.nav_cursor :
-                                                                         palette.secondary);
+    // Like PCSX2's fullscreen UI, controls never draw ImGui's separate focus outline: their own
+    // highlight follows ImGui's hovered state, which is the focused control after keyboard or
+    // gamepad input and the control under the pointer after mouse input.
+    ImGui::PushStyleColor(ImGuiCol_NavCursor, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Button, palette.header);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.hover);
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.hover);
