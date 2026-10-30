@@ -655,6 +655,59 @@ TEST_F(BigPictureNavigationUITest, PointerAndKeyboardShareOneHighlightAndClicksH
   Frame(tabs);
 }
 
+TEST_F(BigPictureNavigationUITest, SettingsTabsMarkOneTabWithAnUnderlineAndNoHoverSquare)
+{
+  MenuPage page{"settings-underline", "Audio", {}, {{"one", "One"}}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}, {"tab-0", "General"}, {"tab-1", "Audio"}, {"tab-2", "Wii"}};
+  page.toolbar[1].active = true;
+  const auto& palette = Style::GetPalette(page.theme);
+  const float header = Style::BAR_HEIGHT;
+  // Left edges of underlines, and whether any hover-coloured fill is drawn, in the header bar.
+  const auto header_marks = [&] {
+    const auto* window = ImGui::FindWindowByName("###BigPictureSettings");
+    std::set<float> underlines;
+    bool square = false;
+    const auto underline = ImGui::GetColorU32(palette.header_text);
+    const auto hover = ImGui::GetColorU32(palette.hover);
+    for (const auto& vertex : window->DrawList->VtxBuffer)
+    {
+      if (vertex.pos.y == header - 2 && vertex.col == underline)
+        underlines.insert(vertex.pos.x);
+      square |= vertex.pos.y < header && vertex.col == hover;
+    }
+    EXPECT_FALSE(square);
+    // One underline: a quad with two vertices on its top edge. Returns its left edge.
+    EXPECT_EQ(underlines.size(), 2u);
+    return underlines.empty() ? 0.0f : *underlines.begin();
+  };
+  Settle(page);
+  // Keyboard focus is on a row: the open category carries the only underline.
+  const float open = header_marks();
+
+  // Keyboard focus on a tab moves the underline to it.
+  Press(page, ImGuiKey_UpArrow);
+  const auto focused = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                                 GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  EXPECT_NEAR(header_marks(), focused.Min.x + 10, 1);
+
+  // So does pointing at a tab; no hover square is drawn.
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(1280 - 30, header / 2);
+  Frame(page);
+  Frame(page);
+  ASSERT_NE(GImGui->HoveredId, 0u);
+  const float pointed = header_marks();
+  EXPECT_NE(pointed, open);
+  EXPECT_GT(pointed, 1280 - 70);
+  io.AddMousePosEvent(focused.GetCenter().x, focused.GetCenter().y);
+  Frame(page);
+  Frame(page);
+  EXPECT_NEAR(header_marks(), focused.Min.x + 10, 1);
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+  Frame(page);
+}
+
 TEST_F(BigPictureNavigationUITest, OpeningAPageShowsFocusOnlyAfterKeyboardOrGamepadInput)
 {
   MenuPage first{"first", "First", {}, {{"one", "One"}, {"two", "Two"}}};

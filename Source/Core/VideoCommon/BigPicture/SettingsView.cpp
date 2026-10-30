@@ -5,6 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include <imgui_internal.h>
 
@@ -68,6 +71,12 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   auto* draw = ImGui::GetWindowDrawList();
   draw->AddRectFilled(ImVec2(0, 0), ImVec2(display.x, header), ImGui::GetColorU32(palette.header));
   draw->AddRectFilled(ImVec2(0, display.y - footer), display, ImGui::GetColorU32(palette.header));
+  // The header bar marks one control with an underline: the one under the pointer or keyboard
+  // focus, otherwise the open category. Buttons draw no hover square of their own.
+  std::vector<std::pair<float, float>> underlined;
+  std::optional<std::pair<float, float>> hovered_button;
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, palette.header);
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, palette.header);
   const auto button = [&](const MenuItem& item, float x, float width) {
     ImGui::SetCursorPos(ImVec2(x, 0));
     ImGui::PushID(item.id.c_str());
@@ -75,17 +84,18 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       ImGui::SetKeyboardFocusHere();
     ImGui::BeginDisabled(!item.enabled);
     const bool pressed = ImGui::Button("##category", ImVec2(width, header));
+    const bool hovered = ImGui::IsItemHovered();
     const float icon_size = std::min(24 * scale, width - 8 * scale);
     auto color = palette.header_text;
-    if (!item.active && item.id != "back")
+    if (!item.active && !hovered && item.id != "back")
       color.w *= 0.55f;
     DrawMenuIcon(draw, item.icon,
                  ImVec2(x + (width - icon_size) * 0.5f, (header - icon_size) * 0.5f), icon_size,
                  ImGui::GetColorU32(color));
+    if (hovered)
+      hovered_button = std::pair{x, width};
     if (item.active)
-      draw->AddRectFilled(ImVec2(x + 10 * scale, header - 2 * scale),
-                          ImVec2(x + width - 10 * scale, header),
-                          ImGui::GetColorU32(palette.header_text));
+      underlined.emplace_back(x, width);
     if (ImGui::IsItemFocused() && !entering)
       memory.item = item.id;
     if (ImGui::IsItemHovered())
@@ -129,6 +139,15 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
     if (button(*item, x, tab_width))
       result.activated = item->id;
     x += tab_width;
+  }
+  ImGui::PopStyleColor(2);
+  if (hovered_button)
+    underlined = {*hovered_button};
+  for (const auto& [left, width] : underlined)
+  {
+    draw->AddRectFilled(ImVec2(left + 10 * scale, header - 2 * scale),
+                        ImVec2(left + width - 10 * scale, header),
+                        ImGui::GetColorU32(palette.header_text));
   }
   ImGui::SetCursorPos(ImVec2(0, top));
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 16 * scale));
