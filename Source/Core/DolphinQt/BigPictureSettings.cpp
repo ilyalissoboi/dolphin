@@ -18,16 +18,20 @@
 #include <QTimer>
 
 #include "Common/FileSearch.h"
+#include "Common/FileUtil.h"
 #include "Common/IniFile.h"
 #include "Core/ConfigLoaders/GameConfigLoader.h"
 #include "Core/HW/GCPad.h"
 #include "Core/HW/Wiimote.h"
 #include "DolphinQt/Config/Binder/SharedSettings.h"
 #include "DolphinQt/QtUtils/QueueOnObject.h"
+#include "InputCommon/BigPictureInput.h"
 #include "InputCommon/ControlReference/ControlReference.h"
 #include "InputCommon/ControllerEmu/Control/Control.h"
+#include "InputCommon/ControllerEmu/ControlGroup/Attachments.h"
 #include "InputCommon/ControllerEmu/ControlGroup/ControlGroup.h"
 #include "InputCommon/ControllerEmu/ControllerEmu.h"
+#include "InputCommon/ControllerEmu/Setting/NumericSetting.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/ControllerInterface/MappingCommon.h"
 #include "InputCommon/InputConfig.h"
@@ -58,6 +62,97 @@ std::string BindingLabel(std::string expression)
 {
   std::erase(expression, '`');
   return expression.empty() ? S(BigPictureSettings::tr("Unbound")) : expression;
+}
+// Visits the groups shown on a mapping page: the controller's own and those of its selected
+// extension, keyed "[ext:<extension>/]<group>" and labelled by section.
+void ForEachMappingGroup(ControllerEmu::ControlGroupContainer& container, const std::string& prefix,
+                         const QString& section,
+                         const std::function<void(const std::string&, const QString&,
+                                                  ControllerEmu::ControlGroup&)>& visit)
+{
+  using ControllerEmu::GroupType;
+  for (const auto& group : container.groups)
+  {
+    // Motion-sensor passthrough remains desktop mapping.
+    if (group->type == GroupType::IMUAccelerometer || group->type == GroupType::IMUGyroscope ||
+        group->type == GroupType::IMUCursor || group->type == GroupType::IRPassthrough)
+      continue;
+    // Every group is visited, including the extension group's own settings (Attach MotionPlus);
+    // its extension selector is serialized separately and has its own row.
+    visit(prefix + group->name, section + BigPictureSettings::tr(group->ui_name.c_str()), *group);
+    if (group->type == GroupType::Attachments)
+    {
+      auto& attachments = static_cast<ControllerEmu::Attachments&>(*group);
+      const auto& list = attachments.GetAttachmentList();
+      const auto selected = attachments.GetSelectedAttachment();
+      if (selected < list.size())
+      {
+        auto& attachment = *list[selected];
+        ForEachMappingGroup(attachment, prefix + "ext:" + attachment.GetName() + "/",
+                            BigPictureSettings::tr(attachment.GetDisplayName().c_str()) +
+                                QStringLiteral(": "),
+                            visit);
+      }
+    }
+  }
+}
+ControllerEmu::Attachments* FindAttachments(ControllerEmu::EmulatedController& controller)
+{
+  for (const auto& group : controller.groups)
+  {
+    if (group->type == ControllerEmu::GroupType::Attachments)
+      return static_cast<ControllerEmu::Attachments*>(group.get());
+  }
+  return nullptr;
+}
+double GetNumber(const ControllerEmu::NumericSettingBase& setting)
+{
+  using ControllerEmu::NumericSetting;
+  switch (setting.GetType())
+  {
+  case ControllerEmu::SettingType::Int:
+    return static_cast<const NumericSetting<int>&>(setting).GetValue();
+  case ControllerEmu::SettingType::Double:
+    return static_cast<const NumericSetting<double>&>(setting).GetValue();
+  default:
+    return static_cast<const NumericSetting<bool>&>(setting).GetValue();
+  }
+}
+struct SettingBounds
+{
+  double minimum;
+  double maximum;
+  double step;
+};
+SettingBounds GetBounds(const ControllerEmu::NumericSettingBase& setting)
+{
+  using ControllerEmu::NumericSetting;
+  if (setting.GetType() == ControllerEmu::SettingType::Int)
+  {
+    const auto& typed = static_cast<const NumericSetting<int>&>(setting);
+    return {double(typed.GetMinValue()), double(typed.GetMaxValue()), 1};
+  }
+  const auto& typed = static_cast<const NumericSetting<double>&>(setting);
+  // Whole display units for the usual percentages; finer steps for small ranges.
+  const double range = typed.GetMaxValue() - typed.GetMinValue();
+  return {typed.GetMinValue(), typed.GetMaxValue(), range >= 20 ? 1.0 : range >= 2 ? 0.1 : 0.01};
+}
+void SetNumber(ControllerEmu::NumericSettingBase& setting, double value)
+{
+  using ControllerEmu::NumericSetting;
+  const auto bounds = GetBounds(setting);
+  value = std::clamp(value, bounds.minimum, bounds.maximum);
+  if (setting.GetType() == ControllerEmu::SettingType::Int)
+    static_cast<NumericSetting<int>&>(setting).SetValue(static_cast<int>(std::lround(value)));
+  else
+    static_cast<NumericSetting<double>&>(setting).SetValue(value);
+}
+std::string SettingLabel(const ControllerEmu::NumericSettingBase& setting)
+{
+  auto text = QString::number(GetNumber(setting));
+  if (const char* suffix = setting.GetUISuffix(); suffix && *suffix)
+    text += QLatin1Char(' ') + BigPictureSettings::tr(suffix);
+  return S(text);
 }
 std::string Display(const Value& value)
 {
@@ -243,6 +338,7 @@ std::vector<BigPictureSettings::ControllerTarget> BigPictureSettings::Targets() 
            S((config == Pad::GetConfig() ? tr("GameCube Controller %1") : tr("Wii Remote %1"))
                  .arg(index + 1)),
            config, index});
+  result.push_back({"menu", S(tr("Big Picture Menu Controls")), BigPictureInput::GetConfig(), 0});
   return result;
 }
 std::vector<std::string> BigPictureSettings::Devices() const
@@ -292,27 +388,63 @@ std::string BigPictureSettings::ControllerUnavailable() const
 std::vector<BigPictureSettings::MappingControl>
 BigPictureSettings::MappingControls(ControllerEmu::EmulatedController& controller) const
 {
-  using ControllerEmu::GroupType;
   std::vector<MappingControl> result;
-  for (const auto& group : controller.groups)
-  {
-    // Extensions and motion-sensor passthrough remain desktop mapping for now.
-    if (group->type == GroupType::Attachments || group->type == GroupType::IMUAccelerometer ||
-        group->type == GroupType::IMUGyroscope || group->type == GroupType::IMUCursor ||
-        group->type == GroupType::IRPassthrough)
-      continue;
-    for (const auto& control : group->controls)
-    {
-      if (!control->control_ref->IsInput())
-        continue;
-      result.push_back({group->name + "/" + control->name, S(tr(group->ui_name.c_str())),
-                        control->translate == ControllerEmu::Translatability::Translate ?
-                            S(tr(control->ui_name.c_str())) :
-                            control->ui_name,
-                        control.get()});
-    }
-  }
+  ForEachMappingGroup(
+      controller, {}, {},
+      [&](const std::string& key, const QString& section, ControllerEmu::ControlGroup& group) {
+        for (const auto& control : group.controls)
+        {
+          if (!control->control_ref->IsInput())
+            continue;
+          result.push_back({key + "/" + control->name, S(section),
+                            control->translate == ControllerEmu::Translatability::Translate ?
+                                S(tr(control->ui_name.c_str())) :
+                                control->ui_name,
+                            control.get()});
+        }
+      });
   return result;
+}
+std::vector<BigPictureSettings::MappingSetting>
+BigPictureSettings::MappingSettings(ControllerEmu::EmulatedController& controller) const
+{
+  std::vector<MappingSetting> result;
+  ForEachMappingGroup(
+      controller, {}, {},
+      [&](const std::string& key, const QString& section, ControllerEmu::ControlGroup& group) {
+        for (const auto& setting : group.numeric_settings)
+        {
+          // Advanced settings, such as calibration, remain desktop tuning.
+          if (setting->GetVisibility() != ControllerEmu::SettingVisibility::Normal)
+            continue;
+          result.push_back({"set:" + key + "/" + setting->GetININame(), S(section),
+                            S(tr(setting->GetUIName())), setting.get()});
+        }
+      });
+  return result;
+}
+std::string BigPictureSettings::SaveProfile(const ControllerTarget& target, const std::string& name)
+{
+  const auto trimmed = S(Q(name).trimmed());
+  // A plain file name in the profile folder, as the desktop profile box saves.
+  if (trimmed.empty() || trimmed == "." || trimmed == ".." ||
+      trimmed.find_first_of("/\\:*?\"<>|") != std::string::npos ||
+      std::ranges::any_of(trimmed, [](unsigned char c) { return c < 0x20; }))
+    return S(tr("Enter a profile name without / \\ : * ? \" < > |."));
+  const auto path = target.config->GetUserProfileDirectoryPath() + trimmed + ".ini";
+  const bool replaced = File::Exists(path);
+  File::CreateFullPath(path);
+  Common::IniFile ini;
+  {
+    auto* controller = target.config->GetController(target.index);
+    const auto lock = controller->GetStateLock();
+    controller->SaveConfig(ini.GetOrCreateSection("Profile"));
+  }
+  if (!ini.Save(path))
+    return S(tr("Could not save the profile."));
+  m_controller_message = S(replaced ? tr("Replaced profile %1.").arg(Q(trimmed)) :
+                                      tr("Saved profile %1.").arg(Q(trimmed)));
+  return {};
 }
 bool BigPictureSettings::StartCapture(const ControllerTarget& target, const std::string& key)
 {
@@ -450,7 +582,12 @@ void BigPictureSettings::Back()
     break;
   case Page::MapControl:
   case Page::MapDefaults:
+  case Page::MapExtension:
+  case Page::MapSetting:
     m_page = Page::Mapping;
+    break;
+  case Page::ProfileName:
+    m_page = Page::Controller;
     break;
   default:
     m_page = Page::Home;
@@ -478,6 +615,12 @@ std::string BigPictureSettings::MenuId(bool game) const
   case Page::Capture:
     edit = m_map_control;
     [[fallthrough]];
+  case Page::MapSetting:
+    if (m_page == Page::MapSetting)
+      edit = m_map_setting;
+    [[fallthrough]];
+  case Page::MapExtension:
+  case Page::ProfileName:
   case Page::Controller:
   case Page::Devices:
   case Page::Profiles:
@@ -543,10 +686,10 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
   };
   if (m_page != Page::Home && m_page != Page::Category && m_page != Page::Controllers)
     view->back = BigPicture::SettingsRequest{m_revision, O::Back};
-  if (m_page == Page::Text)
+  if (IsTextPage())
   {
     view->text_input = true;
-    view->title = S(tr("Enter Value"));
+    view->title = S(m_page == Page::ProfileName ? tr("Profile Name") : tr("Enter Value"));
     view->draft = m_draft;
     view->description += "\n" + m_text_error;
     nav("text-done", tr("Done"), O::TextDone, {}, {}, true, true);
@@ -829,7 +972,12 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                        "profile and button mapping. Controller types and "
                                        "extensions are configured on the desktop."));
       for (const auto& candidate : targets)
+      {
+        // Game profiles apply to emulated controllers, not to the menu's own controls.
+        if (game && candidate.config == BigPictureInput::GetConfig())
+          continue;
         nav(candidate.id, Q(candidate.label), O::Controller, candidate.id);
+      }
     }
     else if (target)
     {
@@ -856,6 +1004,10 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           nav("mapping", tr("Mapping"), O::Mapping, {}, {}, unavailable.empty());
           view->rows.back().help =
               S(tr("Bind each button, stick and trigger by pressing an input."));
+          nav("save-profile", tr("Save as profile"), O::SaveProfile, {}, {}, unavailable.empty());
+          view->rows.back().help = S(tr("Save this controller's mapping as a named profile."));
+          if (!m_controller_message.empty())
+            view->description += "\n" + m_controller_message;
         }
         std::string profile_value;
         if (game)
@@ -878,10 +1030,13 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
               unavailable.empty() && m_game_context.layer->Exists(ProfileLocation(*target)));
       }
       else if (m_page == Page::Mapping || m_page == Page::MapControl ||
-               m_page == Page::MapDefaults || m_page == Page::Capture)
+               m_page == Page::MapDefaults || m_page == Page::Capture ||
+               m_page == Page::MapExtension || m_page == Page::MapSetting)
       {
         const auto lock = controller->GetStateLock();
         const auto controls = MappingControls(*controller);
+        const auto settings = MappingSettings(*controller);
+        auto* const attachments = FindAttachments(*controller);
         const auto selected = std::ranges::find(controls, m_map_control, &MappingControl::key);
         if (m_page == Page::Mapping)
         {
@@ -890,6 +1045,18 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
           if (!m_map_message.empty())
             view->description += "\n" + m_map_message;
           nav("map-defaults", tr("Default Mapping"), O::MapDefaults, {}, {}, unavailable.empty());
+          if (attachments)
+          {
+            const auto& list = attachments->GetAttachmentList();
+            const auto selected_extension = attachments->GetSelectedAttachment();
+            nav("map-extension", tr("Extension"), O::MapExtensions, {},
+                attachments->GetSelectionSetting().IsSimpleValue() ?
+                    std::string{} :
+                    S(tr("Set by an input expression; change it on the desktop.")),
+                unavailable.empty() && attachments->GetSelectionSetting().IsSimpleValue());
+            if (selected_extension < list.size())
+              view->rows.back().value = S(tr(list[selected_extension]->GetDisplayName().c_str()));
+          }
           for (const auto& control : controls)
           {
             nav("map:" + control.key, Q(control.label), O::MapBind, control.key, {},
@@ -901,8 +1068,68 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
             if (row.enabled)
               row.options = BigPicture::SettingsRequest{m_revision, O::MapOptions, control.key};
           }
+          for (const auto& setting : settings)
+          {
+            const bool simple = setting.setting->IsSimpleValue();
+            const bool toggle = setting.setting->GetType() == ControllerEmu::SettingType::Bool;
+            nav(setting.key, Q(setting.label), toggle ? O::MapSettingToggle : O::MapSettingEdit,
+                setting.key,
+                simple ? std::string{} :
+                         S(tr("Set by an input expression; change it on the desktop.")),
+                unavailable.empty() && simple);
+            auto& row = view->rows.back();
+            row.section = setting.group;
+            if (toggle)
+              row.toggle = GetNumber(*setting.setting) != 0;
+            else
+              row.value = SettingLabel(*setting.setting);
+            if (const char* description = setting.setting->GetUIDescription())
+              row.help = S(tr(description));
+          }
           if (!controls.empty())
             view->default_focus = "map:" + controls.front().key;
+        }
+        else if (m_page == Page::MapExtension && attachments)
+        {
+          view->title = S(tr("Extension"));
+          const auto& list = attachments->GetAttachmentList();
+          for (std::size_t i = 0; i < list.size(); ++i)
+          {
+            const auto id = "ext-" + std::to_string(i);
+            nav(id, tr(list[i]->GetDisplayName().c_str()), O::MapExtension, std::to_string(i), {},
+                unavailable.empty() && attachments->GetSelectionSetting().IsSimpleValue());
+            view->rows.back().active = i == attachments->GetSelectedAttachment();
+            if (view->rows.back().active)
+              view->default_focus = id;
+          }
+        }
+        else if (m_page == Page::MapSetting)
+        {
+          const auto setting = std::ranges::find(settings, m_map_setting, &MappingSetting::key);
+          if (setting != settings.end())
+          {
+            const auto bounds = GetBounds(*setting->setting);
+            const double current = GetNumber(*setting->setting);
+            view->title = setting->label;
+            view->description += "\n" + S(tr("Current value: %1 (%2 to %3)")
+                                              .arg(Q(SettingLabel(*setting->setting)))
+                                              .arg(bounds.minimum)
+                                              .arg(bounds.maximum));
+            for (const int steps : {-10, -1, 1, 10})
+            {
+              const double value =
+                  std::clamp(current + steps * bounds.step, bounds.minimum, bounds.maximum);
+              nav("adjust-" + std::to_string(steps),
+                  steps < 0 ? tr("Decrease by %1").arg(-steps * bounds.step) :
+                              tr("Increase by %1").arg(steps * bounds.step),
+                  O::MapSettingStep, std::to_string(steps), S(tr("New value: %1").arg(value)),
+                  unavailable.empty() && value != current);
+            }
+            nav("reset", tr("Reset to default"), O::MapSettingReset, {}, {}, unavailable.empty());
+            view->default_focus = "adjust-1";
+            view->decrease = "adjust--1";
+            view->increase = "adjust-1";
+          }
         }
         else if (m_page == Page::MapDefaults)
         {
@@ -998,7 +1225,7 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     return row.enabled && (same(row.navigation) || same(row.options));
   };
   const bool text_key =
-      m_page == Page::Text && request.operation == O::TextKey && request.value.size() <= 4096 &&
+      IsTextPage() && request.operation == O::TextKey && request.value.size() <= 4096 &&
       request.value.find('\0') == std::string::npos && S(Q(request.value)) == request.value;
   if (!text_key && !(view->back && request.operation == O::Back) &&
       !std::ranges::any_of(view->rows, matches) && !std::ranges::any_of(view->toolbar, matches))
@@ -1030,8 +1257,64 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     break;
   case O::Controller:
     m_controller = request.value;
+    m_controller_message.clear();
     m_page = Page::Controller;
     break;
+  case O::SaveProfile:
+    m_draft.clear();
+    m_text_error.clear();
+    m_page = Page::ProfileName;
+    break;
+  case O::MapExtensions:
+    m_page = Page::MapExtension;
+    break;
+  case O::MapSettingEdit:
+    m_map_setting = request.value;
+    m_page = Page::MapSetting;
+    break;
+  case O::MapExtension:
+  case O::MapSettingStep:
+  case O::MapSettingToggle:
+  case O::MapSettingReset:
+  {
+    if (!target || !ControllerUnavailable().empty())
+      return Status::Unavailable;
+    auto* controller = target->config->GetController(target->index);
+    {
+      const auto lock = controller->GetStateLock();
+      if (request.operation == O::MapExtension)
+      {
+        auto* attachments = FindAttachments(*controller);
+        const auto index = Q(request.value).toUInt();
+        if (!attachments || index >= attachments->GetAttachmentList().size())
+          return Status::InvalidValue;
+        attachments->SetSelectedAttachment(index);
+        m_map_message =
+            S(tr("Extension: %1")
+                  .arg(tr(attachments->GetAttachmentList()[index]->GetDisplayName().c_str())));
+        m_page = Page::Mapping;
+      }
+      else
+      {
+        const auto settings = MappingSettings(*controller);
+        const auto key = request.operation == O::MapSettingToggle ? request.value : m_map_setting;
+        const auto setting = std::ranges::find(settings, key, &MappingSetting::key);
+        if (setting == settings.end() || !setting->setting->IsSimpleValue())
+          return Status::InvalidValue;
+        auto& numeric = *setting->setting;
+        if (request.operation == O::MapSettingReset)
+          numeric.SetToDefault();
+        else if (request.operation == O::MapSettingToggle)
+          static_cast<ControllerEmu::NumericSetting<bool>&>(numeric).SetValue(GetNumber(numeric) ==
+                                                                              0);
+        else
+          SetNumber(numeric,
+                    GetNumber(numeric) + Q(request.value).toInt() * GetBounds(numeric).step);
+      }
+    }
+    target->config->SaveConfig();
+    break;
+  }
   case O::Devices:
     m_page = Page::Devices;
     break;
@@ -1141,7 +1424,7 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     break;
   }
   case O::TextKey:
-    if (m_page != Page::Text || m_draft.size() + request.value.size() > 4096)
+    if (!IsTextPage() || m_draft.size() + request.value.size() > 4096)
       return Status::InvalidValue;
     m_draft += request.value;
     m_text_error.clear();
@@ -1167,6 +1450,15 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     return Status::Success;
   case O::TextDone:
   {
+    if (m_page == Page::ProfileName)
+    {
+      if (!target || !ControllerUnavailable().empty())
+        return Status::Unavailable;
+      m_text_error = SaveProfile(*target, m_draft);
+      if (m_text_error.empty())
+        m_page = Page::Controller;
+      break;
+    }
     const auto values = ReadSnapshot();
     const auto state =
         std::ranges::find(values->settings, m_edit, [](const auto& s) { return s.descriptor.id; });

@@ -30,8 +30,10 @@ class InputDetector;
 
 namespace ControllerEmu
 {
+class Attachments;
 class Control;
 class EmulatedController;
+class NumericSettingBase;
 }  // namespace ControllerEmu
 
 // Qt-owner settings workflow. The renderer receives translated rows and value requests only.
@@ -90,7 +92,10 @@ private:
     Mapping,
     MapControl,
     MapDefaults,
-    Capture
+    Capture,
+    MapExtension,
+    MapSetting,
+    ProfileName
   };
   struct MappingControl
   {
@@ -99,6 +104,14 @@ private:
     std::string group;
     std::string label;
     ControllerEmu::Control* control = nullptr;
+  };
+  struct MappingSetting
+  {
+    // "set:<group key>/<ini name>".
+    std::string key;
+    std::string group;
+    std::string label;
+    ControllerEmu::NumericSettingBase* setting = nullptr;
   };
   struct BrowseJob
   {
@@ -122,6 +135,10 @@ private:
   void Browse(std::string directory);
   // Caller holds the controller's state lock.
   std::vector<MappingControl> MappingControls(ControllerEmu::EmulatedController& controller) const;
+  std::vector<MappingSetting> MappingSettings(ControllerEmu::EmulatedController& controller) const;
+  bool IsTextPage() const { return m_page == Page::Text || m_page == Page::ProfileName; }
+  // Returns a translated error, or an empty string once the profile is written.
+  std::string SaveProfile(const ControllerTarget& target, const std::string& name);
   bool StartCapture(const ControllerTarget& target, const std::string& key);
   void UpdateCapture();
   std::string BrowseStartDirectory(const Common::Settings::State& state) const;
@@ -158,7 +175,9 @@ private:
   std::atomic<u64> m_browse_latest = 0;
   std::atomic<bool> m_browse_cancelled = false;
   std::string m_map_control;
+  std::string m_map_setting;
   std::string m_map_message;
+  std::string m_controller_message;
   const ciface::Core::DeviceContainer* m_detection_source;
   // Set while a binding capture is open; detection starts once its inputs are released.
   std::shared_ptr<ciface::Core::Device> m_capture_device;
