@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QSlider>
 #include <QTemporaryDir>
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 
 #include "Common/FileUtil.h"
@@ -175,6 +176,50 @@ protected:
     ADD_FAILURE() << "Row has no request: " << id;
     return Status::InvalidValue;
   }
+  // The value row's slider step ("decrease", "increase", "decrease-large", "increase-large").
+  std::optional<BigPicture::SettingsAction> Step(const std::string& step)
+  {
+    const auto row = Row("value");
+    if (!row.slider)
+    {
+      ADD_FAILURE() << "The value row has no slider";
+      return std::nullopt;
+    }
+    const auto& slider = *row.slider;
+    return step == "decrease"       ? slider.decrease :
+           step == "increase"       ? slider.increase :
+           step == "decrease-large" ? slider.decrease_large :
+                                      slider.increase_large;
+  }
+  Status Run(const BigPicture::SettingsAction& action)
+  {
+    if (action.navigation)
+      return menu->Execute(*action.navigation);
+    if (action.edit)
+      return menu->Apply(*action.edit).status;
+    ADD_FAILURE() << "Slider action has no request";
+    return Status::InvalidValue;
+  }
+  Status Slide(const std::string& step)
+  {
+    const auto action = Step(step);
+    if (!action)
+    {
+      ADD_FAILURE() << "Slider step unavailable: " << step;
+      return Status::InvalidValue;
+    }
+    return Run(*action);
+  }
+  // Sets the slider to an arbitrary value the way a pointer drag does.
+  Status SlideTo(double value)
+  {
+    auto action = Row("value").slider->set;
+    if (action.navigation)
+      action.navigation->value = fmt::format("{}", value);
+    if (action.edit)
+      action.edit->display_value = value;
+    return Run(action);
+  }
   void Back()
   {
     const auto request = menu->ReadMenu()->back;
@@ -206,11 +251,16 @@ TEST_F(BigPictureSettingsTest, ColdPagesAndQueuedValueEditsDoNotConstructDesktop
   EXPECT_FALSE(HasRow("global"));
   ASSERT_EQ(Activate("Audio"), Status::Success);
   ASSERT_EQ(Activate("audio.volume"), Status::Success);
-  // Volume uses the same stepper as other ranged numbers, not a row per value.
-  EXPECT_EQ(menu->ReadMenu()->decrease, "adjust--1");
-  EXPECT_EQ(menu->ReadMenu()->increase, "adjust-1");
+  // Volume uses the same slider as other ranged numbers, not a row per value.
+  const auto slider = Row("value").slider;
+  ASSERT_TRUE(slider);
+  EXPECT_EQ(slider->minimum, 0);
+  EXPECT_EQ(slider->maximum, 100);
+  EXPECT_EQ(slider->value, 100);
+  EXPECT_FALSE(slider->increase);
+  EXPECT_EQ(menu->ReadMenu()->default_focus, "value");
   EXPECT_FALSE(HasRow("volume-37"));
-  ASSERT_EQ(Activate("adjust--10"), Status::Success);
+  ASSERT_EQ(Slide("decrease-large"), Status::Success);
   EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 90);
   EXPECT_NE(retained->id, menu->ReadMenu()->id);
   Back();
@@ -242,7 +292,7 @@ TEST_F(BigPictureSettingsTest, NativeNumberEditorUsesDisplayUnitsAndValidatesTyp
 {
   ASSERT_EQ(Activate("General"), Status::Success);
   ASSERT_EQ(Activate("general.speed"), Status::Success);
-  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  ASSERT_EQ(Slide("increase"), Status::Success);
   EXPECT_NEAR(Config::GetBase(Config::MAIN_EMULATION_SPEED), 1.1f, 0.00001f);
   ASSERT_EQ(Activate("enter-value"), Status::Success);
   EXPECT_TRUE(menu->ReadMenu()->text_input);
@@ -258,7 +308,11 @@ TEST_F(BigPictureSettingsTest, NativeNumberEditorUsesDisplayUnitsAndValidatesTyp
   ASSERT_EQ(Activate("text-done"), Status::Success);
   EXPECT_FALSE(menu->ReadMenu()->text_input);
   EXPECT_FLOAT_EQ(Config::GetBase(Config::MAIN_EMULATION_SPEED), 1.5f);
-  EXPECT_EQ(Row("adjust-10").edit->display_value, 200);
+  EXPECT_EQ(Step("increase-large")->edit->display_value, 200);
+  // A pointer sets any value in display units.
+  ASSERT_EQ(SlideTo(70), Status::Success);
+  EXPECT_FLOAT_EQ(Config::GetBase(Config::MAIN_EMULATION_SPEED), 0.7f);
+  EXPECT_EQ(Row("value").slider->value, 70);
 }
 
 TEST_F(BigPictureSettingsTest, ConvergenceEditorAcceptsFloatStepsAndTypedValuesAtTheUpperBound)
@@ -268,7 +322,7 @@ TEST_F(BigPictureSettingsTest, ConvergenceEditorAcceptsFloatStepsAndTypedValuesA
   Config::SetBase(Config::GFX_STEREO_CONVERGENCE, 100.0f);
   ASSERT_EQ(Activate("Enhancements"), Status::Success);
   ASSERT_EQ(Activate("native.gfx_stereo_convergence"), Status::Success);
-  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  ASSERT_EQ(Slide("increase"), Status::Success);
   EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 100.01f);
   ASSERT_EQ(Activate("enter-value"), Status::Success);
   ASSERT_EQ(Activate("text-clear"), Status::Success);
@@ -276,9 +330,10 @@ TEST_F(BigPictureSettingsTest, ConvergenceEditorAcceptsFloatStepsAndTypedValuesA
   ASSERT_EQ(Activate("text-done"), Status::Success);
   EXPECT_FALSE(menu->ReadMenu()->text_input);
   EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 199.99f);
-  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  ASSERT_EQ(Slide("increase"), Status::Success);
   EXPECT_FLOAT_EQ(Config::GetBase(Config::GFX_STEREO_CONVERGENCE), 200.0f);
-  EXPECT_FALSE(Row("adjust-1").enabled);
+  EXPECT_FALSE(Step("increase"));
+  EXPECT_FALSE(Step("increase-large"));
 }
 
 TEST_F(BigPictureSettingsTest, TextEditorKeepsDraftsUntilDoneAndHandlesUnicodeAndQueuedCharacters)
@@ -453,16 +508,26 @@ TEST_F(BigPictureSettingsTest, MappingTunesSettingsSwitchesExtensionsAndSavesPro
   EXPECT_TRUE(controller->sideways.GetValue());
   EXPECT_TRUE(*Row("set:Buttons/Sideways").toggle);
 
-  // Numbers use the stepper page, clamped to the setting's range.
+  // Numbers use a slider, clamped to the setting's range.
   ASSERT_EQ(Activate("set:Buttons/Dead Zone"), Status::Success);
-  EXPECT_EQ(menu->ReadMenu()->increase, "adjust-1");
-  ASSERT_EQ(Activate("adjust-1"), Status::Success);
+  ASSERT_TRUE(Row("value").slider);
+  EXPECT_EQ(Row("value").slider->maximum_label, "50 %");
+  ASSERT_EQ(Slide("increase"), Status::Success);
   EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 11);
-  ASSERT_EQ(Activate("adjust--10"), Status::Success);
+  ASSERT_EQ(Slide("decrease-large"), Status::Success);
   EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 1);
-  ASSERT_EQ(Activate("adjust--1"), Status::Success);
+  ASSERT_EQ(Slide("decrease"), Status::Success);
   EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 0);
-  EXPECT_FALSE(Row("adjust--1").enabled);
+  EXPECT_FALSE(Step("decrease"));
+  ASSERT_EQ(SlideTo(42), Status::Success);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 42);
+  EXPECT_EQ(Row("value").slider->value, 42);
+  // Only the published set operation runs, and only with a number.
+  EXPECT_EQ(menu->Execute({menu->ReadMenu()->revision, O::MapSettingSet, "inf"}),
+            Status::InvalidValue);
+  EXPECT_EQ(menu->Execute({menu->ReadMenu()->revision, O::MapSettingSet, "x"}),
+            Status::InvalidValue);
+  EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 42);
   ASSERT_EQ(Activate("reset"), Status::Success);
   EXPECT_DOUBLE_EQ(controller->dead_zone.GetValue(), 10);
   Back();
@@ -622,13 +687,14 @@ TEST_F(BigPictureSettingsTest, MenuEditsAndDesktopBindingsRoundTripInBothDirecti
   ConfigWidget::BindCatalog(&desktop, Config::MAIN_AUDIO_VOLUME);
   ASSERT_EQ(Activate("Audio"), Status::Success);
   ASSERT_EQ(Activate("audio.volume"), Status::Success);
-  ASSERT_EQ(Activate("adjust--10"), Status::Success);
+  ASSERT_EQ(Slide("decrease-large"), Status::Success);
   QCoreApplication::processEvents();
   EXPECT_EQ(desktop.value(), 90);
-  const auto old = *Row("adjust-1").edit;
+  const auto old = *Step("increase")->edit;
   desktop.setValue(48);
   QCoreApplication::processEvents();
-  EXPECT_EQ(Row("adjust-1").edit->display_value, 49);
+  EXPECT_EQ(Step("increase")->edit->display_value, 49);
+  EXPECT_EQ(Row("value").slider->value, 48);
   EXPECT_EQ(menu->Apply(old).status, Status::Stale);
   EXPECT_EQ(Config::GetBase(Config::MAIN_AUDIO_VOLUME), 48);
 }

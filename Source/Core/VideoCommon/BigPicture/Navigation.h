@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include <imgui.h>
@@ -32,6 +33,16 @@ enum class MenuPresentation
   Achievements,
 };
 
+struct MenuSlider
+{
+  double minimum = 0;
+  double maximum = 0;
+  double step = 1;
+  double value = 0;
+  std::string minimum_label;
+  std::string maximum_label;
+};
+
 struct MenuItem
 {
   std::string id;
@@ -48,6 +59,8 @@ struct MenuItem
   std::optional<bool> toggle;
   bool value_enabled = true;
   bool has_options = false;
+  // Drawn as a horizontal slider; "<id>:set" sets an arbitrary value (MenuResult::value).
+  std::optional<MenuSlider> slider;
 };
 
 struct MenuPage
@@ -79,9 +92,12 @@ struct MenuPage
   bool settings_text = false;
   std::shared_ptr<const ::BigPicture::AchievementsSnapshot> achievements;
   std::string empty_text;
-  // Items that Left and Right activate instead of changing the settings page.
+  // Items that Left and Right activate instead of changing the settings page, and the larger
+  // steps for Page Up/Down or a held key.
   std::string decrease;
   std::string increase;
+  std::string decrease_large;
+  std::string increase_large;
 };
 
 struct MenuResult
@@ -90,6 +106,8 @@ struct MenuResult
   bool back = false;
   std::string focused;
   bool fullscreen = false;
+  // The value chosen for an activated "<slider>:set" request.
+  std::optional<double> value;
 };
 
 struct FocusMemory
@@ -181,6 +199,9 @@ private:
   int m_library_columns = 0;
   bool m_library_grid = false;
   bool m_settings_busy = false;
+  // The last value a pointer drag requested and the slider value it was requested from, so a
+  // held pointer does not resend it every frame but retries once the published value changes.
+  std::optional<std::tuple<std::string, double, double>> m_slider_sent;
 };
 
 // Native bindings become named gamepad keys on the render owner. Confirm/back swapping is

@@ -233,6 +233,54 @@ TEST_F(BigPictureInGameMenuTest, MappingRowsOfferOptionsAndCaptureBlocksEveryReq
   EXPECT_TRUE(menu.page.busy);
 }
 
+TEST_F(BigPictureInGameMenuTest, SliderRowsStepAndSetTheirValueFromTheMenu)
+{
+  snapshot.screens.push_back(Screen::Settings);
+  auto view = std::make_shared<SettingsMenuSnapshot>();
+  view->id = "settings-volume";
+  view->back = SettingsRequest{9, SettingsOperation::Back};
+  SettingsRow row{"value", "Volume"};
+  SettingsSlider slider{0, 100, 1, 37, "0%", "100%"};
+  Common::Settings::Request edit{45, "audio.volume", Common::Settings::Operation::SetDisplay};
+  edit.display_value = 36;
+  slider.decrease = SettingsAction{{}, edit};
+  edit.display_value = 27;
+  slider.decrease_large = SettingsAction{{}, edit};
+  slider.set.edit =
+      Common::Settings::Request{45, "audio.volume", Common::Settings::Operation::SetDisplay};
+  row.slider = slider;
+  view->rows.push_back(row);
+  snapshot.host.settings_menu = view;
+  auto menu = Build();
+  ASSERT_TRUE(menu.page.items.front().slider);
+  EXPECT_EQ(menu.page.items.front().slider->value, 37);
+  EXPECT_EQ(menu.page.items.front().slider->maximum_label, "100%");
+  EXPECT_EQ(menu.page.decrease, "value:decrease");
+  EXPECT_EQ(menu.page.increase_large, "value:increase-large");
+  EXPECT_EQ(menu.Activate({"value:decrease"})->setting->display_value, 36);
+  EXPECT_EQ(menu.Activate({"value:decrease-large"})->setting->display_value, 27);
+  // Absent steps (the value is at that end) and the row itself request nothing.
+  EXPECT_FALSE(menu.Activate({"value:increase"}));
+  EXPECT_FALSE(menu.Activate({"value"}));
+  MenuResult set{"value:set"};
+  set.value = 64;
+  ASSERT_TRUE(menu.Activate(set));
+  EXPECT_EQ(menu.Activate(set)->action, Action::EditSetting);
+  EXPECT_EQ(menu.Activate(set)->setting->display_value, 64);
+
+  // A host slider receives the value as text.
+  slider = {0, 50, 1, 10, "0 %", "50 %"};
+  slider.set.navigation = SettingsRequest{9, SettingsOperation::MapSettingSet};
+  view->rows.front().slider = slider;
+  menu = Build();
+  set.value = 12.5;
+  ASSERT_TRUE(menu.Activate(set));
+  EXPECT_EQ(menu.Activate(set)->settings_menu->operation, SettingsOperation::MapSettingSet);
+  EXPECT_EQ(menu.Activate(set)->settings_menu->value, "12.5");
+  view->rows.front().enabled = false;
+  EXPECT_FALSE(Build().Activate(set));
+}
+
 TEST_F(BigPictureInGameMenuTest, SharedSettingsRootClosesWhileInterfaceRetainsMenuPreferences)
 {
   snapshot.screens.push_back(Screen::Settings);

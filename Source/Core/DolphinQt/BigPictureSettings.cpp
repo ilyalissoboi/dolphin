@@ -924,23 +924,37 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                   return 0;
               },
               state.display_value);
-          for (const int steps : {-10, -1, 1, 10})
-          {
-            const double value = std::clamp(current + steps * range.step * range.scale,
-                                            range.minimum * range.scale + range.offset,
-                                            range.maximum * range.scale + range.offset);
-            const auto id = "adjust-" + std::to_string(steps);
-            edit(id,
-                 steps < 0 ? tr("Decrease by %1").arg(std::abs(steps) * range.step * range.scale) :
-                             tr("Increase by %1").arg(steps * range.step * range.scale),
-                 state, false, Operation::SetDisplay, S(tr("New value: %1").arg(value)));
-            view->rows.back().edit->display_value = value;
-            view->rows.back().enabled &= value != current;
-          }
+          // Display units: stored * scale + offset. The step is one stored step.
+          const double minimum = range.minimum * range.scale + range.offset;
+          const double maximum = range.maximum * range.scale + range.offset;
+          const double step = range.step * range.scale;
+          BigPicture::SettingsSlider slider{minimum,
+                                            maximum,
+                                            step,
+                                            current,
+                                            S(QString::number(minimum)) + range.unit,
+                                            S(QString::number(maximum)) + range.unit};
+          const auto change = [&](double value) -> std::optional<BigPicture::SettingsAction> {
+            value = std::clamp(value, minimum, maximum);
+            if (!state.enabled || value == current)
+              return std::nullopt;
+            Request request{values->revision, state.descriptor.id, Operation::SetDisplay, false};
+            request.display_value = value;
+            return BigPicture::SettingsAction{{}, request};
+          };
+          slider.decrease = change(current - step);
+          slider.increase = change(current + step);
+          slider.decrease_large = change(current - step * 10);
+          slider.increase_large = change(current + step * 10);
+          if (state.enabled)
+            slider.set.edit =
+                Request{values->revision, state.descriptor.id, Operation::SetDisplay, false};
+          view->rows.push_back({"value", state.descriptor.label,
+                                state.enabled ? "" : state.disabled_reason, state.enabled});
+          view->rows.back().value = ValueLabel(state);
+          view->rows.back().slider = std::move(slider);
           nav("enter-value", tr("Enter Value"), O::TextStart, {}, {}, state.enabled);
-          view->default_focus = "adjust-1";
-          view->decrease = "adjust--1";
-          view->increase = "adjust-1";
+          view->default_focus = "value";
         }
       }
       else if (state.descriptor.control == Control::Path)
@@ -1115,20 +1129,34 @@ std::shared_ptr<const BigPicture::SettingsMenuSnapshot> BigPictureSettings::Read
                                               .arg(Q(SettingLabel(*setting->setting)))
                                               .arg(bounds.minimum)
                                               .arg(bounds.maximum));
-            for (const int steps : {-10, -1, 1, 10})
-            {
+            std::string suffix;
+            if (const char* ui_suffix = setting->setting->GetUISuffix(); ui_suffix && *ui_suffix)
+              suffix = " " + S(tr(ui_suffix));
+            BigPicture::SettingsSlider slider{bounds.minimum,
+                                              bounds.maximum,
+                                              bounds.step,
+                                              current,
+                                              S(QString::number(bounds.minimum)) + suffix,
+                                              S(QString::number(bounds.maximum)) + suffix};
+            const auto change = [&](int steps) -> std::optional<BigPicture::SettingsAction> {
               const double value =
                   std::clamp(current + steps * bounds.step, bounds.minimum, bounds.maximum);
-              nav("adjust-" + std::to_string(steps),
-                  steps < 0 ? tr("Decrease by %1").arg(-steps * bounds.step) :
-                              tr("Increase by %1").arg(steps * bounds.step),
-                  O::MapSettingStep, std::to_string(steps), S(tr("New value: %1").arg(value)),
-                  unavailable.empty() && value != current);
-            }
+              if (!unavailable.empty() || value == current)
+                return std::nullopt;
+              return BigPicture::SettingsAction{BigPicture::SettingsRequest{
+                  m_revision, O::MapSettingStep, std::to_string(steps)}};
+            };
+            slider.decrease = change(-1);
+            slider.increase = change(1);
+            slider.decrease_large = change(-10);
+            slider.increase_large = change(10);
+            if (unavailable.empty())
+              slider.set.navigation = BigPicture::SettingsRequest{m_revision, O::MapSettingSet};
+            view->rows.push_back({"value", setting->label, unavailable, unavailable.empty()});
+            view->rows.back().value = SettingLabel(*setting->setting);
+            view->rows.back().slider = std::move(slider);
             nav("reset", tr("Reset to default"), O::MapSettingReset, {}, {}, unavailable.empty());
-            view->default_focus = "adjust-1";
-            view->decrease = "adjust--1";
-            view->increase = "adjust-1";
+            view->default_focus = "value";
           }
         }
         else if (m_page == Page::MapDefaults)
@@ -1222,7 +1250,18 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
       return published && published->operation == request.operation &&
              published->value == request.value;
     };
-    return row.enabled && (same(row.navigation) || same(row.options));
+    const auto slider = [&](const BigPicture::SettingsSlider& published) {
+      for (const auto* action : {&published.decrease, &published.increase,
+                                 &published.decrease_large, &published.increase_large})
+      {
+        if (*action && same((*action)->navigation))
+          return true;
+      }
+      return published.set.navigation && published.set.navigation->revision == request.revision &&
+             published.set.navigation->operation == request.operation;
+    };
+    return row.enabled &&
+           (same(row.navigation) || same(row.options) || (row.slider && slider(*row.slider)));
   };
   const bool text_key =
       IsTextPage() && request.operation == O::TextKey && request.value.size() <= 4096 &&
@@ -1274,6 +1313,7 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
     break;
   case O::MapExtension:
   case O::MapSettingStep:
+  case O::MapSettingSet:
   case O::MapSettingToggle:
   case O::MapSettingReset:
   {
@@ -1307,6 +1347,14 @@ Status BigPictureSettings::Execute(const BigPicture::SettingsRequest& request)
         else if (request.operation == O::MapSettingToggle)
           static_cast<ControllerEmu::NumericSetting<bool>&>(numeric).SetValue(GetNumber(numeric) ==
                                                                               0);
+        else if (request.operation == O::MapSettingSet)
+        {
+          bool valid = false;
+          const double value = Q(request.value).toDouble(&valid);
+          if (!valid || !std::isfinite(value))
+            return Status::InvalidValue;
+          SetNumber(numeric, value);
+        }
         else
           SetNumber(numeric,
                     GetNumber(numeric) + Q(request.value).toInt() * GetBounds(numeric).step);
