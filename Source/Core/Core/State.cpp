@@ -81,6 +81,13 @@ static unsigned char __LZO_MMODEL out[OUT_LEN];
 
 static AfterLoadCallbackFunc s_on_after_load_callback;
 static Common::HookableEvent<> s_after_save_event;
+static Common::HookableEvent<const OperationResult&> s_result_event;
+
+static void ReportResult(OperationResult::Kind kind, const std::string& filename,
+                         OperationResult::Error error)
+{
+  s_result_event.Trigger({kind, filename, error});
+}
 
 static Common::EventHook s_flush_unsaved_data_hook;
 
@@ -447,6 +454,9 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   const Common::ScopeGuard notify([] { s_after_save_event.Trigger(); });
   const auto& buffer = save_args.buffer;
   const std::string& filename = save_args.filename;
+  auto error = OperationResult::Error::Write;
+  const Common::ScopeGuard report(
+      [&] { ReportResult(OperationResult::Kind::Save, filename, error); });
 
   // Find free temporary filename.
 
@@ -499,6 +509,7 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
       return;
     }
     *save_args.continuation_result = true;
+    error = OperationResult::Error::None;
     return;
   }
 
@@ -546,6 +557,7 @@ static void CompressAndDumpState(Core::System& system, const CompressAndDumpStat
   }
   else
   {
+    error = OperationResult::Error::None;
     if (save_args.preview)
       BigPicture::WriteStatePreview(filename + ".preview", timestamp, *save_args.preview);
     const std::filesystem::path temp_path(StringToPath(filename));
@@ -593,6 +605,7 @@ static void SaveAsFromCore(Core::System& system, std::string filename,
   else
   {
     Core::DisplayMessage("Unable to save: Internal DoState Error", 4000);
+    ReportResult(OperationResult::Kind::Save, filename, OperationResult::Error::Capture);
   }
 }
 
@@ -1025,6 +1038,10 @@ static void LoadAsFromCore(Core::System& system, std::string filename)
   }
 
   system.GetCPU().InvalidatePauseOwnership();
+  ReportResult(OperationResult::Kind::Load, filename,
+               !was_file_read       ? OperationResult::Error::Unreadable :
+               !loaded_successfully ? OperationResult::Error::Incompatible :
+                                      OperationResult::Error::None);
   if (s_on_after_load_callback)
     s_on_after_load_callback();
 }
@@ -1032,7 +1049,10 @@ static void LoadAsFromCore(Core::System& system, std::string filename)
 void LoadAs(Core::System& system, std::string filename)
 {
   if (!CheckIfStateLoadIsAllowed(system))
+  {
+    ReportResult(OperationResult::Kind::Load, filename, OperationResult::Error::NotAllowed);
     return;
+  }
 
   system.GetCPU().InvalidatePauseOwnership();
 
@@ -1049,6 +1069,11 @@ void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback)
 Common::EventHook AddAfterSaveCallback(std::function<void()> callback)
 {
   return s_after_save_event.Register(std::move(callback));
+}
+
+Common::EventHook AddResultCallback(std::function<void(const OperationResult&)> callback)
+{
+  return s_result_event.Register(std::move(callback));
 }
 
 void Init(Core::System& system)

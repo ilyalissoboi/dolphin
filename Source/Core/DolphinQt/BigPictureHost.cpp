@@ -199,6 +199,15 @@ void BigPictureHost::PrepareForBoot()
   }
 }
 
+void BigPictureHost::CompleteCommand(std::uint64_t command_id, BigPicture::ResultStatus status,
+                                     std::string message)
+{
+  Q_ASSERT(QThread::currentThread() == thread());
+  m_controller.Complete(command_id,
+                        {{}, status, BigPicture::UnavailableReason::None, std::move(message)});
+  Publish();
+}
+
 void BigPictureHost::InvalidatePresentation()
 {
   Q_ASSERT(QThread::currentThread() == thread());

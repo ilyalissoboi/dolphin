@@ -473,6 +473,23 @@ TEST_F(BigPictureInGameMenuTest, LibraryCardsCarryPathsAndRetainSafeFocusWhenSel
   EXPECT_TRUE(menu.Activate({"settings"}));
 }
 
+TEST_F(BigPictureInGameMenuTest, CompletedStateOperationsNameTheirSlot)
+{
+  snapshot.screens.push_back(Screen::SaveStates);
+  text.state_saved = "Saved";
+  text.state_loaded = "Loaded";
+  snapshot.result =
+      Result{Command{snapshot.generation, 1, Action::SaveState, {}, 3}, ResultStatus::Succeeded};
+  EXPECT_NE(Build().page.description.find("Slot 3: Saved"), std::string::npos);
+  snapshot.screens.back() = Screen::LoadStates;
+  snapshot.result->command.action = Action::LoadState;
+  EXPECT_NE(Build().page.description.find("Slot 3: Loaded"), std::string::npos);
+  // While the core is still working, nothing claims completion.
+  snapshot.result->status = ResultStatus::Pending;
+  snapshot.pending = snapshot.result->command;
+  EXPECT_EQ(Build().page.description.find("Loaded"), std::string::npos);
+}
+
 TEST_F(BigPictureInGameMenuTest, GameFoldersListFoldersAndConfirmRemovalByPath)
 {
   snapshot.mode = Mode::Library;

@@ -562,12 +562,31 @@ TEST_F(BigPictureControllerTest, FailedHostActionPreservesMessageAndCanBeDismiss
   EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Pause);
 }
 
-TEST_F(BigPictureControllerTest, VoidStateOperationsAreDispatchedRatherThanSuccessful)
+TEST_F(BigPictureControllerTest, StateOperationsStayPendingUntilTheCoreReportsTheirResult)
 {
   InGame();
   Send(Action::SaveState, 10);
-  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Dispatched);
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Pending);
+  const auto save = host.executed.back().id;
+  Send(Action::LoadState, 1);
+  EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::Busy);
+
+  // Only the pending command can be completed.
+  controller.Complete(save + 100, {{}, ResultStatus::Failed});
+  ASSERT_TRUE(controller.GetSnapshot()->pending);
+  controller.Complete(save, {{}, ResultStatus::Succeeded});
   EXPECT_FALSE(controller.GetSnapshot()->pending);
+  EXPECT_EQ(controller.GetSnapshot()->result->status, ResultStatus::Succeeded);
+  EXPECT_EQ(controller.GetSnapshot()->result->command.slot, 10);
+
+  // A failure is shown on the error screen with the host's message.
+  Send(Action::LoadState, 1);
+  controller.Complete(host.executed.back().id,
+                      {{}, ResultStatus::Failed, UnavailableReason::None, "Unreadable"});
+  EXPECT_EQ(controller.GetSnapshot()->screens.back(), Screen::Error);
+  EXPECT_EQ(controller.GetSnapshot()->error->message, "Unreadable");
+  EXPECT_EQ(controller.GetSnapshot()->error->command.action, Action::LoadState);
 }
 
 TEST_F(BigPictureControllerTest, InvalidSlotsPathsAndUnsupportedActionsNeverReachHost)
@@ -693,6 +712,7 @@ TEST_F(BigPictureControllerTest, OccupiedSlotsRequireMatchingCancelableOverwrite
   ASSERT_EQ(host.executed.size(), 1u);
   EXPECT_EQ(host.executed[0].slot, 10);
   EXPECT_EQ(host.executed[0].confirmation_id, host.executed[0].id);
+  controller.Complete(host.executed[0].id, {{}, ResultStatus::Succeeded});
   Send(Action::ReturnToDesktop);
   Send(Action::SaveState, 10);
   EXPECT_EQ(controller.GetSnapshot()->result->reason, UnavailableReason::InvalidArgument);
