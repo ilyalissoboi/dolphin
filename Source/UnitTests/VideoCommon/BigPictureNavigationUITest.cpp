@@ -743,9 +743,27 @@ TEST_F(BigPictureNavigationUITest, ACategoryClickedEarlierIsNotRestoredAsThePage
   Settle(audio);
 
   // Changing category with the keyboard returns to the Interface page's rows, so the only tab
-  // marked is the open category.
+  // marked is the open category, from the page's first frame on. (Refocusing the window briefly
+  // restores ImGui's last focused header button, the Audio tab clicked earlier.)
+  const auto underlines = [] {
+    const auto* window = ImGui::FindWindowByName("###BigPictureSettings");
+    const auto color = ImGui::GetColorU32(Style::GetPalette("").header_text);
+    std::set<float> left;
+    for (const auto& vertex : window->DrawList->VtxBuffer)
+    {
+      if (vertex.pos.y == Style::BAR_HEIGHT - 2 && vertex.col == color)
+        left.insert(vertex.pos.x);
+    }
+    return left;
+  };
+  // Two tabs 56 px wide end 8 px from the right edge; each underline is inset by 10 px.
+  const float interface_tab = 1280 - 8 - 2 * 56 + 10;
   EXPECT_EQ(Press(audio, ImGuiKey_LeftArrow).activated, "tab-0");
-  Settle(interface);
+  for (int i = 0; i < 4; ++i)
+  {
+    Frame(interface);
+    EXPECT_EQ(underlines(), (std::set<float>{interface_tab, interface_tab + 56 - 20})) << i;
+  }
   EXPECT_EQ(toolkit.GetMemory(interface.id).item, "interface-row");
   io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
 }

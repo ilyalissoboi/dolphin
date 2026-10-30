@@ -160,7 +160,10 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       ImGui::SetKeyboardFocusHere();
     ImGui::BeginDisabled(!item.enabled);
     const bool pressed = ImGui::Button("##category", ImVec2(width, header));
-    const bool hovered = ImGui::IsItemHovered();
+    // Refocusing the window on a new page briefly restores ImGui's last focused header button,
+    // such as a category clicked earlier, until this page's own focus applies. Keyboard focus
+    // marks only the control that the page is restoring.
+    const bool hovered = ImGui::IsItemHovered() && (m_pointer || !entering || focus_id == item.id);
     const float icon_size = std::min(24 * scale, width - 8 * scale);
     auto color = palette.header_text;
     if (!item.active && !hovered && item.id != "back")
