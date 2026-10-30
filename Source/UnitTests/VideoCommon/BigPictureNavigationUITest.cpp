@@ -505,6 +505,85 @@ TEST_F(BigPictureNavigationUITest, SettingsTabsStayFixedWhenRowsHaveNoOptions)
   EXPECT_FLOAT_EQ(before.Max.y, after.Max.y);
 }
 
+TEST_F(BigPictureNavigationUITest, ReturningToTheTopOfSettingsRevealsTheFirstSectionHeading)
+{
+  MenuPage page{"settings-sections", "Audio Settings", {}, {}};
+  page.presentation = MenuPresentation::Settings;
+  page.toolbar = {{"back", "Back"}};
+  for (int i = 0; i < 16; ++i)
+  {
+    MenuItem item{"row-" + std::to_string(i), "Row " + std::to_string(i)};
+    item.detail = "Help text.";
+    item.section = i < 8 ? "Audio Output" : "Advanced";
+    page.items.push_back(item);
+  }
+  Settle(page);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-0");
+  for (int i = 0; i < 15; ++i)
+    Press(page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-15");
+  ASSERT_GT(toolkit.GetMemory(page.id).scroll, 0);
+  // Moving up to the first row of a section reveals its heading above the row.
+  for (int i = 0; i < 7; ++i)
+    Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-8");
+  Settle(page);
+  const auto* rows = GImGui->NavWindow;
+  ASSERT_NE(rows, nullptr);
+  const float row_top = rows->Pos.y + rows->NavRectRel[ImGuiNavLayer_Main].Min.y;
+  // The heading (34 px plus a 10 px gap at scale 1) sits above the row and stays visible.
+  EXPECT_GE(row_top - 44, rows->InnerRect.Min.y);
+  for (int i = 0; i < 8; ++i)
+    Press(page, ImGuiKey_UpArrow);
+  ASSERT_EQ(toolkit.GetMemory(page.id).item, "row-0");
+  Settle(page);
+  EXPECT_EQ(toolkit.GetMemory(page.id).scroll, 0);
+}
+
+TEST_F(BigPictureNavigationUITest, PressHeldAcrossABriefPendingCommandStillActivates)
+{
+  ::BigPicture::Snapshot idle;
+  idle.mode = ::BigPicture::Mode::Library;
+  auto pending = idle;
+  pending.pending = ::BigPicture::Command{idle.generation, 1, ::BigPicture::Action::Library};
+  InGameMenu menu;
+  menu.page = {"list", "Title", {}, {{"one", "One"}, {"two", "Two"}}};
+  menu.requests.emplace(
+      "two", ::BigPicture::NavigationRequest{idle.generation, ::BigPicture::Action::Boot});
+  const auto idle_menu = menu;
+  Settle(menu.page);
+  ASSERT_NE(GImGui->NavWindow, nullptr);
+  Press(menu.page, ImGuiKey_DownArrow);
+  ASSERT_EQ(toolkit.GetMemory(menu.page.id).item, "two");
+  const auto rect = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                              GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  auto& io = ImGui::GetIO();
+  io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
+  Frame(menu.page);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  Frame(menu.page);
+
+  // The host publishes a pending snapshot that disables every item while the button is held.
+  PendingMenuHold hold;
+  const auto now = PendingMenuHold::Clock::now();
+  hold.Replace(&idle, menu, pending, now);
+  InGameMenu disabled;
+  disabled.page = {"list", "Title", {}, {{"one", "One", {}, false}, {"two", "Two", {}, false}}};
+  const auto& visible = hold.Visible(pending, disabled, now);
+  EXPECT_FALSE(hold.Activate(pending, visible, Frame(visible.page)));
+  // The host finishes before the release.
+  hold.Replace(&pending, disabled, idle, now);
+  menu = idle_menu;
+  Frame(menu.page);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  std::optional<::BigPicture::NavigationRequest> request;
+  for (int i = 0; i < 2 && !request; ++i)
+    request = hold.Activate(idle, menu, Frame(menu.page));
+  ASSERT_TRUE(request);
+  EXPECT_EQ(request->action, ::BigPicture::Action::Boot);
+  io.AddMousePosEvent(-100, -100);
+}
+
 TEST_F(BigPictureNavigationUITest, LongSettingsHelpLeavesRoomForOtherRows)
 {
   MenuPage page{"settings-long-help", "Graphics", {}, {{"one", "One"}, {"two", "Two"}}};

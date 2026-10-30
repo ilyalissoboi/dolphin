@@ -752,6 +752,7 @@ void OnScreenUI::DrawNavigation()
     m_navigation_toolkit.InvalidateFocus();
     m_menu_snapshot.reset();
     m_menu = {};
+    m_pending_menu.Reset();
     return;
   }
   if (m_navigation_generation != snapshot->generation)
@@ -766,14 +767,16 @@ void OnScreenUI::DrawNavigation()
   if (text.title.empty())
     return;
   auto options = m_navigation.options;
+  const auto now = BigPicture::PendingMenuHold::Clock::now();
   if (m_menu_snapshot != snapshot || m_menu_text != shared_text || m_menu_options != options)
   {
+    m_pending_menu.Replace(m_menu_snapshot.get(), m_menu, *snapshot, now);
     m_menu = BigPicture::BuildInGameMenu(*snapshot, text, options);
     m_menu_snapshot = snapshot;
     m_menu_text = shared_text;
     m_menu_options = options;
   }
-  const auto& menu = m_menu;
+  const auto& menu = m_pending_menu.Visible(*snapshot, m_menu, now);
   if (m_achievement_snapshot != menu.page.achievements)
   {
     m_achievement_snapshot = menu.page.achievements;
@@ -824,7 +827,8 @@ void OnScreenUI::DrawNavigation()
     const auto memory = m_navigation_toolkit.GetMemory(menu.page.id);
     presentation.SetSettingsFocus(menu.page.id, {memory.item, memory.selected, memory.scroll});
   }
-  if (snapshot->host.library && menu.page.id == "library" && result.focused.starts_with("game:") &&
+  if (!snapshot->pending && snapshot->host.library && menu.page.id == "library" &&
+      result.focused.starts_with("game:") &&
       result.focused.substr(5) != snapshot->host.library->selected_path)
   {
     ::BigPicture::NavigationRequest request{snapshot->generation, ::BigPicture::Action::Library};
@@ -903,7 +907,7 @@ void OnScreenUI::DrawNavigation()
         m_navigation_input.IsKeyboard() && (enter || ImGui::IsKeyPressed(ImGuiKey_Space));
   }
   if (!typed_activation)
-    if (const auto request = menu.Activate(result))
+    if (const auto request = m_pending_menu.Activate(*snapshot, menu, result))
       presentation.RequestNavigation(*request, m_input_epoch);
 }
 

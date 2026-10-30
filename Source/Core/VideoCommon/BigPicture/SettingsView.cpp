@@ -139,6 +139,8 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   if (entering)
     ImGui::SetScrollY(memory.scroll * scale);
   ImGui::SetCursorPosX(margin + 16 * scale);
+  // Revealing the first row also reveals the explanation above it.
+  const float content_top = ImGui::GetCursorScreenPos().y;
   const auto context_end = page.description.find('\n');
   const auto explanation = !page.category_page ? page.description :
                            context_end == std::string::npos ?
@@ -156,7 +158,11 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
   std::string section;
   for (const auto& item : page.items)
   {
-    if (item.section != section && !item.section.empty())
+    // Revealing a row that starts a section also reveals the section's heading.
+    const bool first = &item == page.items.data();
+    const bool heading = item.section != section && !item.section.empty();
+    const float heading_top = first ? content_top : ImGui::GetCursorScreenPos().y;
+    if (heading)
     {
       section = item.section;
       ImGui::SetCursorPosX(margin + 16 * scale);
@@ -251,7 +257,7 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       memory.selected = item.id;
       if (entering || GImGui->NavJustMovedToId == ImGui::GetItemID())
       {
-        ImRect reveal(min, max);
+        ImRect reveal(ImVec2(min.x, first || heading ? heading_top : min.y), max);
         reveal.Expand(ImVec2(0, 16 * scale));
         ImGui::ScrollToRectEx(ImGui::GetCurrentWindow(), reveal,
                               ImGuiScrollFlags_KeepVisibleEdgeY | ImGuiScrollFlags_NoScrollParent);
