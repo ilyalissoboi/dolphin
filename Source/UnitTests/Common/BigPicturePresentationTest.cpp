@@ -15,6 +15,35 @@ namespace
 using namespace std::chrono_literals;
 using namespace BigPicture;
 
+TEST(BigPicturePresentationTest, LibrarySnapshotsShareListsAndCopyOnlyWhenEdited)
+{
+  LibrarySnapshot state;
+  state.games = {{"a.iso", "A"}, {"b.iso", "B"}};
+  state.missing_covers.insert("a.iso");
+  const LibrarySnapshot published = state;
+  EXPECT_EQ(&published.games.Get(), &state.games.Get());
+  EXPECT_EQ(&published.missing_covers.Get(), &state.missing_covers.Get());
+
+  // Editing the owner's state never changes a published copy.
+  state.games.push_back({"c.iso", "C"});
+  state.missing_covers.erase("a.iso");
+  state.files.push_back({"dir", "Dir", true});
+  EXPECT_EQ(published.games.size(), 2u);
+  EXPECT_EQ(state.games.size(), 3u);
+  EXPECT_EQ(state.games[2].path, "c.iso");
+  EXPECT_TRUE(published.missing_covers.contains("a.iso"));
+  EXPECT_FALSE(state.missing_covers.contains("a.iso"));
+  EXPECT_TRUE(published.files.empty());
+
+  // Unshared contents are edited in place.
+  const auto* games = &state.games.Get();
+  state.games.pop_back();
+  EXPECT_EQ(&state.games.Get(), games);
+  state.games.clear();
+  EXPECT_TRUE(state.games.empty());
+  EXPECT_EQ(published.games.front().path, "a.iso");
+}
+
 TEST(BigPicturePresentationTest, MenuToggleIsIgnoredWhileABindingIsCaptured)
 {
   Snapshot snapshot;
