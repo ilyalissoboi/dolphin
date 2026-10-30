@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -15,6 +16,73 @@
 
 namespace VideoCommon::BigPicture
 {
+// ImGui wraps only at spaces and splits a long word anywhere, but values are often paths.
+// Break after path and word separators instead and keep at most two lines; a value that still
+// does not fit loses its start, where long paths differ least.
+std::vector<std::string> WrapSettingValue(std::string_view value, float width)
+{
+  struct Glyph
+  {
+    std::size_t begin;
+    std::size_t end;
+    float width;
+  };
+  std::vector<Glyph> glyphs;
+  for (std::size_t i = 0; i < value.size();)
+  {
+    std::size_t end = i + 1;
+    while (end < value.size() && (static_cast<unsigned char>(value[end]) & 0xc0) == 0x80)
+      ++end;
+    glyphs.push_back({i, end, ImGui::CalcTextSize(value.data() + i, value.data() + end).x});
+    i = end;
+  }
+  const auto separator = [&](std::size_t glyph) {
+    return std::string_view(" /\\-_.,").find(value[glyphs[glyph].begin]) != std::string_view::npos;
+  };
+  // Glyph ranges of each line, starting at `first`, with the first line indented by `indent`.
+  const auto wrap = [&](std::size_t first, float indent) {
+    std::vector<std::pair<std::size_t, std::size_t>> lines;
+    std::size_t start = first;
+    std::size_t after_separator = 0;
+    float line = indent;
+    for (std::size_t i = first; i < glyphs.size(); ++i)
+    {
+      if (i > start && line + glyphs[i].width > width)
+      {
+        const std::size_t end = after_separator > start ? after_separator : i;
+        lines.emplace_back(start, end);
+        start = end;
+        line = 0;
+        after_separator = 0;
+        for (std::size_t j = start; j < i; ++j)
+        {
+          line += glyphs[j].width;
+          if (separator(j))
+            after_separator = j + 1;
+        }
+      }
+      line += glyphs[i].width;
+      if (separator(i))
+        after_separator = i + 1;
+    }
+    if (start < glyphs.size())
+      lines.emplace_back(start, glyphs.size());
+    return lines;
+  };
+  std::size_t first = 0;
+  auto lines = wrap(0, 0);
+  const float ellipsis = ImGui::CalcTextSize("...").x;
+  while (lines.size() > 2 && first + 1 < glyphs.size())
+    lines = wrap(++first, ellipsis);
+  std::vector<std::string> text;
+  for (const auto& [begin, end] : lines)
+  {
+    text.emplace_back(text.empty() && first != 0 ? "..." : "");
+    text.back() += value.substr(glyphs[begin].begin, glyphs[end - 1].end - glyphs[begin].begin);
+  }
+  return text;
+}
+
 MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
                                            ::BigPicture::NavigationOptions options,
                                            const std::string& prompts, ImFont* font)
@@ -42,6 +110,14 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       return item.id == id && (item.enabled || page.busy);
     });
   };
+  // Clicking another category focuses its tab before this page closes. Coming back to the page
+  // (e.g. with the keyboard), focus returns to its rows, not to that tab.
+  if (m_current_page != page.id && std::ranges::any_of(page.toolbar, [&](const auto& item) {
+        return item.id == memory.item && item.id != "back" && !item.active;
+      }))
+  {
+    memory.item = row(memory.selected) != page.items.end() ? memory.selected : std::string{};
+  }
   const auto previous = memory.item;
   if (row(memory.item) == page.items.end() && !header_item(memory.item))
   {
@@ -244,8 +320,11 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
         ++start;
       visible_value = "..." + visible_value.substr(start);
     }
-    const auto value_size = ImGui::CalcTextSize(visible_value.c_str(), nullptr, false,
-                                                std::max(scale, value_width - 16 * scale));
+    const auto value_lines =
+        WrapSettingValue(visible_value, std::max(scale, value_width - 16 * scale));
+    ImVec2 value_size(0, ImGui::GetFontSize() * value_lines.size());
+    for (const auto& value_line : value_lines)
+      value_size.x = std::max(value_size.x, ImGui::CalcTextSize(value_line.c_str()).x);
     const float height =
         std::max({item.detail.empty() ? 48 * scale : 72 * scale,
                   title_size.y + (item.detail.empty() ? 0 : help_size.y + 6 * scale) + 22 * scale,
@@ -321,11 +400,14 @@ MenuResult NavigationToolkit::DrawSettings(const MenuPage& page,
       }
       else if (!item.value.empty())
       {
-        rows->AddText(
-            ImGui::GetFont(), ImGui::GetFontSize(),
-            ImVec2(max.x - 16 * scale - value_size.x, min.y + (height - value_size.y) * 0.5f),
-            ImGui::GetColorU32(value_color), visible_value.c_str(), nullptr,
-            std::max(scale, value_width - 16 * scale));
+        // Each line is right-aligned.
+        float y = min.y + (height - value_size.y) * 0.5f;
+        for (const auto& value_line : value_lines)
+        {
+          rows->AddText(ImVec2(max.x - 16 * scale - ImGui::CalcTextSize(value_line.c_str()).x, y),
+                        ImGui::GetColorU32(value_color), value_line.c_str());
+          y += ImGui::GetFontSize();
+        }
       }
       else if (item.active)
         DrawMenuIcon(rows, MenuIcon::Check,

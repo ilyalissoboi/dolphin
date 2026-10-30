@@ -115,6 +115,10 @@ bool HasEnabledItem(const std::vector<MenuItem>& items, std::string_view id);
 
 // Graphics-owner only. Stable page/item IDs retain focus and scroll across nested screens.
 // This layer returns item IDs; it never calls a frontend or emulator operation.
+// Lines of a setting value at most `width` wide in the current font: broken after path and word
+// separators, at most two, with the start of a value too long for them replaced by "...".
+std::vector<std::string> WrapSettingValue(std::string_view value, float width);
+
 class NavigationToolkit
 {
 public:

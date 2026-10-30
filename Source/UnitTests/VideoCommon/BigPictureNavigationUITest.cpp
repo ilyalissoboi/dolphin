@@ -488,6 +488,8 @@ TEST_F(BigPictureNavigationUITest, SettingsTabsStayFixedWhenRowsHaveNoOptions)
   page.toolbar = {{"back", "Back"}};
   for (int i = 0; i < 17; ++i)
     page.toolbar.push_back({"tab-" + std::to_string(i), "Category"});
+  // Focus restored to the open category's tab.
+  page.toolbar[4].active = true;
   toolkit.RestoreMemory(page.id, {"tab-3", 0, 0, "one"});
   Settle(page);
   ASSERT_EQ(toolkit.GetMemory(page.id).item, "tab-3");
@@ -637,6 +639,7 @@ TEST_F(BigPictureNavigationUITest, PointerAndKeyboardShareOneHighlightAndClicksH
   // only tab highlight.
   MenuPage tabs = page;
   tabs.id = "settings-one-highlight-tabs";
+  tabs.toolbar[2].active = true;
   toolkit.RestoreMemory(tabs.id, {"tab-1", 0, 0, "one"});
   Settle(tabs);
   Press(tabs, ImGuiKey_LeftShift);
@@ -706,6 +709,85 @@ TEST_F(BigPictureNavigationUITest, SettingsTabsMarkOneTabWithAnUnderlineAndNoHov
   EXPECT_NEAR(header_marks(), focused.Min.x + 10, 1);
   io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
   Frame(page);
+}
+
+TEST_F(BigPictureNavigationUITest, ACategoryClickedEarlierIsNotRestoredAsThePageFocus)
+{
+  const auto category = [](const std::string& id, int active) {
+    MenuPage page{id, id, {}, {{id + "-row", "Row"}}};
+    page.presentation = MenuPresentation::Settings;
+    page.toolbar = {{"back", "Back"}, {"tab-0", "Interface"}, {"tab-1", "Audio"}};
+    page.toolbar[active + 1].active = true;
+    return page;
+  };
+  auto interface = category("interface", 0);
+  auto audio = category("audio", 1);
+  Settle(interface);
+
+  // Click the Audio tab: the click focuses that tab on the Interface page before it closes.
+  Press(interface, ImGuiKey_UpArrow);
+  const auto tab = ImGui::WindowRectRelToAbs(GImGui->NavWindow,
+                                             GImGui->NavWindow->NavRectRel[ImGuiNavLayer_Main]);
+  auto& io = ImGui::GetIO();
+  const ImVec2 audio_tab(1280 - 8 - 56 * 0.5f, tab.GetCenter().y);
+  io.AddMousePosEvent(audio_tab.x, audio_tab.y);
+  Frame(interface);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+  Frame(interface);
+  io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+  std::string activated;
+  for (int i = 0; i < 2 && activated.empty(); ++i)
+    activated = Frame(interface).activated.value_or("");
+  ASSERT_EQ(activated, "tab-1");
+  ASSERT_EQ(toolkit.GetMemory(interface.id).item, "tab-1");
+  Settle(audio);
+
+  // Changing category with the keyboard returns to the Interface page's rows, so the only tab
+  // marked is the open category.
+  EXPECT_EQ(Press(audio, ImGuiKey_LeftArrow).activated, "tab-0");
+  Settle(interface);
+  EXPECT_EQ(toolkit.GetMemory(interface.id).item, "interface-row");
+  io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+}
+
+TEST_F(BigPictureNavigationUITest, SettingValuesWrapAfterSeparatorsAndKeepTheirEnd)
+{
+  ImGui::NewFrame();
+  const auto width = [](const std::string& text) { return ImGui::CalcTextSize(text.c_str()).x; };
+  const auto joined = [](const std::vector<std::string>& lines) {
+    std::string text;
+    for (const auto& line : lines)
+      text += line;
+    return text;
+  };
+  const std::string preset = "lola-retro/flat/consumer-tv-composite";
+  const float narrow = width("consumer-tv-composite") + 1;
+  auto lines = WrapSettingValue(preset, narrow);
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_EQ(joined(lines), preset);
+  EXPECT_TRUE(lines[0].ends_with('/') || lines[0].ends_with('-')) << lines[0];
+  for (const auto& line : lines)
+    EXPECT_LE(width(line), narrow) << line;
+
+  // A value that fits stays on one line.
+  EXPECT_EQ(WrapSettingValue(preset, width(preset) + 1), std::vector{preset});
+
+  // Too long for two lines: the start is dropped and the end kept.
+  const std::string path = "C:/Users/someone/Documents/Dolphin Emulator/Shaders/presets/"
+                           "crt/guest-advanced/crt-guest-advanced-ntsc.slangp";
+  const float small = width("crt-guest-advanced-ntsc.slangp") + 4;
+  lines = WrapSettingValue(path, small);
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_TRUE(lines[0].starts_with("...")) << lines[0];
+  EXPECT_TRUE(lines[1].ends_with("crt-guest-advanced-ntsc.slangp")) << lines[1];
+  for (const auto& line : lines)
+    EXPECT_LE(width(line), small) << line;
+
+  // A long word without separators still breaks where it must.
+  lines = WrapSettingValue(std::string(40, 'w'), width(std::string(25, 'w')));
+  ASSERT_EQ(lines.size(), 2u);
+  EXPECT_EQ(joined(lines), std::string(40, 'w'));
+  ImGui::EndFrame();
 }
 
 TEST_F(BigPictureNavigationUITest, OpeningAPageShowsFocusOnlyAfterKeyboardOrGamepadInput)
