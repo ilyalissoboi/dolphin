@@ -27,6 +27,9 @@ public:
   explicit Controller(Host& host);
 
   void Submit(const Command& command);
+  // Completes a pending command that the host dispatched and finishes asynchronously. Results for
+  // a command that is no longer pending (stale, superseded or invalidated) are ignored.
+  void Complete(std::uint64_t command_id, Result result);
   void Refresh();
   // Called before every external boot, even if state notifications coalesce. Stop completion
   // is observed by Refresh. This invalidates commands from a previous emulation/graphics session.

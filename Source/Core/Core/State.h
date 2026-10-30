@@ -136,4 +136,34 @@ void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback);
 // Invoked on the save worker after writing the state and its optional preview finishes.
 // Callbacks must queue UI work rather than reading slots while the save task holds its lock.
 [[nodiscard]] Common::EventHook AddAfterSaveCallback(std::function<void()> callback);
+
+struct OperationResult
+{
+  enum class Kind
+  {
+    Save,
+    Load
+  };
+  enum class Error
+  {
+    None,
+    // Loading is disabled (NetPlay or RetroAchievements hardcore mode).
+    NotAllowed,
+    // The emulated system could not be serialized.
+    Capture,
+    // The state file could not be written or moved into place.
+    Write,
+    // The state file is missing or unreadable.
+    Unreadable,
+    // The state was read but could not be applied; the previous state was restored.
+    Incompatible
+  };
+  Kind kind = Kind::Save;
+  std::string filename;
+  Error error = Error::None;
+};
+// Reports the outcome of every save to or load from a state file, including continuations, on
+// the thread that finishes it (the CPU or savestate worker thread). Callbacks must queue UI work.
+[[nodiscard]] Common::EventHook
+AddResultCallback(std::function<void(const OperationResult&)> callback);
 }  // namespace State

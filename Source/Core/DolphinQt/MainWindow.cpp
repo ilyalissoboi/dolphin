@@ -30,6 +30,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <chrono>
 #include <future>
 #include <optional>
 #include <set>
@@ -993,6 +994,7 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
     if (State::GetSlotInfo(command.slot).exists && command.confirmation_id != command.id)
       return {command, ResultStatus::Failed, BigPicture::UnavailableReason::None,
               tr("This slot changed. Refresh the slots and confirm the overwrite.").toStdString()};
+    BeginBigPictureStateRequest(command.id, true, command.slot);
     StateSaveSlotAt(command.slot);
     break;
   case Action::LoadState:
@@ -1000,6 +1002,7 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
       return {command, ResultStatus::Failed, BigPicture::UnavailableReason::EmptySlot,
               tr("This slot is empty or unreadable. Refresh the slots and choose another.")
                   .toStdString()};
+    BeginBigPictureStateRequest(command.id, false, command.slot);
     StateLoadSlotAt(command.slot);
     break;
   case Action::RefreshStates:
@@ -1019,13 +1022,7 @@ BigPicture::Result MainWindow::ExecuteBigPictureCommand(const BigPicture::Comman
     const auto& game_id = game->GetGameID();
     if (command.action == Action::GameStates)
     {
-      for (std::size_t slot = 0; slot < m_big_picture_state_slots.size(); ++slot)
-      {
-        const auto info = State::GetSlotInfo(game_id, static_cast<u32>(slot + 1));
-        m_big_picture_state_slots[slot] = {info.exists, info.readable, info.description,
-                                           info.preview};
-      }
-      m_big_picture_state_slots_ready = true;
+      RequestBigPictureStateSlots(game_id);
       return {command, ResultStatus::Succeeded};
     }
     if (command.action == Action::BootState)
@@ -1129,6 +1126,8 @@ MainWindow::~MainWindow()
 {
   m_shutting_down = true;
   m_state_save_hook.reset();
+  m_state_result_hook.reset();
+  m_state_slot_worker.StopAndCancel();
   m_library_timer->stop();
   delete m_big_picture_library;
   m_big_picture_library = nullptr;
@@ -1401,6 +1400,8 @@ void MainWindow::InitControllers()
   menu_text.exit_and_save = tr("Exit and Save State").toStdString();
   menu_text.exit_without_saving = tr("Exit Without Saving").toStdString();
   menu_text.game_options = tr("Game Options").toStdString();
+  menu_text.state_saved = tr("Saved").toStdString();
+  menu_text.state_loaded = tr("Loaded").toStdString();
   menu_text.confirm_reset_play_time =
       tr("Reset the play time for this game? This cannot be undone.").toStdString();
   menu_text.actions[static_cast<std::size_t>(BigPicture::Action::GameOptions)] =
@@ -1887,12 +1888,69 @@ void MainWindow::RefreshBigPictureStateSlots()
   static_assert(BigPicture::STATE_SLOT_COUNT == State::NUM_STATES);
   if (!Core::IsRunning(m_system))
     return;
-  for (std::size_t slot = 0; slot < m_big_picture_state_slots.size(); ++slot)
+  RequestBigPictureStateSlots(SConfig::GetInstance().GetGameID());
+}
+
+void MainWindow::RequestBigPictureStateSlots(std::string game_id)
+{
+  m_big_picture_state_slots_ready = false;
+  m_state_slot_worker.Push({++m_big_picture_state_slots_revision, std::move(game_id)});
+}
+
+void MainWindow::ClearBigPictureStateSlots()
+{
+  // Drops any read still in flight for the previous game.
+  ++m_big_picture_state_slots_revision;
+  m_big_picture_state_slots_ready = false;
+  m_big_picture_state_slots = {};
+}
+
+void MainWindow::BeginBigPictureStateRequest(std::uint64_t command_id, bool save, int slot)
+{
+  m_big_picture_state_request = {
+      command_id, save,
+      State::GetSlotPath(SConfig::GetInstance().GetGameID(), static_cast<u32>(slot))};
+  // A result that never arrives must not leave the menu busy.
+  QTimer::singleShot(std::chrono::seconds(30), this, [this, command_id] {
+    if (!m_big_picture_state_request || m_big_picture_state_request->command_id != command_id)
+      return;
+    m_big_picture_state_request.reset();
+    m_big_picture_host->CompleteCommand(
+        command_id, BigPicture::ResultStatus::Failed,
+        tr("Dolphin did not report whether the save state operation finished. Check the slot "
+           "before relying on it.")
+            .toStdString());
+  });
+}
+
+void MainWindow::OnBigPictureStateResult(const State::OperationResult& result)
+{
+  using Error = State::OperationResult::Error;
+  if (m_shutting_down || !m_big_picture_state_request)
+    return;
+  const auto request = *m_big_picture_state_request;
+  if ((result.kind == State::OperationResult::Kind::Save) != request.save ||
+      result.filename != request.filename)
+    return;
+  m_big_picture_state_request.reset();
+  if (result.error == Error::None)
   {
-    const auto info = State::GetSlotInfo(static_cast<u32>(slot + 1));
-    m_big_picture_state_slots[slot] = {info.exists, info.readable, info.description, info.preview};
+    m_big_picture_host->CompleteCommand(request.command_id, BigPicture::ResultStatus::Succeeded);
+    return;
   }
-  m_big_picture_state_slots_ready = true;
+  const QString message =
+      result.error == Error::NotAllowed ?
+          tr("Loading save states is unavailable during NetPlay or in hardcore mode.") :
+      result.error == Error::Capture ?
+          tr("The game state could not be captured, so nothing was saved.") :
+      result.error == Error::Write ?
+          tr("The save state file could not be written.") :
+      result.error == Error::Unreadable ?
+          tr("The save state file could not be read.") :
+          tr("The save state could not be loaded, so the game was restored. It may come from "
+             "another game or Dolphin version.");
+  m_big_picture_host->CompleteCommand(request.command_id, BigPicture::ResultStatus::Failed,
+                                      message.toStdString());
 }
 
 void MainWindow::ShowBigPictureTextInput(std::uint64_t generation)
@@ -2175,6 +2233,25 @@ void MainWindow::ConnectHost()
 
 void MainWindow::ConnectStack()
 {
+  m_state_result_hook = State::AddResultCallback([this](const State::OperationResult& result) {
+    QueueOnObject(this, [this, result] { OnBigPictureStateResult(result); });
+  });
+  m_state_slot_worker.Reset("BigPictureStateSlots", [this](StateSlotJob job) {
+    // Not "slots": Qt defines it as a keyword macro.
+    std::array<BigPicture::StateSlot, BigPicture::STATE_SLOT_COUNT> read;
+    for (std::size_t slot = 0; slot < read.size(); ++slot)
+    {
+      const auto info = State::GetSlotInfo(job.game_id, static_cast<u32>(slot + 1));
+      read[slot] = {info.exists, info.readable, info.description, info.preview};
+    }
+    QueueOnObject(this, [this, revision = job.revision, read = std::move(read)] {
+      if (m_shutting_down || revision != m_big_picture_state_slots_revision)
+        return;
+      m_big_picture_state_slots = read;
+      m_big_picture_state_slots_ready = true;
+      m_big_picture_host->Refresh();
+    });
+  });
   m_state_save_hook = State::AddAfterSaveCallback([this] {
     QueueOnObject(this, [this] {
       if (m_shutting_down || !Core::IsRunning(m_system))
@@ -2415,8 +2492,7 @@ void MainWindow::OnStopComplete()
 {
   m_continuation_path.clear();
   m_big_picture_achievements.Clear();
-  m_big_picture_state_slots_ready = false;
-  m_big_picture_state_slots = {};
+  ClearBigPictureStateSlots();
   m_big_picture_play_timer.invalidate();
   m_big_picture_session_ms = 0;
   m_big_picture_previous_play_ms = 0;
@@ -2943,8 +3019,7 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters, bool co
 
   // Boot up, show an error if it fails to load the game.
   m_continuation_path = parameters ? ContinuationPathForBoot(*parameters) : std::string{};
-  m_big_picture_state_slots_ready = false;
-  m_big_picture_state_slots = {};
+  ClearBigPictureStateSlots();
   m_big_picture_disc_game =
       parameters && std::holds_alternative<BootParameters::Disc>(parameters->parameters);
   m_big_picture_disc_path = m_big_picture_disc_game ?

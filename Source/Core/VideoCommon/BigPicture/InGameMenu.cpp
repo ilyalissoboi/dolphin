@@ -427,6 +427,17 @@ InGameMenu BuildInGameMenu(const ::BigPicture::Snapshot& snapshot,
     if (!detail.empty())
       page.description += "\n" + detail;
   }
+  else if (snapshot.result && snapshot.result->status == ResultStatus::Succeeded &&
+           (snapshot.result->command.action == Action::SaveState ||
+            snapshot.result->command.action == Action::LoadState) &&
+           snapshot.result->command.slot >= 1 &&
+           snapshot.result->command.slot <= static_cast<int>(STATE_SLOT_COUNT))
+  {
+    // The core reported completion; name the slot rather than pointing at the on-screen message.
+    page.description += "\n" + text.slot_labels[snapshot.result->command.slot - 1] + ": " +
+                        (snapshot.result->command.action == Action::SaveState ? text.state_saved :
+                                                                                text.state_loaded);
+  }
   if (snapshot.pending)
   {
     menu.requests.clear();

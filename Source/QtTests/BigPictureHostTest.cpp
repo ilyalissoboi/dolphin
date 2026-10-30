@@ -116,7 +116,11 @@ TEST(BigPictureHostTest, WorkerCommandsExecuteOnlyOnQtOwnerAndSnapshotsStayValid
   EXPECT_EQ(calls, 1);
   EXPECT_FALSE(old->result);
   ASSERT_TRUE(host.GetSnapshot()->result);
-  EXPECT_EQ(host.GetSnapshot()->result->status, ResultStatus::Dispatched);
+  // A save stays pending until the core reports its outcome to the host.
+  EXPECT_EQ(host.GetSnapshot()->result->status, ResultStatus::Pending);
+  host.CompleteCommand(1, ResultStatus::Succeeded);
+  EXPECT_FALSE(host.GetSnapshot()->pending);
+  EXPECT_EQ(host.GetSnapshot()->result->status, ResultStatus::Succeeded);
 }
 
 TEST(BigPictureHostTest, SessionChangeAndPolicyChangeAreCheckedAfterQueueing)
@@ -365,6 +369,8 @@ TEST(BigPictureHostTest, LoadInvalidatesImplicitResumeButExplicitResumeRemainsAv
   QCoreApplication::processEvents();
   host.RequestAction(generation, Action::LoadState, {}, 1);
   QCoreApplication::processEvents();
+  ASSERT_TRUE(host.GetSnapshot()->pending);
+  host.CompleteCommand(host.GetSnapshot()->pending->id, ResultStatus::Succeeded);
   host.RequestBack();
   QCoreApplication::processEvents();
   host.RequestBack();

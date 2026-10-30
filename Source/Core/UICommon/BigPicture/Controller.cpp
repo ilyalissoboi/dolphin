@@ -232,6 +232,15 @@ void Controller::InvalidatePresentation()
   Publish();
 }
 
+void Controller::Complete(std::uint64_t command_id, Result result)
+{
+  if (!m_state.pending || m_state.pending->id != command_id)
+    return;
+  result.command = *m_state.pending;
+  Finish(std::move(result));
+  Publish();
+}
+
 void Controller::Refresh()
 {
   if (m_dispatching)
@@ -304,10 +313,11 @@ void Controller::Dispatch(const Command& command)
   m_dispatching = true;
   Result result = m_host.Execute(command);
   m_dispatching = false;
-  // Boot/stop acknowledgments are not completion. State I/O currently has void APIs; keep
-  // their honest Dispatched status until core completion reporting is implemented in slice 10.
+  // Boot/stop acknowledgments are not completion; neither are queued state saves and loads,
+  // which the host completes when the core reports their outcome.
   if (result.status == ResultStatus::Dispatched &&
-      (IsBootAction(command.action) || IsStopAction(command.action)))
+      (IsBootAction(command.action) || IsStopAction(command.action) ||
+       command.action == Action::SaveState || command.action == Action::LoadState))
   {
     result.status = ResultStatus::Pending;
     m_state.result = result;

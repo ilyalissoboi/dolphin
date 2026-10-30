@@ -16,6 +16,7 @@
 
 #include "Common/BigPicture/Contracts.h"
 #include "Common/HookableEvent.h"
+#include "Common/WorkQueueThread.h"
 #include "DolphinQt/BigPictureAchievements.h"
 #include "DolphinQt/BigPictureGraphicsConfig.h"
 #include "DolphinQt/BigPictureSettings.h"
@@ -31,6 +32,11 @@ class QMenu;
 class QStackedWidget;
 class QString;
 class QTimer;
+
+namespace State
+{
+struct OperationResult;
+}
 
 class AchievementsWindow;
 class AssemblerWidget;
@@ -178,6 +184,13 @@ private:
 
   void InitCoreCallbacks();
   void RefreshBigPictureStateSlots();
+  // Reads a game's slot headers and previews off the UI thread; the browser shows its loading
+  // text until they arrive.
+  void RequestBigPictureStateSlots(std::string game_id);
+  void ClearBigPictureStateSlots();
+  // Big Picture save and load commands stay pending until the core reports their outcome.
+  void BeginBigPictureStateRequest(std::uint64_t command_id, bool save, int slot);
+  void OnBigPictureStateResult(const State::OperationResult& result);
   void RefreshBigPictureLibrary();
   void PrepareBigPictureSurface();
   bool LeaveBigPictureForDesktop(std::uint64_t generation);
@@ -301,6 +314,21 @@ private:
   std::array<BigPicture::StateSlot, BigPicture::STATE_SLOT_COUNT> m_big_picture_state_slots;
   bool m_big_picture_state_slots_ready = false;
   Common::EventHook m_state_save_hook;
+  Common::EventHook m_state_result_hook;
+  struct StateSlotJob
+  {
+    std::uint64_t revision = 0;
+    std::string game_id;
+  };
+  std::uint64_t m_big_picture_state_slots_revision = 0;
+  Common::WorkQueueThread<StateSlotJob> m_state_slot_worker;
+  struct BigPictureStateRequest
+  {
+    std::uint64_t command_id = 0;
+    bool save = false;
+    std::string filename;
+  };
+  std::optional<BigPictureStateRequest> m_big_picture_state_request;
   bool m_big_picture_disc_game = false;
   std::string m_big_picture_disc_path;
   QElapsedTimer m_big_picture_play_timer;
