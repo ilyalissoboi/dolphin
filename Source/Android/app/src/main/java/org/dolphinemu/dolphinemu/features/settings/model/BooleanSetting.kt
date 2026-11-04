@@ -965,6 +965,12 @@ enum class BooleanSetting(
         "OfflineQueueEnabled",
         true
     ),
+    ACHIEVEMENTS_SOUND_ENABLED(
+        Settings.FILE_ACHIEVEMENTS,
+        Settings.SECTION_ACHIEVEMENTS,
+        "SoundFeedback",
+        true
+    ),
     NETPLAY_USE_UPNP(Settings.FILE_DOLPHIN, Settings.SECTION_INI_NETPLAY, "UseUPNP", false),
     NETPLAY_SKIP_DUAL_CORE_WARNING(Settings.FILE_DOLPHIN, Settings.SECTION_INI_NETPLAY, "SkipDualCoreWarning", false);
 

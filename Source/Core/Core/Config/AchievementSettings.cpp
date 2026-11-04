@@ -30,6 +30,7 @@ const Info<bool> RA_PROGRESS_ENABLED{{System::Achievements, "Achievements", "Pro
                                      false};
 const Info<bool> RA_OFFLINE_QUEUE_ENABLED{
     {System::Achievements, "Achievements", "OfflineQueueEnabled"}, true};
+const Info<bool> RA_SOUND_ENABLED{{System::Achievements, "Achievements", "SoundFeedback"}, true};
 }  // namespace Config
 
 #endif  // USE_RETRO_ACHIEVEMENTS
