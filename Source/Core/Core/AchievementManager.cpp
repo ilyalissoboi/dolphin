@@ -99,6 +99,7 @@ void AchievementManager::Init(void* hwnd)
     m_image_queue.Reset("AchievementManagerImageQueue");
     m_submission_worker.Reset("AchievementSubmissionQueue");
     m_flush_in_progress = false;
+    m_submission_cancelled = false;
     m_login_deferred = false;
 
 #ifdef RC_CLIENT_SUPPORTS_RAINTEGRATION
@@ -842,7 +843,9 @@ void AchievementManager::Shutdown()
   {
     CloseGame();
     m_queue.Shutdown();
-    // Unsent entries stay on disk; the next Init picks them up again.
+    // Unsent entries stay on disk; the next Init picks them up again. Signal first so a running
+    // batch stops after its current request instead of working through the whole backlog.
+    m_submission_cancelled = true;
     m_submission_worker.Cancel();
     m_submission_worker.Shutdown();
     Config::RemoveConfigChangedCallback(m_config_changed_callback_id);
@@ -1524,7 +1527,7 @@ void AchievementManager::SubmitDeferredBatch()
 
   for (const AchievementSubmissionQueue::Entry& entry : entries)
   {
-    if (!m_network_available)
+    if (!m_network_available || m_submission_cancelled)
     {
       stopped_early = true;
       break;

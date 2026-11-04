@@ -308,6 +308,8 @@ private:
   Common::AsyncWorkThread m_submission_worker;
   std::atomic_bool m_network_available = true;
   std::atomic_bool m_flush_in_progress = false;
+  // Set by Shutdown so a running batch stops after its current request.
+  std::atomic_bool m_submission_cancelled = false;
   // Set when a token login failed only because the server could not be reached.
   std::atomic_bool m_login_deferred = false;
   mutable std::recursive_mutex m_lock;
