@@ -959,6 +959,12 @@ enum class BooleanSetting(
         "ProgressEnabled",
         false
     ),
+    ACHIEVEMENTS_OFFLINE_QUEUE_ENABLED(
+        Settings.FILE_ACHIEVEMENTS,
+        Settings.SECTION_ACHIEVEMENTS,
+        "OfflineQueueEnabled",
+        true
+    ),
     NETPLAY_USE_UPNP(Settings.FILE_DOLPHIN, Settings.SECTION_INI_NETPLAY, "UseUPNP", false),
     NETPLAY_SKIP_DUAL_CORE_WARNING(Settings.FILE_DOLPHIN, Settings.SECTION_INI_NETPLAY, "SkipDualCoreWarning", false);
 

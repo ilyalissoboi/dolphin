@@ -1295,6 +1295,23 @@ class SettingsFragmentPresenter(
                     0
                 )
             )
+            val pendingSubmissions = AchievementModel.getDeferredSubmissionCount()
+            var offlineQueueDescription: CharSequence =
+                context.getString(R.string.achievements_offline_queue_enabled_description)
+            if (pendingSubmissions > 0) {
+                offlineQueueDescription = context.getString(
+                    R.string.achievements_offline_queue_pending,
+                    offlineQueueDescription,
+                    pendingSubmissions
+                )
+            }
+            sl.add(
+                SwitchSetting(
+                    BooleanSetting.ACHIEVEMENTS_OFFLINE_QUEUE_ENABLED,
+                    context.getString(R.string.achievements_offline_queue_enabled),
+                    offlineQueueDescription
+                )
+            )
         }
     }
 

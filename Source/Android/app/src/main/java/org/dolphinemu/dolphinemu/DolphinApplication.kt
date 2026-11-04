@@ -9,6 +9,7 @@ import android.hardware.usb.UsbManager
 import androidx.lifecycle.Observer
 import org.dolphinemu.dolphinemu.features.memcardsync.MemcardSync
 import org.dolphinemu.dolphinemu.utils.ActivityTracker
+import org.dolphinemu.dolphinemu.utils.ConnectivityMonitor
 import org.dolphinemu.dolphinemu.utils.DirectoryInitialization
 import org.dolphinemu.dolphinemu.utils.GCAdapter
 import org.dolphinemu.dolphinemu.utils.WiimoteAdapter
@@ -21,6 +22,7 @@ class DolphinApplication : Application() {
         instance = this
         registerActivityLifecycleCallbacks(activityTracker)
         System.loadLibrary("main")
+        ConnectivityMonitor.start(this)
 
         val usbManager = getSystemService(USB_SERVICE) as UsbManager
         GCAdapter.manager = usbManager
