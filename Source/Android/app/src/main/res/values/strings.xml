@@ -1059,6 +1059,9 @@ It can efficiently compress both junk data and encrypted Wii data.
     <string name="achievements_leaderboard_tracker_enabled">Show Leaderboard Tracker</string>
     <string name="achievements_challenge_indicators_enabled">Show Challenge Indicators</string>
     <string name="achievements_progress_enabled">Enable Progress Notifications</string>
+    <string name="achievements_offline_queue_enabled">Queue Submissions While Offline</string>
+    <string name="achievements_offline_queue_enabled_description">Saves achievement unlocks and leaderboard entries earned without a network connection, and submits them together once the connection returns. Saved submissions are kept even if you close the game or the app.</string>
+    <string name="achievements_offline_queue_pending">%1$s\n\nWaiting to be submitted: %2$d</string>
     <string name="achievements_username">Username</string>
     <string name="achievements_password">Password</string>
     <string name="achievements_login">Log In</string>

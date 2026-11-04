@@ -72,3 +72,22 @@ previous fork releases and remain in its history.
 - Covers are kept across play-time, title, tag and scan updates and are reloaded only when a
   game's artwork changes or a game leaves and returns to the library. The cover caches hold
   64 covers, with a 64 MiB limit for decoded artwork.
+
+## RetroAchievements offline queue (Android)
+
+- **Settings → RetroAchievements → Queue Submissions While Offline** (on by default) saves
+  achievement unlocks and leaderboard entries earned without a connection, and submits them
+  together once the connection returns. The setting shows how many are waiting.
+- Saved submissions are kept in `Config/RetroAchievementsDeferred.json` until the server accepts
+  or refuses them, so closing the game or the app no longer loses them. They are resent with
+  the original unlock time; API tokens are never written to the file.
+- Submissions are queued as soon as Android reports no network, or when a request gets no
+  response at all. They are sent when Android reports a connection, after logging in, and after
+  any successful contact with the server.
+- Starting Dolphin offline no longer logs you out of RetroAchievements: a login that fails
+  because the server can't be reached keeps the saved token and retries when the network
+  returns. Achievement data still has to be downloaded once per game session, so a game started
+  offline has no achievements until it is restarted online.
+- The queue lives in the shared core, so desktop builds use it too, controlled by
+  `OfflineQueueEnabled` in `RetroAchievements.ini` (no desktop UI yet). Without a connectivity
+  signal there, only requests that get no response are queued.
