@@ -170,6 +170,17 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" "build-tools;$BUILD_TOOLS_VERSION" > /dev/null
 
+      - name: Download Gradle
+        working-directory: Source/Android
+        run: |
+          # The wrapper gives up on a slow download after 10 seconds; retry before failing the job.
+          for attempt in 1 2 3 4 5; do
+            ./gradlew --no-daemon --version && exit 0
+            echo "::warning::Gradle download attempt $attempt failed"
+            sleep $((attempt * 15))
+          done
+          exit 1
+
       - name: Build and test
         working-directory: Source/Android
         run: |
