@@ -22,12 +22,14 @@ cert_of() { sed -n 's/.*certificate SHA-256 digest: \([0-9a-f]*\).*/\1/p' "$1" |
 cert=$(cert_of "$OUT_DIR/android-signature.txt")
 test -n "$cert"
 
-# Package name, version name and versionCode (first-parent commit count * 2, plus 1 off a tag),
-# computed the way Source/Android/app/build.gradle.kts does.
+# Package name, version name and versionCode (first-parent commit count * 2, plus 1 unless an
+# annotated tag is on HEAD), computed the way getBuildVersionCode() in
+# Source/Android/app/build.gradle.kts does. That depends on the checkout, not on the workflow
+# event, so a manual run on a tagged commit expects the release versionCode too.
 "$BUILD_TOOLS/aapt2" dump badging "$output" > "$OUT_DIR/android-metadata.txt"
 badging=$(head -n 1 "$OUT_DIR/android-metadata.txt")
 version_code=$(( $(git rev-list --first-parent --count HEAD) * 2 ))
-$IS_RELEASE || version_code=$(( version_code + 1 ))
+git describe --exact-match HEAD > /dev/null 2>&1 || version_code=$(( version_code + 1 ))
 for expected in "name='org.dolphinemu.dolphinemu'" "versionCode='$version_code'" "versionName='$VERSION'"; do
   if [[ "$badging" != *"$expected"* ]]; then
     echo "::error::APK metadata lacks $expected: $badging"
