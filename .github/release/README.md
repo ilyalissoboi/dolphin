@@ -38,8 +38,8 @@ A re-run only updates a release that is still a draft.
   and invalid options exit with status 2. The file set is compared with the previous release's
   zip; differences are reported in the notes but do not fail the build.
 - **macOS:** the ad-hoc signature and the JIT and library-validation entitlements are checked. The
-  `--version` and invalid-option checks match Windows. librashader, emusync and MoltenVK must be
-  bundled. No bundled Mach-O may load from `/opt/homebrew` or `/usr/local`. MoltenVK is the
+  `--version` and invalid-option checks match Windows. librashader, emusync, MoltenVK and
+  Homebrew's FFmpeg (for frame dumping) must be bundled. No bundled Mach-O may load from `/opt/homebrew` or `/usr/local`. MoltenVK is the
   upstream `v1.4.1` release, checked against its SHA-256.
 - **Android:** the JVM unit tests pass. The APK is zip-aligned (16 KB pages) and signed with v2
   only. The signing certificate must match the previous release, and the versionCode must be
