@@ -32,6 +32,14 @@ fi
 for lib in librashader.dylib libemusync.dylib libMoltenVK.dylib; do
   test -f "$app/Contents/Frameworks/$lib" || { echo "::error::$lib is missing from the bundle"; exit 1; }
 done
+# FFmpeg (frame dumping) is found by CMake only if installed, so check it was bundled. Its file
+# names carry the library version.
+for lib in avcodec avformat avutil swresample swscale; do
+  if ! compgen -G "$app/Contents/Frameworks/lib$lib.*.dylib" > /dev/null; then
+    echo "::error::FFmpeg's lib$lib is missing from the bundle"
+    exit 1
+  fi
+done
 
 # Every Mach-O in the bundle must load only system libraries and bundled ones.
 find "$app" -type f -exec sh -c 'file "$1" | grep -q Mach-O && { echo "== $1"; otool -L "$1"; } || true' sh {} \; \
@@ -47,7 +55,7 @@ ditto -c -k --sequesterRsrc --keepParent "$app" "$OUT_DIR/$package.zip"
 hash=$(shasum -a 256 "$OUT_DIR/$package.zip" | cut -d' ' -f1)
 
 cat > "$OUT_DIR/verify-macos.md" <<EOF
-- **macOS build:** native Apple Silicon Release build (Xcode $(xcodebuild -version | head -n 1 | cut -d' ' -f2), Qt $(brew list --versions qt | cut -d' ' -f2), MoltenVK ${MOLTENVK_VERSION:-unknown}). The ad-hoc bundle signature and the required JIT and library-loading entitlements were verified. All $macho_count bundled Mach-O binaries were checked for external load dependencies, and the bundled librashader, emusync and MoltenVK libraries are present. \`--version\` prints \`Dolphin $VERSION\` and exits with status 0; invalid command-line options exit with status 2.
+- **macOS build:** native Apple Silicon Release build (Xcode $(xcodebuild -version | head -n 1 | cut -d' ' -f2), Qt $(brew list --versions qt | cut -d' ' -f2), FFmpeg $(brew list --versions ffmpeg | cut -d' ' -f2), MoltenVK ${MOLTENVK_VERSION:-unknown}). The ad-hoc bundle signature and the required JIT and library-loading entitlements were verified. All $macho_count bundled Mach-O binaries were checked for external load dependencies, and the bundled librashader, emusync, MoltenVK and FFmpeg libraries are present. \`--version\` prints \`Dolphin $VERSION\` and exits with status 0; invalid command-line options exit with status 2.
 EOF
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then

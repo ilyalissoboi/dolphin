@@ -105,7 +105,8 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          brew install qt gettext ninja
+          # FFmpeg is optional to CMake; without it the bundle silently lacks frame dumping.
+          brew install qt gettext ninja ffmpeg
           mkdir -p "$RUNNER_TEMP/moltenvk"
           curl -fsSL -o "$RUNNER_TEMP/moltenvk/MoltenVK-macos.tar" \
             "https://github.com/KhronosGroup/MoltenVK/releases/download/$MOLTENVK_VERSION/MoltenVK-macos.tar"
